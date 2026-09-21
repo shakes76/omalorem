@@ -14,6 +14,9 @@ Item {
 
     WebChannel {
         id: channel
+        // Property changes reach the page in batches; the default 50 ms
+        // makes scroll sync visibly step. One frame is enough.
+        propertyUpdateInterval: 16
     }
 
     // No storage name, so the profile is off the record: no cookies, cache

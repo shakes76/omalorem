@@ -260,6 +260,75 @@
     const stats = { lastRender: null, renders: 0 };
     window.omaviewPreview = stats;
 
+    // Scroll sync (editor → preview). The page-y of a fractional source
+    // line: inside a block, the same fraction of the way through its lines;
+    // between blocks (blank lines), the same fraction of the gap.
+    function positionOfLine(line) {
+        const nodes = content().children;
+        if (!nodes.length)
+            return 0;
+        // The last block that starts at or before the line.
+        let low = 0;
+        let high = nodes.length - 1;
+        while (low < high) {
+            const middle = (low + high + 1) >> 1;
+            if (Number(nodes[middle].dataset.sourceLine) <= line)
+                low = middle;
+            else
+                high = middle - 1;
+        }
+        const node = nodes[low];
+        const start = Number(node.dataset.sourceLine);
+        const end = Number(node.dataset.sourceLineEnd);
+        const box = node.getBoundingClientRect();
+        const offset = document.scrollingElement.scrollTop;
+        if (line < start)
+            return 0;
+        if (line < end)
+            return offset + box.top + (line - start) / Math.max(1, end - start) * box.height;
+        const next = nodes[low + 1];
+        if (!next)
+            return offset + box.bottom;
+        const nextStart = Number(next.dataset.sourceLine);
+        const nextTop = next.getBoundingClientRect().top;
+        const gap = (line - end) / Math.max(1, nextStart - end);
+        return offset + box.bottom + Math.min(1, gap) * (nextTop - box.bottom);
+    }
+
+    // The preview follows the editor until the reader scrolls the preview
+    // themselves, and again as soon as the editor scrolls. While following,
+    // anything that moves the layout (a render, a resize, fonts arriving)
+    // re-applies the sync; otherwise the page stays where the reader put it.
+    let following = true;
+
+    function applySourceLine() {
+        const margin = parseFloat(getComputedStyle(content()).paddingTop) || 0;
+        document.scrollingElement.scrollTop =
+            Math.max(0, positionOfLine(bridge.sourceLine || 0) - margin);
+    }
+
+    function followEditor() {
+        following = true;
+        applySourceLine();
+    }
+
+    function resync() {
+        if (following && bridge)
+            applySourceLine();
+    }
+
+    const stopFollowing = () => { following = false; };
+    const scrollKeys = ["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "];
+    document.addEventListener("wheel", stopFollowing, { passive: true });
+    document.addEventListener("touchstart", stopFollowing, { passive: true });
+    document.addEventListener("pointerdown", stopFollowing);
+    document.addEventListener("keydown", (event) => {
+        if (scrollKeys.includes(event.key))
+            stopFollowing();
+    });
+    window.addEventListener("resize", resync);
+    document.fonts.addEventListener("loadingdone", resync);
+
     function render() {
         const started = performance.now();
         const scroller = document.scrollingElement;
@@ -270,7 +339,10 @@
         const container = content();
         const blocks = renderBlocks(bridge.markdown, { baseUrl: bridge.baseUrl });
         const result = patch(container, blocks);
-        scroller.scrollTop = scrollTop;
+        if (following)
+            applySourceLine();
+        else
+            scroller.scrollTop = scrollTop;
         // Reading layout here makes the timing include it, as the budget does.
         void container.offsetHeight;
         result.ms = performance.now() - started;
@@ -307,8 +379,11 @@
         const href = link.getAttribute("href");
         if (href.startsWith("#")) {
             const target = document.getElementById(decodeURIComponent(href.slice(1)));
-            if (target)
+            if (target) {
+                // The reader moved the preview; don't pull it back.
+                stopFollowing();
                 target.scrollIntoView();
+            }
             return;
         }
         if (event.type === "click" && bridge)
@@ -326,6 +401,7 @@
             applyFontFamily();
             render();
             bridge.markdownChanged.connect(render);
+            bridge.sourceLineChanged.connect(followEditor);
             bridge.baseUrlChanged.connect(render);
             bridge.themeChanged.connect(applyTheme);
             bridge.textScaleChanged.connect(applyTextScale);

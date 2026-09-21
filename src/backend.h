@@ -67,6 +67,9 @@ public:
     void setPreviewFont(const QString &font);
     // Called by Main.qml's preview block on every editor text change.
     Q_INVOKABLE void previewEditorTextChanged();
+    // The source line holding a document position, with the positions where
+    // that line starts and ends; Main.qml's scroll sync measures it.
+    Q_INVOKABLE QVariantMap previewLineAt(int position) const;
     static int countWords(const QString &text);
     static QString normalizedLinkUrl(const QString &clipboardText);
     static QString suggestedFileName(const QString &text);

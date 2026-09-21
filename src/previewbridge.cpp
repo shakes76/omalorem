@@ -85,8 +85,10 @@ void PreviewBridge::setFontFamily(const QString &fontFamily) {
     emit fontFamilyChanged();
 }
 
-void PreviewBridge::setSourceLine(int sourceLine) {
-    if (m_sourceLine == sourceLine)
+void PreviewBridge::setSourceLine(qreal sourceLine) {
+    // A thousandth of a line is well under a pixel; finer changes aren't
+    // worth a trip over the channel.
+    if (qAbs(m_sourceLine - sourceLine) < 0.001)
         return;
 
     m_sourceLine = sourceLine;

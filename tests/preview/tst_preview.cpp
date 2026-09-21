@@ -225,10 +225,67 @@ private slots:
         for (int i = 0; i < 4; ++i)
             longDocument += longDocument;
         QVERIFY(renderMarkdown(longDocument, QStringLiteral("scroll-1")));
-        js("document.scrollingElement.scrollTop = 1500");
+        // The reader scrolls the preview itself, so it stops following the
+        // editor and stays where they put it.
+        js("document.dispatchEvent(new WheelEvent('wheel'));"
+           " document.scrollingElement.scrollTop = 1500");
         QCOMPARE(js("document.scrollingElement.scrollTop").toInt(), 1500);
         QVERIFY(renderMarkdown(longDocument + QStringLiteral("\n\nmore"), QStringLiteral("scroll-2")));
         QCOMPARE(js("document.scrollingElement.scrollTop").toInt(), 1500);
+    }
+
+    // Editor → preview: the block at the bridge's source line sits at the
+    // top of the view, below the page's margin, as the line does in the
+    // editor; fractions interpolate within a block and across the blank
+    // lines between blocks.
+    void followsEditorSourceLine() {
+        QStringList lines = longDocument().split(QLatin1Char('\n'));
+        QVERIFY(renderMarkdown(lines.join(QLatin1Char('\n')), QStringLiteral("sync-1")));
+        const QString marginTop = QStringLiteral(
+            "parseFloat(getComputedStyle(document.getElementById('content')).paddingTop)");
+        const int margin = js(marginTop).toInt();
+        QVERIFY(margin >= 42);
+        // Section 30's heading is line 600, its display math lines 604-606.
+        const QString headingTop = QStringLiteral(
+            "document.getElementById('section-30').getBoundingClientRect().top");
+
+        m_bridge->setSourceLine(600);
+        QTRY_COMPARE(qRound(js(headingTop).toDouble()), margin);
+
+        const QString mathBlock = QStringLiteral(
+            "document.querySelector('#content > [data-source-line=\"604\"]')");
+        QCOMPARE(js(mathBlock + QStringLiteral(".dataset.sourceLineEnd")).toString(),
+                 QStringLiteral("607"));
+        m_bridge->setSourceLine(605.5);
+        QTRY_COMPARE(qRound(js(QStringLiteral("(() => { const r = %1.getBoundingClientRect();"
+                                              " return r.top + r.height / 2; })()").arg(mathBlock))
+                                .toDouble()),
+                     margin);
+        // Line 603 is the blank line between the paragraph and the math.
+        m_bridge->setSourceLine(603.5);
+        QTRY_VERIFY(js(QStringLiteral("(() => { const m = %1.getBoundingClientRect().top;"
+                                      " const p = %1.previousElementSibling.getBoundingClientRect().bottom;"
+                                      " return %2 > p && %2 < m; })()").arg(mathBlock).arg(margin))
+                        .toBool());
+
+        // A render that makes a block above taller keeps the heading lined up.
+        m_bridge->setSourceLine(600);
+        QTRY_COMPARE(qRound(js(headingTop).toDouble()), margin);
+        lines[8] += QStringLiteral(" And much more prose, enough to wrap onto more lines than"
+                                   " before in the preview's column, and then some more.");
+        QVERIFY(renderMarkdown(lines.join(QLatin1Char('\n')), QStringLiteral("sync-2")));
+        QCOMPARE(qRound(js(headingTop).toDouble()), margin);
+
+        // Once the reader scrolls the preview, renders leave it alone, until
+        // the editor scrolls again.
+        js("document.dispatchEvent(new WheelEvent('wheel'));"
+           " document.scrollingElement.scrollTop -= 300; true");
+        const int readerTop = js("document.scrollingElement.scrollTop").toInt();
+        lines[8] += QStringLiteral(" Still more.");
+        QVERIFY(renderMarkdown(lines.join(QLatin1Char('\n')), QStringLiteral("sync-3")));
+        QCOMPARE(js("document.scrollingElement.scrollTop").toInt(), readerTop);
+        m_bridge->setSourceLine(0);
+        QTRY_COMPARE(js("document.scrollingElement.scrollTop").toInt(), 0);
     }
 
     // Spec 5.4: typing in one paragraph re-renders only that paragraph, and
@@ -458,6 +515,55 @@ private slots:
         editor.window->close();
         QTRY_VERIFY(!previewGuard || !previewGuard->isVisible());
         QCOMPARE(editor.backend->previewVisible(), true);
+        closeEditor(editor);
+        QSettings().remove(QStringLiteral("preview"));
+    }
+
+    // Main.qml publishes the line at the top of the editor's view, with the
+    // fraction scrolled past, as the editor scrolls.
+    void publishesEditorSourceLine() {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("long.md"));
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        const QString document = longDocument();
+        file.write(document.toUtf8());
+        file.close();
+
+        auto editor = createEditor();
+        QVERIFY(editor.window);
+        editor.backend->open(QUrl::fromLocalFile(path));
+        QTRY_VERIFY(previewWindow());
+        auto *text = editor.window->findChild<QQuickItem *>(QStringLiteral("sourceEditor"));
+        QVERIFY(text);
+        QQuickItem *flick = text->parentItem()->parentItem();
+        QVERIFY(flick && flick->property("contentY").isValid());
+        PreviewBridge *bridge = editor.backend->previewBridge();
+
+        // Scroll the editor so line 600 starts exactly at the probe.
+        int position = 0;
+        for (int line = 0; line < 600; ++line)
+            position = document.indexOf(QLatin1Char('\n'), position) + 1;
+        QRectF lineRect;
+        QVERIFY(QMetaObject::invokeMethod(text, "positionToRectangle", Q_RETURN_ARG(QRectF, lineRect),
+                                          Q_ARG(int, position)));
+        flick->setProperty("contentY", lineRect.y());
+        QTRY_COMPARE(bridge->sourceLine(), 600.0);
+
+        // Halfway down that line's height.
+        flick->setProperty("contentY", lineRect.y() + lineRect.height() / 2);
+        QTRY_VERIFY(qAbs(bridge->sourceLine() - 600.5) < 0.01);
+
+        // Hidden, the preview gets no updates.
+        editor.backend->setPreviewVisible(false);
+        flick->setProperty("contentY", 0);
+        QTest::qWait(50);
+        QVERIFY(bridge->sourceLine() > 600);
+        // Shown again, it catches up at once.
+        editor.backend->setPreviewVisible(true);
+        QTRY_COMPARE(bridge->sourceLine(), 0.0);
+
         closeEditor(editor);
         QSettings().remove(QStringLiteral("preview"));
     }

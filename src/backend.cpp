@@ -898,3 +898,16 @@ void Backend::setPreviewFont(const QString &font) {
         m_previewBridge->setFontFamily(font);
     emit previewFontChanged();
 }
+
+// The editor is plain text, so each QTextBlock is one source line, numbered
+// as markdown-it numbers them.
+QVariantMap Backend::previewLineAt(int position) const {
+    if (!m_document)
+        return {};
+
+    const QTextBlock block =
+        m_document->findBlock(qBound(0, position, m_document->characterCount() - 1));
+    return {{QStringLiteral("line"), block.blockNumber()},
+            {QStringLiteral("start"), block.position()},
+            {QStringLiteral("end"), block.position() + qMax(0, block.length() - 1)}};
+}

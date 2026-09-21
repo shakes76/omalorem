@@ -16,7 +16,9 @@ class PreviewBridge : public QObject {
     Q_PROPERTY(QVariantMap theme READ theme NOTIFY themeChanged)
     Q_PROPERTY(qreal textScale READ textScale NOTIFY textScaleChanged)
     Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY fontFamilyChanged)
-    Q_PROPERTY(int sourceLine READ sourceLine WRITE setSourceLine NOTIFY sourceLineChanged)
+    // The source line at the top of the editor's view, plus the fraction of
+    // it scrolled past, which the preview lines up with (editor → preview).
+    Q_PROPERTY(qreal sourceLine READ sourceLine WRITE setSourceLine NOTIFY sourceLineChanged)
 
 public:
     // Matches the word-count timer, so a pause in typing updates both at once.
@@ -29,7 +31,7 @@ public:
     QVariantMap theme() const { return m_theme; }
     qreal textScale() const { return m_textScale; }
     QString fontFamily() const { return m_fontFamily; }
-    int sourceLine() const { return m_sourceLine; }
+    qreal sourceLine() const { return m_sourceLine; }
     bool pageReady() const { return m_pageReady; }
 
     // Typing goes through the debounce; opening or reloading a file does not.
@@ -40,7 +42,7 @@ public:
                   const QString &accent, const QString &selection, bool dark);
     void setTextScale(qreal textScale);
     void setFontFamily(const QString &fontFamily);
-    void setSourceLine(int sourceLine);
+    void setSourceLine(qreal sourceLine);
 
     static QString mutedColor(bool dark);
     // The request interceptor's policy: bundled qrc assets, plus local files
@@ -69,7 +71,7 @@ private:
     QVariantMap m_theme;
     qreal m_textScale = 1.0;
     QString m_fontFamily = QStringLiteral("mono");
-    int m_sourceLine = 0;
+    qreal m_sourceLine = 0;
     bool m_pageReady = false;
     QTimer m_debounceTimer;
 };

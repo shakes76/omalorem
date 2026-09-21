@@ -1048,6 +1048,47 @@ ApplicationWindow {
             }
         }
 
+        // Scroll sync (editor → preview): the source line at the top of the
+        // editor's view, plus how far through it the view has scrolled. The
+        // probe sits the editor's top margin below the view's top, which is
+        // where the preview puts the matching block, so both line up with
+        // their margins at the start of the document.
+        function updateSourceLine() {
+            if (!previewWindowLoader.wanted)
+                return;
+            var y = editorFlick.contentY;
+            var line = backend.previewLineAt(editor.positionAt(0, y));
+            if (line.line === undefined)
+                return;
+            var top = editor.positionToRectangle(line.start).y;
+            var endRect = editor.positionToRectangle(line.end);
+            var bottom = endRect.y + endRect.height;
+            var fraction = bottom > top ? Math.min(1, Math.max(0, (y - top) / (bottom - top))) : 0;
+            backend.previewBridge.sourceLine = line.line + fraction;
+        }
+
+        Connections {
+            target: editorFlick
+            enabled: previewWindowLoader.wanted
+
+            function onContentYChanged() {
+                previewIntegration.updateSourceLine();
+            }
+        }
+
+        // Text and width changes move lines without scrolling the view.
+        Connections {
+            target: editor
+            enabled: previewWindowLoader.wanted
+
+            function onTextChanged() {
+                Qt.callLater(previewIntegration.updateSourceLine);
+            }
+            function onWidthChanged() {
+                Qt.callLater(previewIntegration.updateSourceLine);
+            }
+        }
+
         // Creating the window starts Chromium, so it happens only when the
         // preview is first shown. It then stays loaded while hidden, which
         // makes showing it again instant.
@@ -1062,7 +1103,10 @@ ApplicationWindow {
                     setSource("PreviewHost.qml", { editorWindow: win });
             }
 
-            onWantedChanged: load()
+            onWantedChanged: {
+                load();
+                Qt.callLater(previewIntegration.updateSourceLine);
+            }
         }
 
         // Wait for the editor's first frame: creating the web view blocks the
