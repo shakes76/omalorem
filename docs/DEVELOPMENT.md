@@ -1,6 +1,6 @@
 # Omalorem — Development status
 
-Last updated: 2026-09-21 · Branch: `fix-preview-black-after-workspace`, off `main` (not merged or pushed). Release: `omaview-v0.1.0`, which is the last commit under the old name
+Last updated: 2026-09-21 · Branch: `m5-pdf-print`, off `main` (not merged or pushed). Release: `omaview-v0.1.0`, which is the last commit under the old name
 
 This is the working log for developers and coding agents. It records where the project
 stands, how the code is laid out, the rules every change must follow, and what was done
@@ -19,8 +19,8 @@ the gap should be fixed or raised.
 | M2 Fonts, incremental render, scroll sync, images | Done | Commits `686f38d`…`2acb47c` |
 | M3 Docked placement | Deferred | Moved to SPEC §11, future features. Omalorem targets Omarchy and tiling window managers only |
 | M4 Editor math support | Done | Branch `m4-editor-math`. See §8 |
-| M5 PDF export and print | **Next** | See §7 |
-| M6 Packaging and Omarchy docs | Started | The PKGBUILD installs the preview plugin and depends on qt6-webengine and qt6-webchannel (SPEC §6). `docs/omarchy.md` and an icon variant are still to do |
+| M5 PDF export and print | Done | Branch `m5-pdf-print`. See §8 |
+| M6 Packaging and Omarchy docs | **Next**, started | The PKGBUILD installs the preview plugin and depends on qt6-webengine and qt6-webchannel (SPEC §6). `docs/omarchy.md` and an icon variant are still to do |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -33,13 +33,14 @@ What works today:
 - Scroll sync from the editor to the preview uses a fractional `sourceLine`. The preview follows the editor until the reader scrolls the preview.
 - Local images in the document's folder and its subfolders load through `omalorem-doc:`. Remote, out-of-folder and unsaved-document images show a placeholder with the alt text.
 - Headings have GitHub-style ids, so `#anchor` links scroll within the preview.
+- `Ctrl+Shift+P` exports a PDF, and `Ctrl+P` prints, both through the preview, so the math is rendered. The output uses the light palette, 20 mm margins, and A4 or Letter by locale. Both work with the preview hidden: the preview window loads and stays hidden.
 - The editor highlights `$…$`, `$$…$$`, `\(…\)` and `\[…\]`, but not inside fenced code. Emphasis characters inside math (`x_1`) stay visible and the caret doesn't skip them. `Ctrl+M` and `Ctrl+Shift+M` insert inline and display math, each as one undo step. Return inside an open display block adds a plain newline. All of this works in `no_preview` builds too.
 - Closing the preview only hides it. Closing the editor closes both.
 - `Ctrl+F` and `Ctrl+H` from the preview bring the editor forward. F11 in the preview fullscreens the preview.
 - With the preview hidden, the `omalorem` binary never loads QtWebEngine: `ldd` shows no WebEngine library, and none is mapped at runtime.
 - `no_preview` builds are plain Omawrite with the Omalorem name.
 
-Tests: `bin/test` passes both targets. `tst_omalorem` has 27 passed. `tst_preview` has 26 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
+Tests: `bin/test` passes both targets. `tst_omalorem` has 30 passed. `tst_preview` has 32 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
 
 ## 2. Rules for every change
 
@@ -154,23 +155,24 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
 - **Image caching.** Chromium may cache an `omalorem-doc:` image for the session, so replacing an image file on disk may not show until the document is reopened. This hasn't been checked.
 - **Scrollbar drags in the preview** may not count as "the reader scrolled". Wheel, keys, touch and pointer-down do, but whether Chromium sends `pointerdown` for a scrollbar drag hasn't been checked. If not, a render while the preview is scrolled that way would snap it back to the editor's line.
 - **`Ctrl+F` from the preview while find is already open** leaves focus in the preview. This is accepted, to keep the editor's find handlers untouched.
-- **Profile lifetime.** The profile lives only as long as its `PreviewPane`. That's fine with one pane for the app's life. Decide before anything creates a second pane, such as offscreen printing in M5 or the future docked placement (SPEC §5.3, §11): the profile would probably move into `PreviewSandbox`.
+- **Profile lifetime.** The profile lives only as long as its `PreviewPane`. That's fine with one pane for the app's life, and M5 prints from the same (possibly hidden) pane. Decide before anything creates a second pane, such as the future docked placement (SPEC §5.3, §11): the profile would probably move into `PreviewSandbox`.
 - **Dormant placement setting.** Backend's `previewPlacement` and `preview/placement`, with their test, remain from M1. Only `window` is used. They are kept for the future docked placement, but could be removed if that feature is dropped for good.
 - **Full rehighlights are slower with math (M4).** Typing re-highlights only the changed lines, so it isn't affected: 14 ms to load the 2,000-line, 300-formula document, and 23 ms when a new `$$` at the top flips every line below. A full `rehighlight()` is another matter; Omawrite calls it on theme and dark-mode changes and on every find update. Upstream takes about 295 ms on that document, and M4 takes about 440 ms. Scanning isn't the cost: without the math formats it's 240 ms, faster than upstream, because formula underscores are no longer hidden. The cost is laying out the extra format ranges, about 150 ms for 900 ranges, and opacity makes no difference. Colouring content only, without separate delimiter ranges, would save about 90 ms. The spec's muted delimiters were kept.
 - **Black preview after a workspace switch** (reported on Hyprland after 0.1.0). The view stayed black until the page painted again, for example on a scroll. The fix asks the page for a fresh frame: a two-frame opacity of 0.9999, which can't be seen. It does this when the preview window is exposed again (`PreviewExposeWatcher`, a C++ event filter in the plugin) and whenever either window becomes active, then retries once after 150 ms. Offscreen tests show the requests fire, but only Hyprland can show whether they cure the black. If it comes back, run with `QT_LOGGING_RULES="omalorem.preview.expose.debug=true"` to see which window events Hyprland sends.
 - **Not yet checked by a human on Hyprland:**
   - fractional scaling at 1.25 and 1.5
   - the checklist in SPEC §7, repeated after each UI milestone
+  - M5: the portal save dialog for `Ctrl+Shift+P`; `Ctrl+P`'s print dialog and a real printout; export with the preview hidden
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: M5, PDF export and print
+## 7. Next: M6, packaging and Omarchy docs
 
-This is scope from SPEC §4.2, §5.5 and §8:
-- **`Ctrl+Shift+P` exports to PDF** through `WebEngineView.printToPdf`, with a portal save dialog that suggests `<name>.pdf`. A `@media print` stylesheet forces the light palette, drops the column centring, and picks A4 or Letter from the locale.
-- **`Ctrl+P` prints through the preview**, so the math shows. It renders a temporary PDF and sends it to `QPrintDialog` through `QPdfDocument`, which adds `pdf` to the plugin's `QT`. Omawrite's `printDocument` stays untouched, so `Ctrl+P` needs an additive way to reach the new path.
-- **If the preview is hidden or was never loaded**, print loads it offscreen first. That creates a second pane, so decide the profile lifetime (§6) first.
-- The portal dialogs need a human to check them on Hyprland (SPEC §7).
+The PKGBUILD already installs the preview plugin and its dependencies. What's left, from SPEC §6 and §8:
+- `docs/omarchy.md`: optional Hyprland snippets (no initial focus for the preview window, and where it opens), and a launcher entry. Write them in the current Hyprland syntax, and never apply them automatically.
+- An icon variant for Omalorem, and a desktop file review. `desktop-file-validate` passes; it suggests adding `Utility` to the categories.
+- `pkgver` and a release: tag `omalorem-v…` once M6 is in, because upstream's `v*` tags are in this repository.
+- Check that `bin/install` works end to end on a clean system.
 
 ## 8. History
 
@@ -266,3 +268,20 @@ Findings:
 - Reported on Hyprland: returning to the workspace left the preview black until a scroll. The likely cause is that the compositor stops the hidden window, Qt drops the last frame Chromium gave it, and nothing asks Chromium for another.
 - `preview.js` gains `omaloremPreview.repaint()`, and `PreviewPane` gains `repaint()` and `repaintRequests`. `PreviewWindow` calls `repaint()` on re-exposure, through the new `PreviewExposeWatcher` type, and when either window becomes active, retrying once after 150 ms.
 - Tests: `repaintsOnRequest`, `watchesForReexposure` and `repaintsPreviewWhenItComesBack`. All the changes are in preview files; no upstream file is touched.
+
+### M5: PDF export and print
+| Part | What |
+|---|---|
+| `PreviewBridge` | `markdownRevision`, `renderedRevision`, `rendered()`, and `pageReady` as a real Q_PROPERTY |
+| `Backend` | Lines added at the top of `printDocument()` hand print to the preview. `previewExportPdfDialog()`, `previewFlushMarkdown()` and `previewReportStatus()` are new |
+| Main.qml preview block | `Ctrl+Shift+P`, the PDF `FileDialog`, and `requestOutput()`, which loads the preview window (hidden if need be) and hands the request over |
+| `PreviewWindow.produce()` | Flush, wait for the current revision, `preparePrint`, `printToPdf`, then report or print, with a 30 s timeout |
+| `PreviewSandbox` | `printPdf()` (`QPrintDialog`, pages drawn at up to 300 dpi), temporary PDFs, and `printTestTarget` for tests. The plugin adds `pdf printsupport widgets` |
+| `preview.js` / `preview.css` | Render acknowledgement after fonts and images, `preparePrint()` for wide formulas, and the print stylesheet |
+| Tests | `tracksRenderedRevision`, `routesPrintThroughPreview`, `suggestsPdfBesideDocument`, `scalesWideMathForPrint`, `exportsPdfWithRenderedMath` (hidden preview, several pages, margins on each, white paper, typed text included), `printsThroughThePreview` |
+
+Findings:
+- `PreviewBridge::pageReady` had a getter and a signal but no Q_PROPERTY, so QML read `undefined` and output waited forever. It is a property now.
+- Qt's QML `printToPdf` passes zero margins, and Chromium then ignores an `@page` margin. Cloned body padding gives every page its margins; the export test checks all four sides of every page.
+- A preview window that is loaded but never shown still renders and prints: the page, WebChannel and `printToPdf` all work without the window being visible.
+- The preview tests' new editor-based cases close their editor in a `qScopeGuard`. A failing check used to leave a hidden preview behind and fail the tests after it.

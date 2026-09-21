@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: Draft v0.9 · 2026-09-21
+Status: Draft v1.0 · 2026-09-21
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -321,6 +321,43 @@ As built in M2:
   It renders a temporary PDF, then sends it to the printer through `QPrintDialog`, using
   `QPdfDocument` (Qt PDF, already pulled in by qt6-webengine) to rasterise pages.
   If the preview is hidden or has never been loaded, print loads it offscreen first.
+- These need the preview. In a `no_preview` build `Ctrl+P` is Omawrite's print, and
+  `Ctrl+Shift+P` does nothing.
+
+As built in M5:
+- **Routing `Ctrl+P`.** Omawrite's `Ctrl+P` shortcut is left alone, because a second
+  one with the same sequence would make Qt treat both as ambiguous. Instead, lines added
+  at the top of `Backend::printDocument()` emit `previewPrintRequested()` when the preview
+  is available, and return. Otherwise Omawrite's print runs as before.
+- **One path for both outputs.**
+  - `Main.qml`'s preview block owns `Ctrl+Shift+P` and the PDF `FileDialog`. It
+    suggests `<document name>.pdf` beside the document, or where Save would suggest.
+  - It hands the request to `PreviewWindow.produce()`. If the preview window has never
+    been loaded, it loads it first; with the preview hidden, the window stays hidden and
+    stays loaded afterwards.
+  - Printing from the hidden window's own page means there is only ever one pane, so
+    the profile-lifetime question (§5.3) doesn't come up for printing.
+- **Waiting for the page.** Output flushes the editor's text past the debounce
+  (`previewFlushMarkdown`). It then waits until the page reports, through
+  `PreviewBridge::rendered(revision)`, that it shows the current `markdownRevision` with
+  its fonts and images loaded (at most 3 s for an image). A 30 s timeout reports a page
+  that never settles.
+- **Paper.** Letter where the locale uses the US measurement system, otherwise A4, in
+  portrait.
+- **Margins.** Qt's QML `printToPdf` gives Chromium zero margins, and Chromium then
+  ignores an `@page` margin. So the print stylesheet pads the body by 20 mm with
+  `box-decoration-break: clone`, which repeats the padding on every page.
+- **Print stylesheet.** The light palette (with `!important`, because the theme is
+  set inline), 11 pt text in the current preview font, and links as plain text. Headings
+  are kept with what follows, and code, tables, formulas and list items aren't split
+  across pages. Long code lines wrap.
+- **Wide formulas.** `preparePrint(pageWidthMm)` scales any display formula wider than
+  the printed column to fit, through a `--print-zoom` property that only print uses.
+  This is the simple version; see §11.2.
+- **Print.** `PreviewSandbox.printPdf()` shows `QPrintDialog`, as Omawrite's print does,
+  owned by the editor window and limited to the PDF's pages. It then draws each chosen
+  page as an image at up to 300 dpi, fitted to the sheet. For tests, `printTestTarget`
+  sends the output to a PDF file without the dialog.
 
 ### 5.6 Editor-side additions
 - `MarkdownHighlighter` gets a math rule. `$…$`, `$$…$$`, `\(…\)` and `\[…\]` spans are
@@ -443,7 +480,7 @@ As built in M4:
 | M2 | Fonts, incremental render and scroll sync *(done)* | Mono/Quattro switching (`Ctrl+Shift+T`). Block-keyed DOM patching. The performance budget is met. Editor→preview sync works. Links, images (served through the document-folder scheme) and escaped HTML behave as in 4.4. |
 | M3 | ~~Docked placement~~ *(deferred)* | Moved to the future features in §11. Omalorem targets Omarchy and tiling window managers only. The milestone numbers after it are kept. |
 | M4 | Editor math support *(done)* | Highlighter rule, `Ctrl+M` / `Ctrl+Shift+M`, and `$$`-aware smart return, each with tests. Working in `no_preview` builds too |
-| M5 | PDF export and print | `Ctrl+Shift+P` and `Ctrl+P` produce output with the math rendered |
+| M5 | PDF export and print *(done)* | `Ctrl+Shift+P` and `Ctrl+P` produce output with the math rendered |
 | M6 | Packaging and Omarchy docs | PKGBUILD dependencies, desktop file, icon variant, README, `docs/omarchy.md`, `bin/install` works |
 
 ## 9. Decisions log
@@ -467,6 +504,7 @@ As built in M4:
 | 2026-09-21 | Released as Omaview 0.1.0 (tag `omaview-v0.1.0`), then renamed Omalorem, after *lorem ipsum* placeholder text: a small extension to Omawrite. Binary, desktop file, icon, settings, recovery directory, QML module (`Omalorem.Preview`), plugin install path (`/usr/lib/omalorem/qml`), logging categories and the `omalorem-doc:` scheme all follow the name. |
 | 2026-09-21 | M2: `sourceLine` is fractional, and the preview follows the editor until the reader scrolls the preview. |
 | 2026-09-21 | M4: the editor math features work in every build, `no_preview` included. Emphasis markers inside math are neither hidden nor skipped by the caret. `Ctrl+M` and `Ctrl+Shift+M` are one undo step each. |
+| 2026-09-21 | M5: `Ctrl+P` reaches the preview through lines added to `Backend::printDocument()`. With the preview hidden, output comes from the hidden preview window, never a second pane. Page margins come from cloned body padding, because Qt's `printToPdf` has none. Wide formulas are scaled to fit for now (§11.2). Output stays simple: no headers, page numbers or link URLs (§11.3). |
 | 2026-09-21 | Omalorem is for Omarchy and other tiling window managers only. The docked placement (old M3) moves to the future features (§11), for other users who may want it, because supporting non-tiling desktops adds complexity the project shouldn't carry. `Ctrl+Shift+E` stays unassigned. |
 
 ## 10. Open questions
@@ -543,3 +581,24 @@ editor `Flickable`, with a `Loader` for a second `PreviewPane`. When not docked,
 - A `protect()` that skips a profile which already has the `omalorem-doc:` handler.
 
 **Before building it:** settle the profile-lifetime question in §5.3.
+
+### 11.2 Wide formulas in print
+
+For now, a display formula wider than the printed column is scaled down until it fits
+(§5.5). That keeps it whole, but a very long formula can end up too small to read. Proper
+handling could:
+- break long formulas at relation or operator signs, which KaTeX can do for inline math
+  but not for display math;
+- let the writer mark a formula for a landscape page or a smaller size;
+- set a lower limit on the scale, below which the formula wraps or moves to its own
+  landscape page.
+
+### 11.3 Page options for PDF and print
+
+M5 keeps output simple: fixed 20 mm margins, portrait, A4 or Letter from the locale, no
+header or footer, no page numbers, and links as plain text. Options that could come
+later, set in `QSettings` and changed by shortcut, since there is no settings UI:
+- page numbers, and a header or footer with the document's title;
+- link targets printed after the link text, or as footnotes;
+- margin width, page size and orientation;
+- a title page, or front matter taken from YAML.

@@ -61,9 +61,8 @@ u(x, t) = \frac{1}{\sqrt{4\pi\alpha t}} \int_{-\infty}^{\infty} e^{-\frac{(x-y)^
 $$
 ```
 
-> **Status:** 0.1.0. The preview window and the editor's math support are done. Still to
-> come: PDF export and printing with the math rendered.
-> Until then, `Ctrl+P` prints the Markdown source, as Omawrite does. Omalorem is made for
+> **Status:** 0.1.0. The preview window, the editor's math support, and PDF export and
+> printing are done. Still to come: packaging polish and Omarchy notes. Omalorem is made for
 > Omarchy and other tiling window managers; a docked single-window layout is only a
 > possible future feature. See [`docs/SPEC.md`](docs/SPEC.md) for the specification and
 > milestones, and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the development status,
@@ -94,6 +93,7 @@ entry, icon and settings.
 - `Ctrl+Shift+S` saves as.
 - `Ctrl+O` opens a Markdown file through the portal picker.
 - `Ctrl+P` opens the system print dialog.
+- `Ctrl+P` prints the rendered preview, math included, on white paper with page margins. `Ctrl+Shift+P` exports the same as a PDF, suggesting a name beside the document. Both work with the preview hidden.
 - `Ctrl+E` shows or hides the preview window. Closing the preview window only hides it.
 - `Ctrl+Shift+T` switches the preview's prose between iA Writer Mono S and the proportional iA Writer Quattro S. The editor keeps Mono.
 - `F11` in the preview window fullscreens the preview, for reading.
