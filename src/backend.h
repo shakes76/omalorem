@@ -34,6 +34,7 @@ class Backend : public QObject {
     Q_PROPERTY(bool previewAvailable READ previewAvailable NOTIFY previewAvailableChanged)
     Q_PROPERTY(bool previewVisible READ previewVisible WRITE setPreviewVisible NOTIFY previewVisibleChanged)
     Q_PROPERTY(QString previewPlacement READ previewPlacement WRITE setPreviewPlacement NOTIFY previewPlacementChanged)
+    Q_PROPERTY(QString previewFont READ previewFont WRITE setPreviewFont NOTIFY previewFontChanged)
 
 public:
     explicit Backend(QObject *parent = nullptr);
@@ -62,6 +63,8 @@ public:
     void setPreviewVisible(bool visible);
     QString previewPlacement() const;
     void setPreviewPlacement(const QString &placement);
+    QString previewFont() const;
+    void setPreviewFont(const QString &font);
     // Called by Main.qml's preview block on every editor text change.
     Q_INVOKABLE void previewEditorTextChanged();
     static int countWords(const QString &text);
@@ -101,6 +104,7 @@ signals:
     void previewAvailableChanged();
     void previewVisibleChanged();
     void previewPlacementChanged();
+    void previewFontChanged();
     void closeAfterSave();
     void openDialogRequested();
     void saveDialogRequested(const QUrl &suggestedUrl);
@@ -168,4 +172,5 @@ private:
     mutable bool m_previewSettingsLoaded = false;
     mutable bool m_previewVisible = true;
     mutable QString m_previewPlacement;
+    mutable QString m_previewFont;
 };

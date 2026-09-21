@@ -331,7 +331,7 @@ ApplicationWindow {
         standardButtons: Dialog.Close
         anchors.centerIn: parent
         contentItem: Label {
-            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+P  Print\nCtrl+E  Preview\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
+            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+P  Print\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
             lineHeight: 1.5
         }
     }
@@ -1028,6 +1028,15 @@ ApplicationWindow {
             sequence: "Ctrl+E"
             context: Qt.ApplicationShortcut
             onActivated: previewIntegration.toggle()
+        }
+
+        // Switches the preview's prose between Mono and Quattro; the editor
+        // keeps its own font.
+        Shortcut {
+            sequence: "Ctrl+Shift+T"
+            context: Qt.ApplicationShortcut
+            enabled: backend.previewAvailable
+            onActivated: backend.previewFont = backend.previewFont === "quattro" ? "mono" : "quattro"
         }
 
         Connections {

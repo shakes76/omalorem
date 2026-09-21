@@ -25,6 +25,7 @@ Build and install locally with `bin/install` (requires `makepkg`), or just build
 - `Ctrl+O` opens a Markdown file through the portal picker.
 - `Ctrl+P` opens the system print dialog.
 - `Ctrl+E` shows or hides the preview window. Closing the preview window only hides it.
+- `Ctrl+Shift+T` switches the preview's prose between iA Writer Mono S and the proportional iA Writer Quattro S. The editor keeps Mono.
 - `Ctrl+N` opens a new Omaview window.
 - `Ctrl+Z`, `Ctrl+Shift+Z`, and `Ctrl+Y` handle undo and redo.
 - `Super+F` toggles fullscreen. Qt maps this key as `Meta+F`.
@@ -48,3 +49,4 @@ Omaview at the size it is designed around; larger and smaller sizes scale from t
 The iA Writer Mono font is bundled under the SIL Open Font License 1.1; see
 `fonts/OFL.txt`. The font is copyright Information Architects Inc. and based on
 IBM Plex, copyright IBM Corp.
+The preview also bundles iA Writer Quattro S under the same licence.

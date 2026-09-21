@@ -24,6 +24,32 @@
     font-style: italic;
 }
 
+/* The proportional choice (Ctrl+Shift+T), bundled with the preview only. */
+@font-face {
+    font-family: "iA Writer Quattro S";
+    src: url("fonts/iAWriterQuattroS-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+}
+@font-face {
+    font-family: "iA Writer Quattro S";
+    src: url("fonts/iAWriterQuattroS-Italic.woff2") format("woff2");
+    font-weight: 400;
+    font-style: italic;
+}
+@font-face {
+    font-family: "iA Writer Quattro S";
+    src: url("fonts/iAWriterQuattroS-Bold.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+}
+@font-face {
+    font-family: "iA Writer Quattro S";
+    src: url("fonts/iAWriterQuattroS-BoldItalic.woff2") format("woff2");
+    font-weight: 700;
+    font-style: italic;
+}
+
 /* Overwritten from bridge.theme and bridge.textScale as soon as the channel
    connects; these are Omawrite's fallback dark palette. */
 :root {
@@ -34,6 +60,7 @@
     --muted: #909191;
     --base-size: 20px;
     --code-bg: color-mix(in srgb, var(--fg) 8%, transparent);
+    --prose-font: "iA Writer Mono S", monospace;
     color-scheme: dark;
 }
 
@@ -57,13 +84,22 @@ body {
     color: var(--fg);
 }
 
-/* The same measure as the editor column, centred. */
+html[data-font="quattro"] {
+    --prose-font: "iA Writer Quattro S", sans-serif;
+}
+
+/* The same measure as the editor column, centred. #content itself stays in
+   Mono, so 65ch is the same width whichever font the prose uses. */
 #content {
     box-sizing: content-box;
     max-width: 65ch;
     margin: 0 auto;
     padding: max(42px, 5vh) 24px 96px;
     overflow-wrap: break-word;
+}
+
+#content > * {
+    font-family: var(--prose-font);
 }
 
 #content > :first-child {

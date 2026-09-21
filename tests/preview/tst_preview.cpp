@@ -195,6 +195,31 @@ private slots:
                      QStringLiteral("20px"));
     }
 
+    void followsFontFamily() {
+        QVERIFY(renderFixture(QStringLiteral("sample.md")));
+        const QString proseFont = QStringLiteral(
+            "getComputedStyle(document.querySelector('#content > p')).fontFamily");
+        const QString codeFont = QStringLiteral(
+            "getComputedStyle(document.querySelector('#content code')).fontFamily");
+        const QString columnWidth = QStringLiteral(
+            "document.getElementById('content').getBoundingClientRect().width");
+        QVERIFY(js(proseFont).toString().startsWith(QStringLiteral("\"iA Writer Mono S\"")));
+        const double monoWidth = js(columnWidth).toDouble();
+
+        m_bridge->setFontFamily(QStringLiteral("quattro"));
+        QTRY_VERIFY(js(proseFont).toString().startsWith(QStringLiteral("\"iA Writer Quattro S\"")));
+        // The bundled face really loads, code stays in Mono, and the column
+        // keeps the editor's measure.
+        QTRY_VERIFY(js("document.fonts.check('20px \"iA Writer Quattro S\"')").toBool());
+        QTRY_VERIFY(js("[...document.fonts].some(f => f.family.includes('Quattro')"
+                       " && f.status === 'loaded')").toBool());
+        QVERIFY(js(codeFont).toString().startsWith(QStringLiteral("\"iA Writer Mono S\"")));
+        QCOMPARE(js(columnWidth).toDouble(), monoWidth);
+
+        m_bridge->setFontFamily(QStringLiteral("mono"));
+        QTRY_VERIFY(js(proseFont).toString().startsWith(QStringLiteral("\"iA Writer Mono S\"")));
+    }
+
     void keepsScrollPositionAcrossRenders() {
         QString longDocument = fixture(QStringLiteral("sample.md"));
         for (int i = 0; i < 4; ++i)

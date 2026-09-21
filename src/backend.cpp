@@ -775,6 +775,9 @@ const QString previewVisibleSetting = QStringLiteral("preview/visible");
 const QString previewPlacementSetting = QStringLiteral("preview/placement");
 const QString windowPlacement = QStringLiteral("window");
 const QString dockedPlacement = QStringLiteral("docked");
+const QString previewFontSetting = QStringLiteral("preview/font");
+const QString monoFont = QStringLiteral("mono");
+const QString quattroFont = QStringLiteral("quattro");
 }
 
 PreviewBridge *Backend::previewBridge() const {
@@ -787,6 +790,7 @@ PreviewBridge *Backend::previewBridge() const {
     m_previewBridge = new PreviewBridge(self);
     m_previewBridge->setTextScale(m_textScale);
     m_previewBridge->setDocumentUrl(m_fileUrl);
+    m_previewBridge->setFontFamily(previewFont());
     m_previewBridge->setMarkdown(currentDocumentText());
     updatePreviewTheme();
 
@@ -841,6 +845,8 @@ void Backend::loadPreviewSettings() const {
     m_previewVisible = settings.value(previewVisibleSetting, true).toBool();
     const QString placement = settings.value(previewPlacementSetting).toString();
     m_previewPlacement = placement == dockedPlacement ? dockedPlacement : windowPlacement;
+    const QString font = settings.value(previewFontSetting).toString();
+    m_previewFont = font == quattroFont ? quattroFont : monoFont;
 }
 
 bool Backend::previewVisible() const {
@@ -872,4 +878,23 @@ void Backend::setPreviewPlacement(const QString &placement) {
     m_previewPlacement = placement;
     QSettings().setValue(previewPlacementSetting, placement);
     emit previewPlacementChanged();
+}
+
+QString Backend::previewFont() const {
+    loadPreviewSettings();
+    return m_previewFont;
+}
+
+// The preview's prose font only; the editor always stays in Mono.
+void Backend::setPreviewFont(const QString &font) {
+    if (font != monoFont && font != quattroFont)
+        return;
+    if (previewFont() == font)
+        return;
+
+    m_previewFont = font;
+    QSettings().setValue(previewFontSetting, font);
+    if (m_previewBridge)
+        m_previewBridge->setFontFamily(font);
+    emit previewFontChanged();
 }

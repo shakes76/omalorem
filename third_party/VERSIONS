@@ -33,3 +33,14 @@ qwebchannel.js (Qt WebChannel 6.11.2)
   sha256:  bb21d1663083c3fefed95b895282d095aaa1f57f7697c0170ea79ffd205421b2
   licence: LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only (Qt), used under LGPL-3.0;
            qwebchannel/LICENSE.LGPL-3.0 and qwebchannel/LICENSE.GPL-3.0
+
+iA Writer Quattro S (iA-Fonts f32c04c3058a75d7ce28919ce70fe8800817491b)
+  source:  https://github.com/iaolo/iA-Fonts, "iA Writer Quattro/Webfonts/"; the same
+           repository as the editor's bundled iA Writer Mono S (byte-identical there)
+  files:   fonts/iAWriterQuattroS-{Regular,Italic,Bold,BoldItalic}.woff2, beside the
+           Mono S files; compiled into the preview plugin only, never the editor
+  sha256:  Regular    c8d49e112617397e4565fdd3d2c3b725ffacd0dc52ef18254785aa3d6c1ec1ae
+           Italic     3e23501bf4389baca37c696fb7485fb43dbfdb6b91d75183e6739c2d5aae801d
+           Bold       a65d4271cc91ac6d7cc39780dcc35891ce40ce27f6fbb7067a2eff26a67a4571
+           BoldItalic 11eba6b87f6a1c3521b30bb6fabdc7b60344ff5130096ef492989f6a6f1413af
+  licence: SIL OFL 1.1, fonts/OFL.txt (the same text as the repository's LICENSE.md)

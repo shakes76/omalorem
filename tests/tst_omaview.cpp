@@ -4,6 +4,7 @@
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickStyle>
+#include <QQuickWindow>
 
 #include "backend.h"
 #include "markdownhighlighter.h"
@@ -482,6 +483,57 @@ private slots:
         {
             Backend backend;
             QCOMPARE(backend.previewPlacement(), QStringLiteral("window"));
+        }
+        settings.remove(QStringLiteral("preview"));
+    }
+
+    void switchesPreviewFont() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+        QSettings settings;
+        settings.remove(QStringLiteral("preview"));
+        settings.setValue(QStringLiteral("preview/visible"), false);
+
+        {
+            Backend backend;
+            QCOMPARE(backend.previewFont(), QStringLiteral("mono"));
+            QCOMPARE(backend.previewBridge()->fontFamily(), QStringLiteral("mono"));
+            backend.setPreviewAvailable(true);
+            QQmlEngine engine;
+            engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+            QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+            QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+            QScopedPointer<QObject> root(component.create());
+            auto *window = qobject_cast<QQuickWindow *>(root.data());
+            QVERIFY(window);
+            window->requestActivate();
+            QVERIFY(QTest::qWaitForWindowActive(window));
+
+            // Ctrl+Shift+T flips the preview's font and the bridge follows.
+            QSignalSpy fontSpy(&backend, &Backend::previewFontChanged);
+            QTest::keyClick(window, Qt::Key_T, Qt::ControlModifier | Qt::ShiftModifier);
+            QCOMPARE(backend.previewFont(), QStringLiteral("quattro"));
+            QCOMPARE(backend.previewBridge()->fontFamily(), QStringLiteral("quattro"));
+            QTest::keyClick(window, Qt::Key_T, Qt::ControlModifier | Qt::ShiftModifier);
+            QCOMPARE(backend.previewFont(), QStringLiteral("mono"));
+            QCOMPARE(fontSpy.count(), 2);
+
+            backend.setPreviewFont(QStringLiteral("quattro"));
+            backend.setPreviewFont(QStringLiteral("comic"));
+            QCOMPARE(backend.previewFont(), QStringLiteral("quattro"));
+        }
+
+        settings.sync();
+        QCOMPARE(settings.value(QStringLiteral("preview/font")).toString(), QStringLiteral("quattro"));
+        {
+            Backend backend;
+            QCOMPARE(backend.previewFont(), QStringLiteral("quattro"));
+            QCOMPARE(backend.previewBridge()->fontFamily(), QStringLiteral("quattro"));
+        }
+        settings.setValue(QStringLiteral("preview/font"), QStringLiteral("bogus"));
+        {
+            Backend backend;
+            QCOMPARE(backend.previewFont(), QStringLiteral("mono"));
         }
         settings.remove(QStringLiteral("preview"));
     }
