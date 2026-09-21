@@ -1,6 +1,6 @@
 # Omaview — Specification
 
-Status: Draft v0.5 · 2026-09-21
+Status: Draft v0.6 · 2026-09-21
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -169,13 +169,15 @@ All of these are added to the `Ctrl+?` reference dialog and to the README.
   the editor already bundles.
 - **Proportional option.** `Ctrl+Shift+T` switches prose to **iA Writer Quattro S**, the
   proportional version of the same family. It has the same OFL licence, and Omaview
-  bundles Regular, Italic, Bold and BoldItalic. The choice is saved in `preview/font`
-  (`mono` by default, or `quattro`). It applies straight away and doesn't touch the
-  editor font. Code spans and fenced code always stay in Mono.
+  bundles Regular, Italic, Bold and BoldItalic as woff2, in the preview plugin only. The
+  choice is saved in `preview/font` (`mono` by default, or `quattro`). It applies
+  straight away and doesn't touch the editor font. Code spans and fenced code always
+  stay in Mono.
 - Headings use weight and size only, never colour. Code uses the same font on a faint
   tinted background.
 - The column is about 65ch in both fonts, the same measure as the editor, and centred in
-  the preview.
+  the preview. `#content` itself stays in Mono and only its blocks take the prose font,
+  so `65ch` is the same width in both.
 - Colours come from CSS custom properties fed by `backend.theme*`: `--bg`, `--fg`,
   `--accent` (links, blockquote rule), `--selection`, and `--muted`.
 - The base font size is `20px × textScale`, matching `editorFontPixelSize`. It changes
@@ -190,19 +192,35 @@ All of these are added to the `Ctrl+?` reference dialog and to the README.
 - **Scroll sync (editor → preview):** the block at the top of the editor viewport lines
   up with the matching block in the preview, using `data-source-line`. This works the
   same whether the preview is a separate window or docked. Preview → editor sync is v1.1.
+  - The editor publishes a fractional `sourceLine`: the line at the top of its view, plus
+    the fraction of that line's height scrolled past. It probes at the view's top, which
+    is the editor's top margin above where the text begins; the page puts the matching
+    point its own top margin below its view's top, so both are at 0 at the start.
+  - The page interpolates inside a block by its source lines (`data-source-line` to
+    `data-source-line-end`) and across the blank lines between blocks.
+  - The preview **follows** the editor until the reader scrolls the preview (wheel,
+    keys, pointer) or follows an `#anchor`, and follows again as soon as the editor
+    scrolls. While following, renders, resizes and late-loading fonts re-apply the
+    sync; otherwise the scroll position stays where the reader put it.
 - **Links:** clicking a link calls `backend.openExternalUrl` (http, https and mailto
-  only). `#anchor` links scroll within the preview. The preview itself never navigates
-  away.
+  only). `#anchor` links scroll within the preview: headings get GitHub-style ids (text
+  lower-cased, punctuation dropped, spaces as hyphens, `-1`, `-2` on repeats). The
+  preview itself never navigates away.
 - **Images (kept simple):**
   - A relative or `file:` `src` inside the document's folder or its subfolders is shown.
   - Anything else shows a small inline placeholder with the alt text. That includes
     remote URLs, paths outside the document's folder, and any image in an unsaved
     document, since it has no folder yet.
+  - The placeholder's tooltip says why the image isn't shown.
   - Chromium refuses `file:` URLs to a page loaded from `qrc:`, even when access to local
-    files is enabled. So document images are served through a custom URL scheme
-    (`QWebEngineUrlSchemeHandler`, for example `omaview-doc:`) that maps only to the
-    document's folder and its subfolders, and the page rewrites relative `src`s to it.
-    This is M2 work.
+    files is enabled. So document images are served through a custom URL scheme,
+    `omaview-doc:/<path in folder>`, and the page rewrites relative and in-folder `file:`
+    `src`s to it. The plugin registers the scheme as it loads (before any profile
+    exists) as a secure, path-syntax scheme. It is not `LocalScheme`, because Chromium
+    doesn't count `qrc:` as local and would lock the page out. Its
+    `QWebEngineUrlSchemeHandler` is installed on the preview profile only. It serves
+    `GET` requests for **image files** (by MIME type) whose path, with symlinks
+    resolved, is inside the document's folder, and refuses everything else.
 - **Raw HTML (kept simple):** it is escaped (markdown-it `html: false`), so tags appear
   as literal text.
 - **Math errors:** KaTeX runs with `throwOnError: false`, so a bad expression is shown as
@@ -241,17 +259,17 @@ scroll sync. Keep it in mind if JS parsing ever becomes a bottleneck.
 
 | Unit | Kind | Responsibility |
 |---|---|---|
-| `PreviewBridge` (`src/previewbridge.{h,cpp}`) | `QObject`, registered on a `QWebChannel` | Properties: `markdown`, `baseUrl` (document folder as `file://…/`), `theme` (`QVariantMap`: bg, fg, accent, selection, muted, dark), `textScale`, `fontFamily` (`mono` or `quattro`), `sourceLine` (for sync). Invokables called from the page: `openLink(url)`, `ready()`. Owns the debounce timer. There is **one bridge per editor**, shared by whichever placement is active. |
-| `Backend` | existing | Keeps its current API. Additions: a `previewBridge` property, `previewPlacement`, `previewVisible` and `previewFont` (all saved to `QSettings`), and feeding text, theme and scale into the bridge. The `editorTextChanged()` path already knows when content has really changed, and that is what triggers the bridge. |
-| `PreviewPane.qml` (`src/previewplugin/`) | plugin QML file | Wraps the `WebEngineView`: transparent background, `settings.javascriptCanOpenWindows: false`, `localContentCanAccessFileUrls: true`, `localContentCanAccessRemoteUrls: false`, `onNavigationRequested` blocks everything except the initial qrc load, and `onNewWindowRequested` sends the URL to `openLink`. It knows nothing about which placement it is in. |
+| `PreviewBridge` (`src/previewbridge.{h,cpp}`) | `QObject`, registered on a `QWebChannel` | Properties: `markdown`, `baseUrl` (document folder as `file://…/`), `theme` (`QVariantMap`: bg, fg, accent, selection, muted, dark), `textScale`, `fontFamily` (`mono` or `quattro`), `sourceLine` (a `qreal`: line plus fraction, for sync). Invokables called from the page: `openLink(url)`, `ready()`. Owns the debounce timer. There is **one bridge per editor**, shared by whichever placement is active. |
+| `Backend` | existing | Keeps its current API. Additions: a `previewBridge` property, `previewPlacement`, `previewVisible` and `previewFont` (all saved to `QSettings`), `previewLineAt(position)` for scroll sync, and feeding text, theme, scale and font into the bridge. The `editorTextChanged()` path already knows when content has really changed, and that is what triggers the bridge. |
+| `PreviewPane.qml` (`src/previewplugin/`) | plugin QML file | Wraps the `WebEngineView`: transparent background, `settings.javascriptCanOpenWindows: false`, `localContentCanAccessFileUrls: false` (images come through `omaview-doc:`), `localContentCanAccessRemoteUrls: false`, a `WebChannel` with `propertyUpdateInterval: 16` so scroll sync keeps up with the editor, `onNavigationRequested` blocks everything except the initial qrc load, and `onNewWindowRequested` sends the URL to `openLink`. It knows nothing about which placement it is in. |
 | `PreviewWindow.qml` (`src/previewplugin/`) | plugin QML file | A top-level `Window` (no `transientParent`) containing a `PreviewPane`. It owns the title, background and close-to-hide behaviour, and moves focus to the editor when find opens. It does not repeat the application-wide `Shortcut`s (see §4.1). It is created by a `Loader` in `Main.qml`, through `src/PreviewHost.qml`, whose `import Omaview.Preview` is what loads the plugin. |
 | `Omaview.Preview` plugin (`src/previewplugin/`) | QML plugin module (`previewplugin.pro`, `qmldir`, plugin class, qrc) | Holds everything that depends on QtWebEngine. Built by an extra make target in `omaview.pro` into `build/Omaview/Preview/`. `main.cpp` adds its import path and turns the preview on only if its `qmldir` exists; without it, Omaview runs as plain Omawrite. |
 | Docked layout in `Main.qml` | QML | A `SplitView` around the existing editor `Flickable`, with a `Loader` for the second `PreviewPane`. When not docked, the `SplitView` contains only the editor, and the editor subtree is unchanged. |
 | `src/preview/index.html`, `preview.css`, `preview.js` | qrc assets in the plugin | Rendering, DOM patching, theme variables, font switching, scroll sync, link and image interception. |
-| `fonts/iAWriterQuattroS-*.ttf` | bundled fonts | Registered with `QFontDatabase`, as Mono is, and exposed to the page through `@font-face` pointing at `qrc:`. |
+| `fonts/iAWriterQuattroS-*.woff2` | bundled fonts | Compiled into the preview plugin's qrc only and exposed to the page through `@font-face`. They are not registered with `QFontDatabase`, because the editor never uses them. Provenance is in `third_party/VERSIONS`. |
 | `third_party/` | vendored JS, CSS and fonts | `markdown-it`, `markdown-it-texmath`, `katex` (min.js, min.css, woff2 fonts only), `qwebchannel.js` (copied from Qt). Exact versions pinned in `third_party/VERSIONS`, with each licence alongside. |
-| `PreviewSandbox` and its interceptor (`src/previewplugin/previewsandbox.{h,cpp}`) | QML singleton and `QWebEngineUrlRequestInterceptor`, in the plugin | `PreviewSandbox.protect()` attaches the interceptor to the off-the-record profile that `PreviewPane` builds from a `WebEngineProfilePrototype` with no storage name. The URL policy itself is header-only (`src/previewpolicy.h`), so the plugin needs no symbols from the executable and the WebEngine-free tests can cover it. |
-| Interceptor policy (`src/previewpolicy.h`) | header-only C++ | Allows only `qrc:` and the document-folder scheme from §4.4 (M2); blocks everything else. This enforces principle 3. |
+| `PreviewSandbox` and its interceptor (`src/previewplugin/previewsandbox.{h,cpp}`) | QML singleton, `QWebEngineUrlRequestInterceptor` and `QWebEngineUrlSchemeHandler`, in the plugin | `PreviewSandbox.protect()` attaches the interceptor and the `omaview-doc:` handler to the off-the-record profile that `PreviewPane` builds from a `WebEngineProfilePrototype` with no storage name. The URL policy itself is header-only (`src/previewpolicy.h`), so the plugin needs no symbols from the executable and the WebEngine-free tests can cover it. |
+| Interceptor policy (`src/previewpolicy.h`) | header-only C++ | Allows only `qrc:` and `omaview-doc:` URLs that map inside the document's folder (`previewDocumentPath`), and blocks everything else, `file:` included. This enforces principle 3. |
 
 ### 5.3 Startup and placement lifecycle
 - **The `omaview` binary does not link QtWebEngine.** Just linking `libQt6WebEngineCore`
@@ -291,6 +309,20 @@ nodes (and their typeset KaTeX), changed blocks are replaced, and scroll positio
 Typing in one paragraph therefore re-typesets only that paragraph.
 Budget: under 16 ms per update for a 2,000-line document with 200 equations, measured
 on a 2024 laptop CPU.
+
+As built in M2:
+- The key is the block's rendered HTML, not its source. It is exact, and it covers things
+  a source hash misses, such as a reference definition elsewhere changing a link.
+- Source lines are left out of the HTML and set on the nodes after patching, so lines
+  added above a block don't re-create it.
+- Every new block is parsed in one `<template>`, split by marker comments. Raw HTML is
+  escaped, so a document can't forge one.
+- Stale nodes are removed before new ones are inserted, so blocks that stay are never
+  moved.
+- KaTeX output is cached by `(displayMode, tex)`. Entries unused for a whole render are
+  dropped.
+- Measured offscreen with no GPU: a median of 9.5 ms per update, including layout. The
+  first update after load pays once more, when KaTeX's web fonts arrive.
 
 ### 5.5 Printing and PDF
 - **Export PDF:** `WebEngineView.printToPdf(path, pageSize, orientation)`, with the path
@@ -387,7 +419,7 @@ on a 2024 laptop CPU.
 | M0 | Fork and rename *(done)* | Builds as `omaview`, 12/12 tests pass, upstream remote kept |
 | M1 | Pop-out preview window *(done)* | The preview opens as a separate tiled window by default and `Ctrl+E` shows and hides it, as does the footer preview button. Markdown and math render from qrc with no network. Theme and scale apply live. Chromium loads only when the preview is shown. Each update re-renders the whole of `#content` and keeps the scroll position; block-keyed patching comes in M2. The `no_preview` qmake scope builds and passes the inherited tests. |
 | M1.1 | Lazy WebEngine and an additive-only upstream diff *(done)* | The binary does not link QtWebEngine (`ldd`), and the preview loads as a QML plugin on first show. With the preview hidden, cold start is within 10% of the `no_preview` build. Upstream files differ from the fork point only by added lines (plus the `Ctrl+?` text). The spec in §4.1 and §5.2 matches how shortcuts actually behave. All tests pass. |
-| M2 | Fonts, incremental render and scroll sync | Mono/Quattro switching (`Ctrl+Shift+T`). Block-keyed DOM patching. The performance budget is met. Editor→preview sync works. Links, images (served through the document-folder scheme) and escaped HTML behave as in 4.4. |
+| M2 | Fonts, incremental render and scroll sync *(done)* | Mono/Quattro switching (`Ctrl+Shift+T`). Block-keyed DOM patching. The performance budget is met. Editor→preview sync works. Links, images (served through the document-folder scheme) and escaped HTML behave as in 4.4. |
 | M3 | Docked placement | `Ctrl+Shift+E` switches placement. `SplitView` with a saved ratio. The narrow-window rule. The placement test passes. |
 | M4 | Editor math support | Highlighter rule, `Ctrl+M` / `Ctrl+Shift+M`, and `$$`-aware smart return, each with tests |
 | M5 | PDF export and print | `Ctrl+Shift+P` and `Ctrl+P` produce output with the math rendered |
@@ -409,6 +441,9 @@ on a 2024 laptop CPU.
 | 2026-09-21 | Local images go through a custom document-folder URL scheme in M2, because Chromium blocks `file:` from `qrc:` pages. |
 | 2026-09-21 | `Ctrl+F` from the preview while find is already open leaves focus in the preview. Accepted, to keep the editor's find handlers untouched. |
 | 2026-09-21 | The preview's QtWebEngine code lives in the `Omaview.Preview` plugin under `src/previewplugin/`, and the plugin installs to `/usr/lib/omaview/qml`. |
+| 2026-09-21 | M2: Quattro S ships as woff2 in the plugin only, not registered with `QFontDatabase`. |
+| 2026-09-21 | M2: the resource policy drops `file:`; document images come only through `omaview-doc:`, which serves image files inside the folder with symlinks resolved. |
+| 2026-09-21 | M2: `sourceLine` is fractional, and the preview follows the editor until the reader scrolls the preview. |
 
 ## 10. Open questions
 

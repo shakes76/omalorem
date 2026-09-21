@@ -1,6 +1,6 @@
 # Omaview — Development status
 
-Last updated: 2026-09-21 · Branch: `m1-preview-window` (not yet merged to `main`, not pushed)
+Last updated: 2026-09-21 · Branch: `m2-fonts-sync`, stacked on `m1-preview-window` (neither merged to `main` nor pushed)
 
 This is the working log for developers and coding agents. It records where the project
 stands, how the code is laid out, the rules every change must follow, and what was done
@@ -15,8 +15,8 @@ the gap should be fixed or raised.
 | M0 Fork and rename | Done | Upstream Omawrite `8f98892`, fork commit `eb6bd1a` |
 | M1 Pop-out preview window | Done | Commits `b908f24`…`96906ed` |
 | M1.1 Lazy WebEngine, additive-only upstream diff | Done | Commits `fe28c62`, `22db1c8` |
-| M2 Fonts, incremental render, scroll sync, images | **Next** | See §7 |
-| M3 Docked placement | Not started | Profile lifetime needs a decision first (§6) |
+| M2 Fonts, incremental render, scroll sync, images | Done | Commits `686f38d`…`2acb47c` |
+| M3 Docked placement | **Next** | Profile lifetime needs a decision first (§6). See §7 |
 | M4 Editor math support | Not started | |
 | M5 PDF export and print | Not started | |
 | M6 Packaging and Omarchy docs | Not started | PKGBUILD steps are already written in SPEC §6 |
@@ -26,13 +26,18 @@ What works today:
 - `Ctrl+E` and the footer preview button show and hide it, and the setting is saved in `preview/visible`.
 - Markdown (CommonMark and GFM tables, strikethrough, autolinks, task lists) and KaTeX math (`$`, `$$`, `\(…\)`, `\[…\]`) render from qrc, with no network access.
 - Theme colours, light and dark mode, and the desktop text scale apply live.
+- `Ctrl+Shift+T` switches the preview's prose between iA Writer Mono S and Quattro S, saved in `preview/font`. Code stays in Mono, and the column width doesn't change.
 - The preview re-renders 120 ms after the last keystroke. Open, reload and recovery render at once.
+- Rendering is block-keyed: unchanged blocks keep their DOM nodes and typeset math, and KaTeX output is cached. An update of the 2,000-line, 200-equation document takes a median 9.5 ms offscreen.
+- Scroll sync from the editor to the preview uses a fractional `sourceLine`. The preview follows the editor until the reader scrolls the preview.
+- Local images in the document's folder and its subfolders load through `omaview-doc:`. Remote, out-of-folder and unsaved-document images show a placeholder with the alt text.
+- Headings have GitHub-style ids, so `#anchor` links scroll within the preview.
 - Closing the preview only hides it. Closing the editor closes both.
 - `Ctrl+F` and `Ctrl+H` from the preview bring the editor forward. F11 in the preview fullscreens the preview.
 - With the preview hidden, the `omaview` binary never loads QtWebEngine: `ldd` shows no WebEngine library, and none is mapped at runtime.
 - `no_preview` builds are plain Omawrite with the Omaview name.
 
-Tests: `bin/test` passes both targets. `tst_omaview` has 20 passed. `tst_preview` has 20 passed, and 1 expected failure for local images, which is M2 work.
+Tests: `bin/test` passes both targets. `tst_omaview` has 22 passed. `tst_preview` has 26 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
 
 ## 2. Rules for every change
 
@@ -40,7 +45,7 @@ These come from the spec and from decisions made with the project owner. Don't b
 
 1. **Additive-only upstream diff (SPEC §2, principle 1).** Files that came from upstream Omawrite may only gain lines. No existing upstream line is modified or deleted. The only exception is the `Ctrl+?` reference text in `src/Main.qml`. Preview behaviour lives in the preview's own files and reaches the editor through additive hooks: new properties, functions, blocks and signals. The reason is to keep upstream rebases clean and keep the preview portable to another editor. Check with the audit in §5.
 2. **Nothing costs anything until it's used.** WebEngine code belongs only in the `Omaview.Preview` plugin (`src/previewplugin/`), never in the executable. Don't call `QtWebEngineQuick::initialize()` from `main.cpp`: that links WebEngine and cost +26% cold start in M1.
-3. **Offline and sandboxed.** All web assets are vendored in `third_party/` and compiled in through qrc. Follow the update procedure in `third_party/VERSIONS`, and never commit `node_modules` or `package.json`. The request interceptor allows only `qrc:`, plus the document-folder scheme once M2 adds it.
+3. **Offline and sandboxed.** All web assets are vendored in `third_party/` (fonts in `fonts/`) and compiled in through qrc. Follow the update procedure in `third_party/VERSIONS`, and never commit `node_modules` or `package.json`. The request interceptor allows only `qrc:` and `omaview-doc:` inside the document's folder; `file:` is always refused.
 4. **Match the code style.** Use `QStringLiteral`, `Q_PROPERTY` with NOTIFY, the `m_` prefix, 4-space indents and C++17. In QML, sizes go through `win.scaledSize()` and colours come from `backend.theme*`. Comments explain *why*.
 5. **Every behaviour change gets a QtTest case.** Keep all tests green, and report real test output.
 6. **Commit one phase at a time** on a milestone branch. Each commit ends with the `Co-Authored-By` trailer. Don't push without being asked.
@@ -52,16 +57,17 @@ These come from the spec and from decisions made with the project owner. Don't b
 src/
   main.cpp, Main.qml, backend.*, …    upstream editor (additive changes only)
   previewbridge.{h,cpp}               PreviewBridge: plain QObject, no WebEngine dependency
-  previewpolicy.h                     header-only URL policy, shared by the bridge, plugin and tests
+  previewpolicy.h                     header-only URL policy and omaview-doc: path mapping, shared by the bridge, plugin and tests
   PreviewHost.qml, previewhost.qrc    `import Omaview.Preview; PreviewWindow {}`; this import loads the plugin
   preview/                            index.html, preview.css, preview.js (the page)
   previewplugin/                      Omaview.Preview QML plugin; everything that needs QtWebEngine
     previewplugin.pro, qmldir, previewplugin.cpp, previewplugin.qrc
-    previewsandbox.{h,cpp}            PreviewSandbox singleton and request interceptor
+    previewsandbox.{h,cpp}            PreviewSandbox singleton, request interceptor, omaview-doc: scheme handler
     PreviewPane.qml                   WebEngineView wrapper (profile prototype, navigation blocking)
     PreviewWindow.qml                 top-level window: title, close-to-hide, find focus, F11
 third_party/                          markdown-it 14.3.2, markdown-it-texmath 1.0.0, katex 0.16.47,
                                       qwebchannel.js (Qt 6.11.2); VERSIONS has the pins and sha256s
+fonts/                                upstream's Mono S (.ttf, editor), plus Quattro S (.woff2, preview plugin only)
 tests/
   tst_omaview.cpp, tests.pro          editor, backend and bridge tests (no WebEngine)
   preview/                            tst_preview: real WebEngineView offscreen, plus the integration tests
@@ -75,19 +81,23 @@ bin/
 
 ```
 Main.qml TextEdit ──textChanged──▶ backend.previewEditorTextChanged()   (additive hook)
+Main.qml editorFlick.contentY ──▶ backend.previewLineAt() ──▶ bridge.sourceLine   (scroll sync, while wanted)
 Backend ──▶ PreviewBridge (120 ms debounce; open/reload/recovery render at once)
 Backend's theme, darkMode, textScale and fileUrl signals ──▶ bridge properties
 Main.qml Loader (after the editor's first frame, while previewVisible)
    └─▶ PreviewHost.qml ──import──▶ Omaview.Preview plugin (loads WebEngine now)
           └─▶ PreviewWindow ─▶ PreviewPane ─▶ WebEngineView ─QWebChannel─▶ qrc:/preview/index.html
                                                                            markdown-it + texmath → KaTeX
+                                                        omaview-doc:/… ◀── images, via PreviewDocumentSchemeHandler
 ```
 
 - `main.cpp` sets `Qt::AA_ShareOpenGLContexts` before `QApplication`. It adds the plugin's import path, which is `build/` first, then `<bindir>/../lib/omaview/qml`, and calls `setPreviewAvailable(true)` only if the plugin's `qmldir` exists. Without the plugin, the app runs as plain Omawrite.
 - `PreviewPane` builds an off-the-record profile from a `WebEngineProfilePrototype` with no storage name, and `PreviewSandbox.protect()` attaches the interceptor. The `WebEngineView` is created by a `Loader` only after the pane completes, because the prototype returns a null profile before then, and `setProfile(nullptr)` segfaults.
 - Find from the preview: `PreviewWindow` watches the editor's `searchOpen` and calls `editorWindow.requestActivate()`.
 - F11 in the preview: a focus wrapper accepts F11's `ShortcutOverride`, which bubbles up even out of Chromium, and toggles fullscreen in that same handler. The key press itself never comes back out of the web view.
-- The page replaces all of `#content` on each render and keeps the scroll position. Top-level blocks already carry `data-source-line` for M2's scroll sync.
+- **Rendering** (`preview.js`): `md.parse`, then the tokens are split into top-level blocks and each is rendered to HTML. That HTML is the block's key, and unchanged blocks keep their nodes. `data-source-line` and `data-source-line-end` are set on the nodes afterwards, outside the key. `window.omaviewPreview.lastRender` holds `{blocks, created, ms}` for the tests.
+- **Scroll sync:** Main.qml probes the editor at `contentY` and publishes line plus fraction. The page maps it through `positionOfLine()` and puts it `paddingTop` below the view's top. A `following` flag decides whether renders re-apply the sync. The channel's `propertyUpdateInterval` is 16 ms, down from the default 50 ms.
+- **Images:** the plugin registers `omaview-doc:` in `registerTypes()`, which is before any profile exists and so is not too late. The scheme is not `LocalScheme`, because Chromium doesn't count `qrc:` as local and refuses the load with "Not allowed to load local resource". markdown-it's `validateLink` is widened to let `file:` through, so in-folder `file:` images work; the bridge still refuses `file:` links.
 - Debug logging: `QT_LOGGING_RULES="omaview.preview.info=true"` logs the first render. `omaview.preview.sandbox` logs blocked requests.
 
 ## 4. Build, run and test
@@ -120,23 +130,35 @@ Timing method: offscreen, isolated settings, launch to the editor's first frame,
 | Preview hidden, against `no_preview` | about 281 ms each (≈0%) | ≤10% — met |
 | Preview first render after the editor's frame | 732 ms (offscreen, no GPU) | ≤600 ms — open (SPEC §10 Q3) |
 
+M2 did not re-time startup. Its Main.qml additions are `Connections` that are disabled while the preview is hidden, and a shortcut.
+
+Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
+
+| Case | Result | Target |
+|---|---|---|
+| Update, 2,000 lines and 200 equations | median 9.5 ms, worst 12 ms | ≤16 ms — met |
+| First update after load (KaTeX fonts arrive, one full relayout) | about 115 ms | one-off, not budgeted |
+| Cold render of the same document | about 310 ms | not budgeted |
+
 ## 6. Known issues and open questions
 
 - **First-render time** (SPEC §10 Q3). This needs measuring on Hyprland with the GPU. If it still misses, relax the target. Don't warm WebEngine up on a background thread, because that isn't safe.
-- **Local images** don't render yet. Chromium refuses `file:` URLs to a `qrc:` page. M2 serves the document's folder through a custom URL scheme (`QWebEngineUrlSchemeHandler`) instead. That's the expected failure in `tst_preview`.
+- **Image caching.** Chromium may cache an `omaview-doc:` image for the session, so replacing an image file on disk may not show until the document is reopened. This hasn't been checked.
+- **Scrollbar drags in the preview** may not count as "the reader scrolled". Wheel, keys, touch and pointer-down do, but whether Chromium sends `pointerdown` for a scrollbar drag hasn't been checked. If not, a render while the preview is scrolled that way would snap it back to the editor's line.
 - **`Ctrl+F` from the preview while find is already open** leaves focus in the preview. This is accepted, to keep the editor's find handlers untouched.
 - **Profile lifetime for M3.** The profile lives only as long as its `PreviewPane`. Before M3 recreates panes, decide whether it moves out, for example into `PreviewSandbox`.
 - **Not yet checked by a human on Hyprland:**
   - fractional scaling at 1.25 and 1.5
   - the checklist in SPEC §7, repeated after each UI milestone
+  - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: M2
+## 7. Next: M3
 
 This is scope from SPEC §8 plus the decisions above:
-- Mono and Quattro font switching (`Ctrl+Shift+T`), with Quattro S bundled in the plugin's qrc and saved as `preview/font`.
-- Block-keyed DOM patching, meeting the budget of 16 ms per update on the 2,000-line fixture with 200 equations.
-- Editor → preview scroll sync through `data-source-line` and `sourceLine`.
-- The document-folder URL scheme for local images, which turns the expected failure into a pass. Also the §4.4 link and escaped-HTML behaviour.
+- Decide the profile lifetime first (§6). The `omaview-doc:` handler and the interceptor are per `PreviewSandbox`, and both are attached in `protect()`, which already skips a profile that has the handler.
+- `Ctrl+Shift+E` switches placement. It destroys one `PreviewPane` and creates the other, and never moves a `WebEngineView` between windows.
+- A `SplitView` in `Main.qml` with a saved `preview/splitRatio`, clamped to 0.25–0.75, and the narrow-window rule (about 900 px).
+- The placement test from SPEC §7: switching twice keeps the content and the `sourceLine` anchor, and leaves exactly one live `WebEngineView`. Because `sourceLine` lives on the bridge, a new pane lines up as soon as it renders.
 
 ## 8. History
 
@@ -183,3 +205,19 @@ Result:
 - Recorded the plugin file layout and the M6 packaging steps.
 - Recorded the profile-lifetime note for M3 and the accepted `Ctrl+F` limit.
 - Marked M1 and M1.1 done, and added the first-render target as an open question.
+
+### M2: Fonts, incremental render, scroll sync and images
+| Commit | What |
+|---|---|
+| `686f38d` | Quattro S woff2 in the plugin, `previewFont` and `preview/font`, and `Ctrl+Shift+T`. `#content` stays in Mono so `65ch` doesn't change |
+| `78c73f8` | Block-keyed DOM patching, the KaTeX cache, `window.omaviewPreview` stats, and the 2,000-line performance test |
+| `c35d24e` | `omaview-doc:` scheme and handler, the resource policy without `file:`, image placeholders, and turning the expected failure into a pass |
+| `be36447` | Heading ids for `#anchor` links |
+| `2acb47c` | Editor→preview scroll sync: fractional `sourceLine`, `Backend::previewLineAt`, and the page's follow mode |
+
+Findings:
+- Chromium doesn't treat `qrc:` as a local scheme. Registering `omaview-doc:` with `LocalScheme` made the page refuse it ("Not allowed to load local resource").
+- markdown-it's default `validateLink` drops `file:` URLs, so a `file:` image never becomes an `<img>` unless that check is widened.
+- Checking whether the preview is following by comparing `scrollTop` against the last synced value is fragile, because scroll anchoring and late fonts move it. An explicit flag, driven by input events, works reliably.
+- Opening a file leaves upstream's editor scrolled to the end, so `sourceLine` starts at the last line, not 0.
+- With whole-document rendering, the first update after load was dominated by layout, because KaTeX's fonts arrive after the first paint. Patching doesn't change that one-off.
