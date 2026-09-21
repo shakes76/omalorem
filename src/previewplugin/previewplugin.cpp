@@ -14,6 +14,8 @@ public:
     void registerTypes(const char *uri) override {
         // The page and its QML live in this plugin's resources.
         Q_INIT_RESOURCE(previewplugin);
+        // Before any profile exists, which is before any view can.
+        PreviewDocumentSchemeHandler::registerScheme();
         qmlRegisterSingletonType<PreviewSandbox>(
             uri, 1, 0, "PreviewSandbox",
             [](QQmlEngine *, QJSEngine *) -> QObject * { return new PreviewSandbox; });

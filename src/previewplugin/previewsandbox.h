@@ -4,6 +4,7 @@
 #include <QPointer>
 #include <QStringList>
 #include <QWebEngineUrlRequestInterceptor>
+#include <QWebEngineUrlSchemeHandler>
 
 class QQuickWebEngineProfile;
 
@@ -27,10 +28,30 @@ private:
     QStringList m_blockedRequests;
 };
 
+// Serves omaview-doc: requests from the document's folder: image files only,
+// and only if the file, with any symlinks resolved, is inside the folder.
+class PreviewDocumentSchemeHandler : public QWebEngineUrlSchemeHandler {
+    Q_OBJECT
+
+public:
+    explicit PreviewDocumentSchemeHandler(QObject *parent = nullptr);
+
+    // Registers the scheme with QtWebEngine. It must happen before the
+    // first profile exists, so the plugin does it as it loads.
+    static void registerScheme();
+
+    void setBridge(QObject *bridge) { m_bridge = bridge; }
+    void requestStarted(QWebEngineUrlRequestJob *job) override;
+
+private:
+    QPointer<QObject> m_bridge;
+};
+
 // QML singleton `PreviewSandbox` of the Omaview.Preview module. The profile
 // comes from a WebEngineProfilePrototype in PreviewPane.qml (a WebEngineProfile
 // declared in QML cannot take an interceptor, and Qt 6.9+ asks for prototypes
-// over profiles built directly); this adds the interceptor to it.
+// over profiles built directly); this adds the interceptor to it, and the
+// handler for the document folder's scheme.
 class PreviewSandbox : public QObject {
     Q_OBJECT
 
@@ -43,4 +64,5 @@ public:
 
 private:
     PreviewRequestInterceptor *m_interceptor = nullptr;
+    PreviewDocumentSchemeHandler *m_documentHandler = nullptr;
 };

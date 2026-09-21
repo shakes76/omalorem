@@ -286,23 +286,27 @@ private slots:
         QCOMPARE(blockedRequests(), QStringList());
     }
 
-    void blocksRemoteAndOutsideResources() {
+    void showsOnlyDocumentFolderImages() {
         m_bridge->setDocumentUrl(fixtureUrl(QStringLiteral("remote.md")));
         QVERIFY(renderFixture(QStringLiteral("remote.md")));
-        // The remote image and the one outside the folder never load: the
-        // page's CSP and Chromium's own file: checks stop them before the
-        // interceptor even sees them.
-        QTRY_COMPARE(js("[...document.images].filter(i => i.complete).length").toInt(), 3);
-        const QString loaded = js("[...document.images].filter(i => i.naturalWidth > 0)"
-                                  ".map(i => i.alt).join(',')").toString();
+        // The image beside the document loads through omaview-doc:; the
+        // remote one and the one outside the folder are placeholders and
+        // are never requested at all.
+        QTRY_VERIFY(js("[...document.images].every(i => i.complete)").toBool());
+        QCOMPARE(js("[...document.images].filter(i => i.naturalWidth > 0).map(i => i.alt)"
+                    ".join(',')").toString(), QStringLiteral("local"));
+        QCOMPARE(js("document.images[0].getAttribute('src')").toString(),
+                 QStringLiteral("omaview-doc:/pixel.png"));
+        QCOMPARE(js("[...document.querySelectorAll('#content .image-placeholder')]"
+                    ".map(p => p.textContent + ':' + p.title).join('|')").toString(),
+                 QStringLiteral("remote:Remote images are not shown|"
+                                "outside:Only images in the document's folder are shown"));
+
+        // An unsaved document has no folder, so even that image is a
+        // placeholder; changing the folder re-renders.
         m_bridge->setDocumentUrl(QUrl());
-        QVERIFY(!loaded.contains(QStringLiteral("remote")));
-        QVERIFY(!loaded.contains(QStringLiteral("outside")));
-        // Chromium refuses every file: subresource to a qrc: page, including
-        // the image beside the document. Local images are M2 (spec 4.4) and
-        // need a different route, such as a scheme handler for the folder.
-        QEXPECT_FAIL("", "file: images are refused to the qrc: page; local images are M2", Continue);
-        QCOMPARE(loaded, QStringLiteral("local"));
+        QTRY_COMPARE(js("document.images.length").toInt(), 0);
+        QCOMPARE(js("document.querySelectorAll('#content .image-placeholder').length").toInt(), 3);
     }
 
     void interceptorBlocksWhatGetsPastThePage() {
@@ -319,10 +323,12 @@ private slots:
         QScopedPointer<QObject> bareView(component.create(&context));
         QVERIFY(bareView);
 
+        // Not even the document's own folder is reachable through file:.
         const QUrl local = fixtureUrl(QStringLiteral("pixel.png"));
         const QStringList targets{QStringLiteral("https://example.com/"),
                                   QStringLiteral("file:///etc/hosts"),
-                                  local.toString()};
+                                  local.toString(),
+                                  QStringLiteral("omaview-doc:/pixel.png")};
         for (const QString &target : targets) {
             QSignalSpy loadSpy(bareView.data(), SIGNAL(loadingChanged(QWebEngineLoadingInfo)));
             bareView->setProperty("url", QUrl(target));
@@ -330,7 +336,43 @@ private slots:
         }
         QCOMPARE(blockedRequests(),
                  QStringList({QStringLiteral("https://example.com/"),
-                              QStringLiteral("file:///etc/hosts")}));
+                              QStringLiteral("file:///etc/hosts"),
+                              local.toString()}));
+        m_bridge->setDocumentUrl(QUrl());
+    }
+
+    // The scheme handler serves image files from the document's folder and
+    // its subfolders, and nothing else: no symlinks out, no other files.
+    void servesImagesFromDocumentFolder() {
+        QTemporaryDir root;
+        QVERIFY(root.isValid());
+        const QDir dir(root.path());
+        QVERIFY(dir.mkpath(QStringLiteral("doc/sub")) && dir.mkpath(QStringLiteral("outside")));
+        const QString pixel = QStringLiteral(FIXTURES_DIR "/pixel.png");
+        for (const QString &name : {QStringLiteral("doc/a.png"), QStringLiteral("doc/sub/b.png"),
+                                    QStringLiteral("doc/my pic.png"),
+                                    QStringLiteral("outside/c.png")})
+            QVERIFY(QFile::copy(pixel, dir.filePath(name)));
+        QVERIFY(QFile::link(dir.filePath(QStringLiteral("outside/c.png")),
+                            dir.filePath(QStringLiteral("doc/escape.png"))));
+        QVERIFY(QFile::link(dir.filePath(QStringLiteral("doc/a.png")),
+                            dir.filePath(QStringLiteral("doc/alias.png"))));
+        QFile text(dir.filePath(QStringLiteral("doc/notes.txt")));
+        QVERIFY(text.open(QIODevice::WriteOnly));
+        text.write("private notes");
+        text.close();
+
+        m_bridge->setDocumentUrl(QUrl::fromLocalFile(dir.filePath(QStringLiteral("doc/doc.md"))));
+        QVERIFY(renderMarkdown(QStringLiteral(
+            "![a](a.png) ![b](sub/b.png) ![spaced](my%20pic.png) ![alias](./alias.png)\n"
+            "![file](%1) ![escape](escape.png) ![text](notes.txt) ![missing](nope.png)\n")
+            .arg(QUrl::fromLocalFile(dir.filePath(QStringLiteral("doc/a.png"))).toString()),
+            QStringLiteral("folder")));
+        QTRY_VERIFY(js("[...document.images].every(i => i.complete)").toBool());
+        QCOMPARE(js("[...document.images].filter(i => i.naturalWidth > 0).map(i => i.alt)"
+                    ".join(',')").toString(), QStringLiteral("a,b,spaced,alias,file"));
+        QCOMPARE(js("[...document.images].filter(i => i.naturalWidth === 0).map(i => i.alt)"
+                    ".join(',')").toString(), QStringLiteral("escape,text,missing"));
         m_bridge->setDocumentUrl(QUrl());
     }
 

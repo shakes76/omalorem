@@ -46,7 +46,8 @@ Item {
             profile: PreviewSandbox.protect(profilePrototype.instance(), pane.bridge)
             webChannel: channel
             settings.javascriptCanOpenWindows: false
-            settings.localContentCanAccessFileUrls: true
+            // Document images come through omaview-doc:, never file:.
+            settings.localContentCanAccessFileUrls: false
             settings.localContentCanAccessRemoteUrls: false
             settings.focusOnNavigationEnabled: false
 

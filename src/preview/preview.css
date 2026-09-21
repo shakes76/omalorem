@@ -194,6 +194,18 @@ img {
     max-width: 100%;
 }
 
+/* An image that is not shown (remote, outside the document's folder, or in
+   an unsaved document): its alt text in a small muted frame. The reason is
+   the tooltip. */
+.image-placeholder {
+    display: inline-block;
+    font-size: 0.8em;
+    color: var(--muted);
+    border: 1px dashed var(--muted);
+    border-radius: 3px;
+    padding: 0 0.4em;
+}
+
 .katex {
     font-size: 1.1em;
 }

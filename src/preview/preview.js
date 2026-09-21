@@ -82,20 +82,46 @@
         }
     });
 
-    // Relative image paths resolve against the document's folder. With no
-    // folder (an unsaved document) they resolve to nothing; the request
-    // interceptor refuses anything outside the folder either way.
+    // An image inside the document's folder (a relative path, or a file:
+    // URL) is served through omaview-doc:, which maps only to that folder.
+    // Returns a reason instead when the image is not shown.
+    function documentImage(source, baseUrl) {
+        if (!baseUrl)
+            return { reason: "Save the document to show its images" };
+        let url;
+        try {
+            url = new URL(source, baseUrl);
+        } catch (error) {
+            return { reason: "Not an image path" };
+        }
+        if (url.protocol !== "file:")
+            return { reason: "Remote images are not shown" };
+        // The URL parser has already resolved any `..`; the scheme handler
+        // checks again, symlinks included.
+        const folder = new URL(baseUrl).pathname;
+        if (url.host !== "" || !url.pathname.startsWith(folder) || url.pathname === folder)
+            return { reason: "Only images in the document's folder are shown" };
+        return { src: "omaview-doc:/" + url.pathname.slice(folder.length) };
+    }
+
+    // markdown-it drops file: URLs outright, but spec 4.4 shows a file:
+    // image inside the folder. Let them through: images go through the
+    // rule below, and the bridge refuses file: links when clicked.
+    const validateLink = md.validateLink;
+    md.validateLink = (url) => /^file:/i.test(url.trim()) || validateLink(url);
+
+    // Anything else is a small placeholder with the alt text (spec 4.4).
     const renderImage = md.renderer.rules.image;
     md.renderer.rules.image = function (tokens, index, options, env, self) {
         const token = tokens[index];
-        let source = "";
-        try {
-            source = new URL(token.attrGet("src"), env.baseUrl || undefined).href;
-        } catch (error) {
-            source = "";
+        const image = documentImage(token.attrGet("src"), env.baseUrl);
+        if (image.src) {
+            token.attrSet("src", image.src);
+            return renderImage(tokens, index, options, env, self);
         }
-        token.attrSet("src", source);
-        return renderImage(tokens, index, options, env, self);
+        const alt = self.renderInlineAsText(token.children, options, env) || "image";
+        return '<span class="image-placeholder" role="img" title="' + escapeHtml(image.reason)
+            + '" aria-label="' + escapeHtml(alt) + '">' + escapeHtml(alt) + "</span>";
     };
 
     const content = () => document.getElementById("content");
