@@ -86,9 +86,18 @@ ApplicationWindow {
     }
 
     function toggleFullScreen() {
-        win.visibility = win.visibility === Window.FullScreen
+        // F11 in the preview window fullscreens the preview, for reading.
+        var target = previewWindowLoader.item && previewWindowLoader.item.active
+            ? previewWindowLoader.item
+            : win;
+        target.visibility = target.visibility === Window.FullScreen
             ? Window.Windowed
             : Window.FullScreen;
+    }
+
+    function togglePreview() {
+        if (backend.previewAvailable)
+            backend.previewVisible = !backend.previewVisible;
     }
 
     function updateSearch() {
@@ -149,6 +158,7 @@ ApplicationWindow {
         onActivated: {
             searchOpen = true;
             replaceOpen = true;
+            win.requestActivate();
             searchField.forceActiveFocus();
             searchField.selectAll();
         }
@@ -203,6 +213,12 @@ ApplicationWindow {
     }
 
     Shortcut {
+        sequence: "Ctrl+E"
+        context: Qt.ApplicationShortcut
+        onActivated: win.togglePreview()
+    }
+
+    Shortcut {
         sequences: ["Meta+F", "F11"]
         context: Qt.ApplicationShortcut
         onActivated: toggleFullScreen()
@@ -225,6 +241,7 @@ ApplicationWindow {
         context: Qt.ApplicationShortcut
         onActivated: {
             searchOpen = true;
+            win.requestActivate();
             searchField.forceActiveFocus();
             searchField.selectAll();
         }
@@ -235,6 +252,24 @@ ApplicationWindow {
         context: Qt.ApplicationShortcut
         enabled: win.searchOpen
         onActivated: win.moveSearch(1)
+    }
+
+    // The preview window is created the first time the preview is shown, so
+    // Chromium never starts in a session that doesn't show it. It then stays
+    // loaded while hidden, which makes showing it again instant.
+    Loader {
+        id: previewWindowLoader
+
+        readonly property bool wanted: backend.previewAvailable && backend.previewVisible
+
+        function load() {
+            if (wanted && status === Loader.Null)
+                setSource("PreviewWindow.qml", { editorWindow: win });
+        }
+
+        onWantedChanged: load()
+        // Later, so the editor window is up before the preview opens beside it.
+        Component.onCompleted: Qt.callLater(load)
     }
 
     Connections {
@@ -331,7 +366,7 @@ ApplicationWindow {
         standardButtons: Dialog.Close
         anchors.centerIn: parent
         contentItem: Label {
-            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+P  Print\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
+            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+P  Print\nCtrl+E  Preview\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
             lineHeight: 1.5
         }
     }
@@ -819,6 +854,15 @@ ApplicationWindow {
                 iconColor: win.mutedColor
                 tooltip: "Open"
                 onClicked: backend.openDialog()
+            }
+
+            FooterIconButton {
+                objectName: "previewButton"
+                visible: backend.previewAvailable
+                iconName: "preview"
+                iconColor: win.mutedColor
+                tooltip: backend.previewVisible ? "Hide preview" : "Show preview"
+                onClicked: win.togglePreview()
             }
 
             Label {

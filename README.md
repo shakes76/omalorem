@@ -23,6 +23,7 @@ Build and install locally with `bin/install` (requires `makepkg`), or just build
 - `Ctrl+Shift+S` saves as.
 - `Ctrl+O` opens a Markdown file through the portal picker.
 - `Ctrl+P` opens the system print dialog.
+- `Ctrl+E` shows or hides the preview window. Closing the preview window only hides it.
 - `Ctrl+N` opens a new Omaview window.
 - `Ctrl+Z`, `Ctrl+Shift+Z`, and `Ctrl+Y` handle undo and redo.
 - `Super+F` toggles fullscreen. Qt maps this key as `Meta+F`.

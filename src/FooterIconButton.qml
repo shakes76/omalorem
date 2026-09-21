@@ -54,6 +54,21 @@ Item {
                 context.lineTo(4.5, 9.5);
                 context.lineTo(11.5, 9.5);
                 context.lineTo(11.5, 13.5);
+            } else if (control.iconName === "preview") {
+                // A page split in two, the right half holding rendered lines.
+                context.moveTo(2.5, 2.5);
+                context.lineTo(13.5, 2.5);
+                context.lineTo(13.5, 13.5);
+                context.lineTo(2.5, 13.5);
+                context.closePath();
+                context.moveTo(8, 2.5);
+                context.lineTo(8, 13.5);
+                context.moveTo(10, 6);
+                context.lineTo(11.5, 6);
+                context.moveTo(10, 8.5);
+                context.lineTo(11.5, 8.5);
+                context.moveTo(10, 11);
+                context.lineTo(11.5, 11);
             } else {
                 context.moveTo(2.5, 13);
                 context.lineTo(2.5, 3.5);

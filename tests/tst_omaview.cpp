@@ -193,6 +193,29 @@ private slots:
         QCOMPARE(openDialogSpy.count(), 1);
     }
 
+    void hidesPreviewControlsWithoutWebEngine() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> window(component.create());
+        QVERIFY2(window, qPrintable(component.errorString()));
+
+        // This target, like a no_preview build, never marks the preview
+        // available: the button is hidden and toggling is a no-op.
+        QObject *previewButton = window->findChild<QObject *>(QStringLiteral("previewButton"));
+        QVERIFY(previewButton);
+        QCOMPARE(previewButton->property("visible").toBool(), false);
+        const bool visibleBefore = backend.previewVisible();
+        QVERIFY(QMetaObject::invokeMethod(previewButton, "clicked"));
+        QVERIFY(QMetaObject::invokeMethod(window.data(), "togglePreview"));
+        QCOMPARE(backend.previewVisible(), visibleBefore);
+    }
+
     void scalesTextWithDesktopTextSize() {
         const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
         QVERIFY(!mainQmlPath.isEmpty());
