@@ -9,10 +9,40 @@
 #include <QWebEngineUrlRequestInfo>
 #include <QWebEngineUrlRequestJob>
 #include <QWebEngineUrlScheme>
+#include <QWindow>
 
 #include "previewpolicy.h"
 
 Q_LOGGING_CATEGORY(previewSandboxLog, "omalorem.preview.sandbox")
+// QT_LOGGING_RULES="omalorem.preview.expose.debug=true" shows which window
+// events arrive, for diagnosing a view left black after a workspace switch.
+Q_LOGGING_CATEGORY(previewExposeLog, "omalorem.preview.expose", QtWarningMsg)
+
+PreviewExposeWatcher::PreviewExposeWatcher(QObject *parent) : QObject(parent) {}
+
+void PreviewExposeWatcher::setWindow(QWindow *window) {
+    if (m_window == window)
+        return;
+
+    if (m_window)
+        m_window->removeEventFilter(this);
+    m_window = window;
+    m_exposed = window && window->isExposed();
+    if (m_window)
+        m_window->installEventFilter(this);
+    emit windowChanged();
+}
+
+bool PreviewExposeWatcher::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == m_window && event->type() == QEvent::Expose) {
+        const bool exposed = m_window->isExposed();
+        qCDebug(previewExposeLog) << "Expose, exposed:" << exposed;
+        if (exposed && !m_exposed)
+            emit reexposed();
+        m_exposed = exposed;
+    }
+    return QObject::eventFilter(watched, event);
+}
 
 PreviewRequestInterceptor::PreviewRequestInterceptor(QObject *parent)
     : QWebEngineUrlRequestInterceptor(parent) {}

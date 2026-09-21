@@ -46,6 +46,34 @@ Window {
             Qt.callLater(editorWindow.requestActivate);
     }
 
+    // Coming back to a workspace can leave the web view black until the
+    // page paints again (the compositor stops the hidden window, and Qt
+    // drops the last frame). Ask for a fresh frame whenever the window may
+    // have been hidden: when it is exposed again, and when either window
+    // becomes active, which is where focus lands on returning.
+    PreviewExposeWatcher {
+        window: previewWindow
+        onReexposed: previewWindow.repaint()
+    }
+
+    onActiveChanged: {
+        if (active)
+            repaint();
+    }
+
+    function repaint() {
+        pane.repaint();
+        repaintRetry.restart();
+    }
+
+    // Once more a moment later, in case Chromium was still being told the
+    // window is visible again when the first request arrived.
+    Timer {
+        id: repaintRetry
+        interval: 150
+        onTriggered: pane.repaint()
+    }
+
     function toggleFullScreen() {
         visibility = visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen;
     }
@@ -63,6 +91,11 @@ Window {
 
         // Ctrl+F or Ctrl+H pressed here opens the editor's find bar; typing
         // belongs over there, so hand the keyboard to the editor window.
+        function onActiveChanged() {
+            if (previewWindow.editorWindow.active && previewWindow.visible)
+                previewWindow.repaint();
+        }
+
         function onSearchOpenChanged() {
             if (previewWindow.editorWindow.searchOpen && previewWindow.active)
                 previewWindow.editorWindow.requestActivate();
@@ -92,6 +125,8 @@ Window {
         }
 
         PreviewPane {
+            id: pane
+            objectName: "previewPane"
             anchors.fill: parent
             bridge: backend.previewBridge
         }

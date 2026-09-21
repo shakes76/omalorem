@@ -257,8 +257,22 @@
 
     // Timing and counts of the last render, for the tests and the
     // performance budget in spec 5.4.
-    const stats = { lastRender: null, renders: 0 };
+    const stats = { lastRender: null, renders: 0, repaints: 0 };
     window.omaloremPreview = stats;
+
+    // Makes Chromium send a fresh frame although nothing on the page has
+    // changed. When the window comes back from a hidden workspace, Qt may
+    // have dropped the last frame, and the view stays black until the page
+    // paints again (a scroll did it). An opacity this close to 1 can't be
+    // seen, but it is a change, so the compositor draws two new frames.
+    stats.repaint = function () {
+        stats.repaints++;
+        const style = document.documentElement.style;
+        style.opacity = "0.9999";
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            style.opacity = "";
+        }));
+    };
 
     // Scroll sync (editor → preview). The page-y of a fractional source
     // line: inside a block, the same fraction of the way through its lines;

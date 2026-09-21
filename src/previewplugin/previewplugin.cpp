@@ -16,6 +16,7 @@ public:
         Q_INIT_RESOURCE(previewplugin);
         // Before any profile exists, which is before any view can.
         PreviewDocumentSchemeHandler::registerScheme();
+        qmlRegisterType<PreviewExposeWatcher>(uri, 1, 0, "PreviewExposeWatcher");
         qmlRegisterSingletonType<PreviewSandbox>(
             uri, 1, 0, "PreviewSandbox",
             [](QQmlEngine *, QJSEngine *) -> QObject * { return new PreviewSandbox; });

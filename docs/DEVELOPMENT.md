@@ -1,6 +1,6 @@
 # Omalorem — Development status
 
-Last updated: 2026-09-21 · Branch: `m4-editor-math`, off `main` (not merged or pushed). Release: `omaview-v0.1.0`, which is the last commit under the old name
+Last updated: 2026-09-21 · Branch: `fix-preview-black-after-workspace`, off `main` (not merged or pushed). Release: `omaview-v0.1.0`, which is the last commit under the old name
 
 This is the working log for developers and coding agents. It records where the project
 stands, how the code is laid out, the rules every change must follow, and what was done
@@ -157,6 +157,7 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
 - **Profile lifetime.** The profile lives only as long as its `PreviewPane`. That's fine with one pane for the app's life. Decide before anything creates a second pane, such as offscreen printing in M5 or the future docked placement (SPEC §5.3, §11): the profile would probably move into `PreviewSandbox`.
 - **Dormant placement setting.** Backend's `previewPlacement` and `preview/placement`, with their test, remain from M1. Only `window` is used. They are kept for the future docked placement, but could be removed if that feature is dropped for good.
 - **Full rehighlights are slower with math (M4).** Typing re-highlights only the changed lines, so it isn't affected: 14 ms to load the 2,000-line, 300-formula document, and 23 ms when a new `$$` at the top flips every line below. A full `rehighlight()` is another matter; Omawrite calls it on theme and dark-mode changes and on every find update. Upstream takes about 295 ms on that document, and M4 takes about 440 ms. Scanning isn't the cost: without the math formats it's 240 ms, faster than upstream, because formula underscores are no longer hidden. The cost is laying out the extra format ranges, about 150 ms for 900 ranges, and opacity makes no difference. Colouring content only, without separate delimiter ranges, would save about 90 ms. The spec's muted delimiters were kept.
+- **Black preview after a workspace switch** (reported on Hyprland after 0.1.0). The view stayed black until the page painted again, for example on a scroll. The fix asks the page for a fresh frame: a two-frame opacity of 0.9999, which can't be seen. It does this when the preview window is exposed again (`PreviewExposeWatcher`, a C++ event filter in the plugin) and whenever either window becomes active, then retries once after 150 ms. Offscreen tests show the requests fire, but only Hyprland can show whether they cure the black. If it comes back, run with `QT_LOGGING_RULES="omalorem.preview.expose.debug=true"` to see which window events Hyprland sends.
 - **Not yet checked by a human on Hyprland:**
   - fractional scaling at 1.25 and 1.5
   - the checklist in SPEC §7, repeated after each UI milestone
@@ -260,3 +261,8 @@ Findings:
 - A bare `QTextDocument` keeps no highlighter formats until `documentLayout()` has been created. The editor's document always has one; the unit test creates it.
 - `EditorMutations.replaceRange` removes and then inserts, which is two undo steps. The math edits use a `QTextCursor` edit block instead. Omawrite's `Ctrl+B` keeps its two steps.
 - `QList::append` with a nested braced initializer is ambiguous for aggregate structs, so the scanner builds spans through a typed helper.
+
+### Fix: black preview after a workspace switch
+- Reported on Hyprland: returning to the workspace left the preview black until a scroll. The likely cause is that the compositor stops the hidden window, Qt drops the last frame Chromium gave it, and nothing asks Chromium for another.
+- `preview.js` gains `omaloremPreview.repaint()`, and `PreviewPane` gains `repaint()` and `repaintRequests`. `PreviewWindow` calls `repaint()` on re-exposure, through the new `PreviewExposeWatcher` type, and when either window becomes active, retrying once after 150 ms.
+- Tests: `repaintsOnRequest`, `watchesForReexposure` and `repaintsPreviewWhenItComesBack`. All the changes are in preview files; no upstream file is touched.

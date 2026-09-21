@@ -519,6 +519,71 @@ private slots:
         QSettings().remove(QStringLiteral("preview"));
     }
 
+    // A black view after a workspace switch: the page can be asked for a
+    // fresh frame, and the nudge leaves nothing behind.
+    void repaintsOnRequest() {
+        QVERIFY(renderFixture(QStringLiteral("sample.md")));
+        const int before = js("window.omaloremPreview.repaints").toInt();
+        QObject *pane = m_harness->property("pane").value<QObject *>();
+        QVERIFY(QMetaObject::invokeMethod(pane, "repaint"));
+        QTRY_COMPARE(js("window.omaloremPreview.repaints").toInt(), before + 1);
+        QTRY_COMPARE(js("document.documentElement.style.opacity").toString(), QString());
+    }
+
+    void watchesForReexposure() {
+        QQmlComponent component(m_engine);
+        component.setData("import QtQuick\nimport Omalorem.Preview\n"
+                          "Window { id: window; width: 100; height: 100; visible: true\n"
+                          "  property alias watcher: watcher\n"
+                          "  PreviewExposeWatcher { id: watcher; window: window } }",
+                          QUrl(QStringLiteral("qrc:/ExposeHarness.qml")));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> object(component.create());
+        auto *window = qobject_cast<QQuickWindow *>(object.data());
+        QVERIFY(window);
+        QVERIFY(QTest::qWaitForWindowExposed(window));
+        QObject *watcher = window->property("watcher").value<QObject *>();
+        QVERIFY(watcher);
+        QCOMPARE(watcher->property("window").value<QWindow *>(), window);
+
+        QSignalSpy reexposed(watcher, SIGNAL(reexposed()));
+        window->hide();
+        QTRY_VERIFY(!window->isExposed());
+        QCOMPARE(reexposed.count(), 0);
+        window->show();
+        QTRY_COMPARE(reexposed.count(), 1);
+    }
+
+    void repaintsPreviewWhenItComesBack() {
+        auto editor = createEditor();
+        QVERIFY(editor.window);
+        QTRY_VERIFY(previewWindow());
+        QQuickWindow *preview = previewWindow();
+        QTRY_VERIFY(preview->isExposed());
+        QObject *pane = preview->findChild<QObject *>(QStringLiteral("previewPane"));
+        QVERIFY(pane);
+        QTRY_VERIFY_WITH_TIMEOUT(editor.backend->previewBridge()->pageReady(), 20000);
+
+        // Hidden and shown again, as the window system does on a workspace
+        // switch: the preview asks for a fresh frame, then once more.
+        int requests = pane->property("repaintRequests").toInt();
+        preview->hide();
+        QTRY_VERIFY(!preview->isExposed());
+        preview->show();
+        QTRY_VERIFY(pane->property("repaintRequests").toInt() >= requests + 2);
+
+        // Focus coming back to the editor asks as well.
+        preview->requestActivate();
+        QVERIFY(QTest::qWaitForWindowActive(preview));
+        requests = pane->property("repaintRequests").toInt();
+        editor.window->requestActivate();
+        QVERIFY(QTest::qWaitForWindowActive(editor.window));
+        QTRY_VERIFY(pane->property("repaintRequests").toInt() > requests);
+
+        closeEditor(editor);
+        QSettings().remove(QStringLiteral("preview"));
+    }
+
     // Main.qml publishes the line at the top of the editor's view, with the
     // fraction scrolled past, as the editor scrolls.
     void publishesEditorSourceLine() {

@@ -11,6 +11,16 @@ Item {
     required property QtObject bridge
     readonly property url pageUrl: "qrc:/preview/index.html"
     readonly property alias view: viewLoader.item
+    // How many times the window asked for a fresh frame (for the tests).
+    property int repaintRequests: 0
+
+    // Asks the page for a fresh frame; see preview.js. Harmless if the view
+    // is fine, so the window calls it whenever it may have been hidden.
+    function repaint() {
+        repaintRequests++;
+        if (view)
+            view.runJavaScript("window.omaloremPreview && window.omaloremPreview.repaint()");
+    }
 
     WebChannel {
         id: channel

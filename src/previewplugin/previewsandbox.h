@@ -5,6 +5,7 @@
 #include <QStringList>
 #include <QWebEngineUrlRequestInterceptor>
 #include <QWebEngineUrlSchemeHandler>
+#include <QWindow>
 
 class QQuickWebEngineProfile;
 
@@ -45,6 +46,31 @@ public:
 
 private:
     QPointer<QObject> m_bridge;
+};
+
+// QML type `PreviewExposeWatcher`: emits reexposed() when its window is
+// exposed again after the window system stopped showing it, for example
+// on returning to a Hyprland workspace. QML has no expose signal of its own.
+class PreviewExposeWatcher : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(QWindow *window READ window WRITE setWindow NOTIFY windowChanged)
+
+public:
+    explicit PreviewExposeWatcher(QObject *parent = nullptr);
+
+    QWindow *window() const { return m_window; }
+    void setWindow(QWindow *window);
+
+signals:
+    void windowChanged();
+    void reexposed();
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
+private:
+    QPointer<QWindow> m_window;
+    bool m_exposed = false;
 };
 
 // QML singleton `PreviewSandbox` of the Omalorem.Preview module. The profile
