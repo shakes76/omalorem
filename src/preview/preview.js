@@ -35,7 +35,7 @@
     // texmath falls back to plain text when KaTeX throws despite
     // throwOnError: false; give that path the same look as a parse error.
     const escapeHtml = (text) => md.utils.escapeHtml(text);
-    window.texmath.render = function (tex, displayMode, options) {
+    function typeset(tex, displayMode, options) {
         options.displayMode = displayMode;
         try {
             return window.katex.renderToString(tex, options);
@@ -43,27 +43,23 @@
             return '<span class="katex-error" title="' + escapeHtml(String(error.message))
                 + '">' + escapeHtml(tex) + "</span>";
         }
-    };
-
-    // Tag every top-level block with the first source line it came from, for
-    // scroll sync (M2). Renderers that honour token attributes pick it up.
-    md.core.ruler.push("source_lines", function (state) {
-        for (const token of state.tokens) {
-            if (token.level === 0 && token.map && token.nesting >= 0)
-                token.attrSet("data-source-line", String(token.map[0]));
-        }
-    });
-    // texmath's block templates ignore attributes, so add the line by hand.
-    for (const name of ["math_block", "math_block_eqno"]) {
-        const renderMath = md.renderer.rules[name];
-        md.renderer.rules[name] = function (tokens, index, options, env, self) {
-            const html = renderMath(tokens, index, options, env, self);
-            const line = tokens[index].attrGet("data-source-line");
-            return line === null
-                ? html
-                : html.replace(/^<section/, '<section data-source-line="' + line + '"');
-        };
     }
+
+    // KaTeX is most of the cost of a render, and nearly every formula is the
+    // same as last time. Keep what the previous render typeset; anything not
+    // used for a whole render is dropped, so the cache stays the size of the
+    // document while an expression is being typed.
+    const mathCache = { current: new Map(), previous: new Map() };
+    window.texmath.render = function (tex, displayMode, options) {
+        const key = (displayMode ? "D" : "I") + tex;
+        let html = mathCache.current.get(key);
+        if (html === undefined)
+            html = mathCache.previous.get(key);
+        if (html === undefined)
+            html = typeset(tex, displayMode, options);
+        mathCache.current.set(key, html);
+        return html;
+    };
 
     // GFM task lists: a list item whose text starts with "[ ] " or "[x] ".
     md.core.ruler.after("inline", "task_lists", function (state) {
@@ -104,13 +100,134 @@
 
     const content = () => document.getElementById("content");
 
+    // Splits the token stream into top-level blocks, each with its source
+    // lines and its HTML. A block is everything from a level-0 token to the
+    // token that closes it; fences, math blocks and rules are one token.
+    function renderBlocks(markdown, env) {
+        const tokens = md.parse(markdown, env);
+        const blocks = [];
+        let start = 0;
+        let depth = 0;
+        for (let i = 0; i < tokens.length; i++) {
+            depth += tokens[i].nesting;
+            if (depth !== 0)
+                continue;
+            const blockTokens = tokens.slice(start, i + 1);
+            const map = tokens[start].map || [0, 0];
+            blocks.push({
+                html: md.renderer.render(blockTokens, md.options, env),
+                line: map[0],
+                lineEnd: map[1],
+            });
+            start = i + 1;
+        }
+        return blocks;
+    }
+
+    // Parses the HTML of every new block in one go. The comment before each
+    // block marks where it starts: raw HTML is escaped (html: false), so no
+    // block can contain a comment of its own. A block that renders to other
+    // than exactly one element is wrapped, so each block is one node.
+    function createNodes(blocks) {
+        const template = document.createElement("template");
+        template.innerHTML = blocks.map((block) => "<!--block-->" + block.html).join("");
+        const nodes = [];
+        let parts = null;
+        const finish = () => {
+            if (parts === null)
+                return;
+            const elements = parts.filter((node) => node.nodeType === Node.ELEMENT_NODE);
+            let node = elements[0];
+            if (elements.length !== 1) {
+                node = document.createElement("div");
+                node.append(...parts);
+            }
+            nodes.push(node);
+        };
+        for (const node of [...template.content.childNodes]) {
+            if (node.nodeType === Node.COMMENT_NODE) {
+                finish();
+                parts = [];
+            } else {
+                parts.push(node);
+            }
+        }
+        finish();
+        return nodes;
+    }
+
+    // Patches #content so it shows the new blocks. A block whose HTML is
+    // unchanged keeps its DOM node, typeset math and all; the key leaves out
+    // the source lines, which are set on the nodes afterwards, so typing
+    // above a block doesn't count as changing it.
+    function patch(container, blocks) {
+        const unused = new Map();
+        for (const node of container.children) {
+            const queue = unused.get(node.omaviewKey);
+            if (queue)
+                queue.push(node);
+            else
+                unused.set(node.omaviewKey, [node]);
+        }
+
+        const nodes = blocks.map((block) => {
+            const queue = unused.get(block.html);
+            return queue && queue.length ? queue.shift() : null;
+        });
+        const fresh = blocks.filter((block, i) => nodes[i] === null);
+        const created = createNodes(fresh);
+        for (let i = 0, next = 0; i < nodes.length; i++) {
+            if (nodes[i] === null) {
+                nodes[i] = created[next++];
+                nodes[i].omaviewKey = blocks[i].html;
+            }
+        }
+
+        // Drop what went away first, so the walk below only ever inserts
+        // the new blocks and never shuffles the ones that stay.
+        for (const queue of unused.values()) {
+            for (const node of queue)
+                node.remove();
+        }
+        let cursor = container.firstChild;
+        for (const node of nodes) {
+            if (node === cursor)
+                cursor = cursor.nextSibling;
+            else
+                container.insertBefore(node, cursor);
+        }
+
+        blocks.forEach((block, i) => {
+            const data = nodes[i].dataset;
+            if (data.sourceLine !== String(block.line))
+                data.sourceLine = block.line;
+            if (data.sourceLineEnd !== String(block.lineEnd))
+                data.sourceLineEnd = block.lineEnd;
+        });
+        return { blocks: blocks.length, created: fresh.length };
+    }
+
+    // Timing and counts of the last render, for the tests and the
+    // performance budget in spec 5.4.
+    const stats = { lastRender: null, renders: 0 };
+    window.omaviewPreview = stats;
+
     function render() {
-        // M1 replaces the whole document and keeps the scroll offset;
-        // block-keyed patching arrives in M2.
+        const started = performance.now();
         const scroller = document.scrollingElement;
         const scrollTop = scroller.scrollTop;
-        content().innerHTML = md.render(bridge.markdown, { baseUrl: bridge.baseUrl });
+        mathCache.previous = mathCache.current;
+        mathCache.current = new Map();
+
+        const container = content();
+        const blocks = renderBlocks(bridge.markdown, { baseUrl: bridge.baseUrl });
+        const result = patch(container, blocks);
         scroller.scrollTop = scrollTop;
+        // Reading layout here makes the timing include it, as the budget does.
+        void container.offsetHeight;
+        result.ms = performance.now() - started;
+        stats.lastRender = result;
+        stats.renders++;
     }
 
     function applyTheme() {

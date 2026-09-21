@@ -231,6 +231,56 @@ private slots:
         QCOMPARE(js("document.scrollingElement.scrollTop").toInt(), 1500);
     }
 
+    // Spec 5.4: typing in one paragraph re-renders only that paragraph, and
+    // an update of the 2,000-line, 200-equation document fits in 16 ms. The
+    // timing is logged, not gated; the node reuse is.
+    void patchesOnlyChangedBlocks() {
+        const QString document = longDocument();
+        QCOMPARE(document.count(QLatin1Char('\n')), 2000);
+        QVERIFY(renderMarkdown(document, QStringLiteral("patch-0")));
+        const QVariantMap first = lastRender();
+        const int blocks = first.value(QStringLiteral("blocks")).toInt();
+        QCOMPARE(js("document.querySelectorAll('#content .katex').length").toInt(), 200);
+        QCOMPARE(js("document.querySelectorAll('#content .katex-error').length").toInt(), 0);
+
+        // Mark the typeset nodes; they must survive edits elsewhere.
+        js("document.querySelectorAll('#content .katex').forEach(k => k.omaviewMark = true); true");
+        QList<double> timings;
+        QStringList lines = document.split(QLatin1Char('\n'));
+        for (int edit = 1; edit <= 15; ++edit) {
+            // Type into a paragraph in the middle of the document.
+            lines[1008] += QStringLiteral(" word");
+            QVERIFY(renderMarkdown(lines.join(QLatin1Char('\n')),
+                                   QStringLiteral("patch-") + QString::number(edit)));
+            const QVariantMap stats = lastRender();
+            QCOMPARE(stats.value(QStringLiteral("blocks")).toInt(), blocks);
+            // The edited paragraph and the end marker.
+            QCOMPARE(stats.value(QStringLiteral("created")).toInt(), 2);
+            timings.append(stats.value(QStringLiteral("ms")).toDouble());
+        }
+        QCOMPARE(js("[...document.querySelectorAll('#content .katex')]"
+                    ".filter(k => k.omaviewMark).length").toInt(), 200);
+
+        // A line added at the top shifts every block's source line without
+        // re-creating any of them.
+        lines.prepend(QString());
+        QVERIFY(renderMarkdown(lines.join(QLatin1Char('\n')), QStringLiteral("patch-shift")));
+        QCOMPARE(lastRender().value(QStringLiteral("created")).toInt(), 1);
+        QCOMPARE(js("document.querySelector('#content > h2').dataset.sourceLine").toString(),
+                 QStringLiteral("1"));
+        QCOMPARE(js("[...document.querySelectorAll('#content .katex')]"
+                    ".filter(k => k.omaviewMark).length").toInt(), 200);
+
+        // The first update after loading also pays for one full relayout
+        // once KaTeX's web fonts arrive, so it is reported on its own.
+        const double firstUpdate = timings.takeFirst();
+        std::sort(timings.begin(), timings.end());
+        qInfo("Render of the 2,000-line document: load %.1f ms, first update %.1f ms,"
+              " then median %.1f ms and worst %.1f ms (budget 16 ms, spec 5.4)",
+              first.value(QStringLiteral("ms")).toDouble(), firstUpdate,
+              timings.at(timings.size() / 2), timings.last());
+    }
+
     void makesNoOutsideRequests() {
         // Everything rendered so far loaded only from qrc: and the document.
         QCOMPARE(blockedRequests(), QStringList());
@@ -461,6 +511,42 @@ private:
         return QTest::qWaitFor([&]() {
             return js(probe).toString() == QStringLiteral("end-of-") + marker;
         }, 10000);
+    }
+
+    QVariantMap lastRender() {
+        return js("window.omaviewPreview.lastRender").toMap();
+    }
+
+    // The performance fixture from spec 5.4: 100 sections of 20 lines, each
+    // with one inline and one display equation, so 2,000 lines and 200
+    // equations. Built here rather than stored, so it cannot drift.
+    static QString longDocument() {
+        QString document;
+        for (int i = 0; i < 100; ++i) {
+            const QString n = QString::number(i);
+            document += QStringLiteral(
+                "## Section %1\n"
+                "\n"
+                "The field $E_{%1} = -\\nabla \\phi_{%1}$ follows from the potential.\n"
+                "\n"
+                "$$\n"
+                "\\int_0^{%1} x^2 \\, dx = \\frac{%1^3}{3}\n"
+                "$$\n"
+                "\n"
+                "Prose that runs on for a while, so that the section has some text in it.\n"
+                "\n"
+                "- first point\n"
+                "- second point\n"
+                "\n"
+                "```\n"
+                "code %1\n"
+                "```\n"
+                "\n"
+                "> A quotation to end section %1.\n"
+                "\n"
+                "\n").arg(n);
+        }
+        return document;
     }
 
     bool renderFixture(const QString &name) {
