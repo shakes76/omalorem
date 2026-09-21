@@ -261,15 +261,26 @@ ApplicationWindow {
         id: previewWindowLoader
 
         readonly property bool wanted: backend.previewAvailable && backend.previewVisible
+        property bool editorShown: false
 
         function load() {
-            if (wanted && status === Loader.Null)
+            if (wanted && editorShown && status === Loader.Null)
                 setSource("PreviewWindow.qml", { editorWindow: win });
         }
 
         onWantedChanged: load()
-        // Later, so the editor window is up before the preview opens beside it.
-        Component.onCompleted: Qt.callLater(load)
+
+        // Wait for the editor's first frame: creating the web view blocks the
+        // GUI thread, and the editor should be up before the preview opens.
+        Connections {
+            target: win
+            enabled: !previewWindowLoader.editorShown
+
+            function onFrameSwapped() {
+                previewWindowLoader.editorShown = true;
+                Qt.callLater(previewWindowLoader.load);
+            }
+        }
     }
 
     Connections {

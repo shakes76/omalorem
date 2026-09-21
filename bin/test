@@ -3,6 +3,7 @@ set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 BUILD_DIR="$ROOT/build-tests"
+PREVIEW_BUILD_DIR="$ROOT/build-preview-tests"
 
 if command -v qmake6 >/dev/null 2>&1; then
   QMAKE=qmake6
@@ -10,8 +11,22 @@ else
   QMAKE=qmake
 fi
 
+JOBS="$(nproc 2>/dev/null || echo 1)"
+
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 "$QMAKE" "$ROOT/tests/tests.pro"
-make -j"$(nproc 2>/dev/null || echo 1)"
+make -j"$JOBS"
 QT_QPA_PLATFORM=offscreen ./tst_omaview
+
+# The preview's render tests drive a real QtWebEngine view offscreen. They
+# need no extra Chromium flags on a machine with working GL; set
+# QTWEBENGINE_CHROMIUM_FLAGS="--disable-gpu" yourself where GL is missing.
+# Chromium's scratch state goes to a throwaway XDG directory.
+mkdir -p "$PREVIEW_BUILD_DIR"
+cd "$PREVIEW_BUILD_DIR"
+"$QMAKE" "$ROOT/tests/preview/preview.pro"
+make -j"$JOBS"
+SCRATCH="$(mktemp -d)"
+trap 'rm -rf "$SCRATCH"' EXIT
+XDG_DATA_HOME="$SCRATCH" XDG_CACHE_HOME="$SCRATCH" QT_QPA_PLATFORM=offscreen ./tst_preview

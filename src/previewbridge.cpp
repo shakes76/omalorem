@@ -2,10 +2,15 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QLoggingCategory>
 
 #include <utility>
 
 #include "backend.h"
+
+// Off by default; QT_LOGGING_RULES="omaview.preview.info=true" shows when the
+// page first renders, which is how the startup budget in spec 5.3 is measured.
+Q_LOGGING_CATEGORY(previewLog, "omaview.preview", QtWarningMsg)
 
 PreviewBridge::PreviewBridge(QObject *parent) : QObject(parent) {
     m_debounceTimer.setSingleShot(true);
@@ -111,6 +116,7 @@ void PreviewBridge::ready() {
         return;
 
     m_pageReady = true;
+    qCInfo(previewLog) << "Preview page rendered";
     emit pageReadyChanged();
 }
 

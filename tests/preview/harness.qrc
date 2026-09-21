@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="PreviewHarness.qml">PreviewHarness.qml</file>
+    </qresource>
+</RCC>
