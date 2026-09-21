@@ -32,6 +32,35 @@ public:
     // Backend::hiddenRangesAt) to skip the caret over the hidden markers.
     static QList<InlineMarkup> inlineMarkup(const QString &text);
 
+    // --- Omalorem editor math (docs/SPEC.md §5.6) ---------------------------
+    // Math spans in one line: $…$, $$…$$, \(…\) and \[…\], found by the same
+    // rules the preview's parser uses. Display math can run over several
+    // lines, so a span may have no opening or closing marker on this line
+    // (length 0), and the scan carries a block state from line to line.
+    struct MathSpan {
+        Span content;
+        Span markers[2];
+    };
+
+    // Block states, as QSyntaxHighlighter stores them. Upstream never sets a
+    // state, so every state belongs to the math rule. -1 (no state) is normal.
+    enum MathState {
+        MathNormal = 0,
+        MathBacktickFence = 1,
+        MathTildeFence = 2,
+        MathDisplayDollars = 4,
+        MathDisplayBrackets = 8,
+    };
+
+    // Scans a line that starts in previousState; *state receives the state
+    // at its end. Fenced code and code spans hold no math.
+    static QList<MathSpan> mathSpans(const QString &text, int previousState,
+                                     int *state = nullptr);
+    // Whether an inline item's markers fall inside math: `a_1 b_2` in a
+    // formula is not emphasis, so those markers are neither hidden nor
+    // skipped by the caret.
+    static bool touchesMath(const InlineMarkup &item, const QList<MathSpan> &math);
+
 protected:
     void highlightBlock(const QString &text) override;
 
@@ -40,6 +69,7 @@ private:
     void highlightMarkers(const QString &text);
     void highlightInline(const QString &text);
     void highlightSearch(const QString &text);
+    void highlightMath();
 
     bool m_darkMode = true;
     QString m_customBackground;
@@ -57,4 +87,7 @@ private:
     int m_currentMatchStart = -1;
     QTextCharFormat m_searchFormat;
     QTextCharFormat m_currentSearchFormat;
+    QTextCharFormat m_mathFormat;
+    // The math spans of the block being highlighted, for highlightInline.
+    QList<MathSpan> m_blockMath;
 };

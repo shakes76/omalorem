@@ -375,7 +375,13 @@ QVariantList Backend::hiddenRangesAt(int position) const {
     QList<QPair<int, int>> spans;
     const QList<MarkdownHighlighter::InlineMarkup> markup =
         MarkdownHighlighter::inlineMarkup(block.text());
+    // Omalorem editor math: markers inside a formula are not hidden, so the
+    // caret mustn't skip them either.
+    const QList<MarkdownHighlighter::MathSpan> math =
+        MarkdownHighlighter::mathSpans(block.text(), block.previous().userState());
     for (const MarkdownHighlighter::InlineMarkup &item : markup) {
+        if (MarkdownHighlighter::touchesMath(item, math))
+            continue;
         for (const MarkdownHighlighter::Span &marker : item.markers) {
             spans.append({lineStart + marker.start,
                           lineStart + marker.start + marker.length});
@@ -910,4 +916,39 @@ QVariantMap Backend::previewLineAt(int position) const {
     return {{QStringLiteral("line"), block.blockNumber()},
             {QStringLiteral("start"), block.position()},
             {QStringLiteral("end"), block.position() + qMax(0, block.length() - 1)}};
+}
+
+// --- Omalorem editor math ---------------------------------------------------
+
+// Whether `position` is inside a display formula ($$ or \[) that is still
+// open there, so smart return adds a plain newline, as it does in a fence.
+// The state before the line comes from the highlighter's block states.
+bool Backend::displayMathOpenAt(int position) const {
+    if (!m_document)
+        return false;
+
+    const int bounded = qBound(0, position, m_document->characterCount() - 1);
+    const QTextBlock block = m_document->findBlock(bounded);
+    int state = MarkdownHighlighter::MathNormal;
+    MarkdownHighlighter::mathSpans(block.text().left(bounded - block.position()),
+                                   block.previous().userState(), &state);
+    return state & (MarkdownHighlighter::MathDisplayDollars
+                    | MarkdownHighlighter::MathDisplayBrackets);
+}
+
+// EditorMutations.replaceRange removes and then inserts, which the editor's
+// undo stack records as two steps. A single edit block makes the math edits
+// one step; the line-height pass joins onto it, as it does for typing.
+bool Backend::replaceTextAsOneEdit(int start, int end, const QString &text) {
+    if (!m_document)
+        return false;
+
+    const int last = m_document->characterCount() - 1;
+    QTextCursor cursor(m_document);
+    cursor.beginEditBlock();
+    cursor.setPosition(qBound(0, start, last));
+    cursor.setPosition(qBound(0, end, last), QTextCursor::KeepAnchor);
+    cursor.insertText(text);
+    cursor.endEditBlock();
+    return true;
 }

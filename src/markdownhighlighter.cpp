@@ -95,6 +95,13 @@ void MarkdownHighlighter::rebuildFormats() {
     m_linkFormat.setForeground(link);
     m_linkFormat.setFontUnderline(true);
 
+    // Math in the accent colour at reduced opacity, so formulas stand out
+    // from prose without competing with links; delimiters are muted markers.
+    QColor math = link;
+    math.setAlphaF(0.8);
+    m_mathFormat = QTextCharFormat();
+    m_mathFormat.setForeground(math);
+
     m_searchFormat = QTextCharFormat();
     m_searchFormat.setBackground(m_darkMode ? QColor(QStringLiteral("#725b18"))
                                             : QColor(QStringLiteral("#ffe58a")));
@@ -104,6 +111,9 @@ void MarkdownHighlighter::rebuildFormats() {
 }
 
 void MarkdownHighlighter::highlightBlock(const QString &text) {
+    int mathState = MathNormal;
+    m_blockMath = mathSpans(text, previousBlockState(), &mathState);
+    setCurrentBlockState(mathState);
     if (!text.isEmpty()) {
         highlightMarkers(text);
         if (text.contains(QLatin1Char('`')) || text.contains(QLatin1Char('*'))
@@ -111,6 +121,7 @@ void MarkdownHighlighter::highlightBlock(const QString &text) {
             highlightInline(text);
         }
     }
+    highlightMath();
     highlightSearch(text);
 }
 
@@ -189,6 +200,8 @@ void MarkdownHighlighter::highlightInline(const QString &text) {
 
     const QList<InlineMarkup> markup = inlineMarkup(text);
     for (const InlineMarkup &item : markup) {
+        if (touchesMath(item, m_blockMath))
+            continue;
         const QTextCharFormat &contentFormat =
             item.kind == InlineKind::Bold ? m_boldFormat
             : item.kind == InlineKind::Italic ? m_italicFormat
@@ -243,4 +256,175 @@ QList<MarkdownHighlighter::InlineMarkup> MarkdownHighlighter::inlineMarkup(const
     }
 
     return markup;
+}
+
+// --- Omalorem editor math (docs/SPEC.md §5.6) -------------------------------
+
+void MarkdownHighlighter::highlightMath() {
+    for (const MathSpan &span : std::as_const(m_blockMath)) {
+        setFormat(span.content.start, span.content.length, m_mathFormat);
+        for (const Span &marker : span.markers)
+            setFormat(marker.start, marker.length, m_markerFormat);
+    }
+}
+
+bool MarkdownHighlighter::touchesMath(const InlineMarkup &item, const QList<MathSpan> &math) {
+    for (const MathSpan &span : math) {
+        const int start = span.markers[0].length ? span.markers[0].start : span.content.start;
+        const int end = span.markers[1].length ? span.markers[1].start + span.markers[1].length
+                                               : span.content.start + span.content.length;
+        for (const Span &marker : item.markers) {
+            if (marker.start < end && marker.start + marker.length > start)
+                return true;
+        }
+    }
+    return false;
+}
+
+namespace {
+
+bool isDigit(const QString &text, int index) {
+    return index >= 0 && index < text.length() && text.at(index).isDigit();
+}
+
+// The first `needle` at or after `from` that isn't escaped by a backslash.
+// Views, not mid(): this runs for every math line on every rehighlight.
+int findUnescaped(QStringView text, QStringView needle, int from) {
+    for (int i = from; i + needle.length() <= text.length(); ++i) {
+        if (text.at(i) == QLatin1Char('\\')) {
+            if (needle.startsWith(QLatin1Char('\\')) && text.sliced(i, needle.length()) == needle)
+                return i;
+            ++i;
+            continue;
+        }
+        if (text.sliced(i, needle.length()) == needle)
+            return i;
+    }
+    return -1;
+}
+
+} // namespace
+
+QList<MarkdownHighlighter::MathSpan> MarkdownHighlighter::mathSpans(const QString &text,
+                                                                    int previousState,
+                                                                    int *state) {
+    QList<MathSpan> spans;
+    int current = previousState < 0 ? MathNormal : previousState;
+    const auto add = [&spans](int start, int length, Span opening, Span closing) {
+        spans.append(MathSpan{{start, length}, {opening, closing}});
+    };
+    const auto finish = [&]() {
+        if (state)
+            *state = current;
+        return spans;
+    };
+
+    // Inside fenced code nothing is math; the fence closes on a line of the
+    // same character only.
+    static const QRegularExpression fenceRe(QStringLiteral("^ {0,3}(`{3,}|~{3,})"));
+    const QRegularExpressionMatch fence = fenceRe.match(text);
+    if (current & (MathBacktickFence | MathTildeFence)) {
+        const QChar fenceChar = current & MathBacktickFence ? QLatin1Char('`') : QLatin1Char('~');
+        if (fence.hasMatch() && fence.captured(1).at(0) == fenceChar
+                && text.mid(fence.capturedEnd(0)).trimmed().isEmpty())
+            current = MathNormal;
+        return finish();
+    }
+
+    // Most lines hold no math at all; skip the scan for them.
+    if (current == MathNormal && !fence.hasMatch() && !text.contains(QLatin1Char('$'))
+            && !text.contains(QLatin1Char('\\')))
+        return finish();
+
+    int i = 0;
+    // A display formula still open from an earlier line.
+    if (current & (MathDisplayDollars | MathDisplayBrackets)) {
+        const QString closing = current & MathDisplayDollars ? QStringLiteral("$$")
+                                                             : QStringLiteral("\\]");
+        const int close = findUnescaped(text, closing, 0);
+        if (close < 0) {
+            add(0, int(text.length()), {0, 0}, {int(text.length()), 0});
+            return finish();
+        }
+        add(0, close, {0, 0}, {close, int(closing.length())});
+        i = close + closing.length();
+        current = MathNormal;
+    } else if (fence.hasMatch()) {
+        current = fence.captured(1).at(0) == QLatin1Char('`') ? MathBacktickFence : MathTildeFence;
+        return finish();
+    }
+
+    // The preview's inline rule (preview.js): no space just inside either
+    // dollar, and no unescaped dollar within.
+    static const QRegularExpression inlineRe(QStringLiteral(
+        "\\$((?:[^\\s\\\\$]|\\\\[\\s\\S])(?:(?:[^$\\\\]|\\\\[\\s\\S])*?(?:[^\\s\\\\$]|\\\\[\\s\\S]))?)\\$"));
+
+    const int length = text.length();
+    while (i < length) {
+        const QChar c = text.at(i);
+        if (c == QLatin1Char('`')) {
+            // A code span: its content is never math.
+            int run = 1;
+            while (i + run < length && text.at(i + run) == QLatin1Char('`'))
+                ++run;
+            const QString ticks(run, QLatin1Char('`'));
+            int close = text.indexOf(ticks, i + run);
+            while (close >= 0 && close + run < length && text.at(close + run) == QLatin1Char('`'))
+                close = text.indexOf(ticks, close + run + 1);
+            i = close < 0 ? i + run : close + run;
+            continue;
+        }
+        if (c == QLatin1Char('\\') && i + 1 < length) {
+            const QChar next = text.at(i + 1);
+            if (next == QLatin1Char('(')) {
+                const int close = findUnescaped(text, QStringLiteral("\\)"), i + 2);
+                if (close > i + 2) {
+                    add(i + 2, close - i - 2, {i, 2}, {close, 2});
+                    i = close + 2;
+                    continue;
+                }
+            } else if (next == QLatin1Char('[')) {
+                const int close = findUnescaped(text, QStringLiteral("\\]"), i + 2);
+                if (close < 0) {
+                    add(i + 2, length - i - 2, {i, 2}, {length, 0});
+                    current = MathDisplayBrackets;
+                    return finish();
+                }
+                add(i + 2, close - i - 2, {i, 2}, {close, 2});
+                i = close + 2;
+                continue;
+            }
+            // Any other backslash escapes the next character, \$ included.
+            i += 2;
+            continue;
+        }
+        if (c == QLatin1Char('$') && !isDigit(text, i - 1)) {
+            if (i + 1 < length && text.at(i + 1) == QLatin1Char('$')) {
+                const int close = findUnescaped(text, QStringLiteral("$$"), i + 2);
+                if (close < 0) {
+                    add(i + 2, length - i - 2, {i, 2}, {length, 0});
+                    current = MathDisplayDollars;
+                    return finish();
+                }
+                if (close > i + 2 && !isDigit(text, close + 2)) {
+                    add(i + 2, close - i - 2, {i, 2}, {close, 2});
+                    i = close + 2;
+                    continue;
+                }
+                i += 2;
+                continue;
+            }
+            const QRegularExpressionMatch match =
+                inlineRe.match(text, i, QRegularExpression::NormalMatch,
+                               QRegularExpression::AnchorAtOffsetMatchOption);
+            if (match.hasMatch() && !isDigit(text, match.capturedEnd(0))) {
+                const int end = match.capturedEnd(0);
+                add(i + 1, end - i - 2, {i, 1}, {end - 1, 1});
+                i = end;
+                continue;
+            }
+        }
+        ++i;
+    }
+    return finish();
 }

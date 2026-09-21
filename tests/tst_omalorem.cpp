@@ -5,6 +5,10 @@
 #include <QQmlEngine>
 #include <QQuickStyle>
 #include <QQuickWindow>
+#include <QJSEngine>
+#include <QTextBlock>
+#include <QTextDocument>
+#include <QTextLayout>
 
 #include "backend.h"
 #include "markdownhighlighter.h"
@@ -557,6 +561,243 @@ private slots:
             QCOMPARE(backend.previewFont(), QStringLiteral("mono"));
         }
         settings.remove(QStringLiteral("preview"));
+    }
+
+    // --- Omalorem editor math (M4) ------------------------------------------
+
+    void findsMathSpans() {
+        using H = MarkdownHighlighter;
+        const auto contents = [](const QString &text, int previous = -1, int *state = nullptr) {
+            QStringList found;
+            for (const H::MathSpan &span : H::mathSpans(text, previous, state))
+                found.append(text.mid(span.content.start, span.content.length));
+            return found;
+        };
+
+        QCOMPARE(contents(QStringLiteral("a $x$ b")), QStringList{QStringLiteral("x")});
+        const QList<H::MathSpan> spans = H::mathSpans(QStringLiteral("a $x$ b"), -1);
+        QCOMPARE(spans.at(0).markers[0].start, 2);
+        QCOMPARE(spans.at(0).markers[1].start, 4);
+        QCOMPARE(contents(QStringLiteral("$x_1 + y_2$ and $\\alpha$")),
+                 QStringList({QStringLiteral("x_1 + y_2"), QStringLiteral("\\alpha")}));
+        // The preview's rules: currency, escapes, code and digits stay text.
+        QCOMPARE(contents(QStringLiteral("cost $5 and the book $10.")), QStringList());
+        QCOMPARE(contents(QStringLiteral("between $5 and $10, or $20")), QStringList());
+        QCOMPARE(contents(QStringLiteral("a \\$x$ b")), QStringList());
+        QCOMPARE(contents(QStringLiteral("$ x $ and $x $")), QStringList());
+        QCOMPARE(contents(QStringLiteral("$x$5")), QStringList());
+        QCOMPARE(contents(QStringLiteral("`$x$` and ``a ` $b$`` then $y$")),
+                 QStringList{QStringLiteral("y")});
+        QCOMPARE(contents(QStringLiteral("\\(a + b\\) and \\[c\\] and $$E=mc^2$$")),
+                 QStringList({QStringLiteral("a + b"), QStringLiteral("c"), QStringLiteral("E=mc^2")}));
+
+        // Display math over several lines carries its state.
+        int state = -1;
+        QCOMPARE(contents(QStringLiteral("$$"), -1, &state), QStringList{QString()});
+        QCOMPARE(state, int(H::MathDisplayDollars));
+        QCOMPARE(contents(QStringLiteral("a_1 * b_2 * c"), state, &state),
+                 QStringList{QStringLiteral("a_1 * b_2 * c")});
+        QCOMPARE(state, int(H::MathDisplayDollars));
+        QCOMPARE(contents(QStringLiteral("$$ then $y$"), state, &state),
+                 QStringList({QString(), QStringLiteral("y")}));
+        QCOMPARE(state, int(H::MathNormal));
+        QCOMPARE(contents(QStringLiteral("\\[ x"), -1, &state), QStringList{QStringLiteral(" x")});
+        QCOMPARE(state, int(H::MathDisplayBrackets));
+        QCOMPARE(contents(QStringLiteral("y \\]"), state, &state), QStringList{QStringLiteral("y ")});
+        QCOMPARE(state, int(H::MathNormal));
+
+        // Fenced code holds no math, and closes only on its own character.
+        QCOMPARE(contents(QStringLiteral("```"), -1, &state), QStringList());
+        QCOMPARE(state, int(H::MathBacktickFence));
+        QCOMPARE(contents(QStringLiteral("$x$ and $$"), state, &state), QStringList());
+        QCOMPARE(contents(QStringLiteral("~~~"), state, &state), QStringList());
+        QCOMPARE(state, int(H::MathBacktickFence));
+        QCOMPARE(contents(QStringLiteral("```"), state, &state), QStringList());
+        QCOMPARE(state, int(H::MathNormal));
+        QCOMPARE(contents(QStringLiteral("$x$"), state, &state), QStringList{QStringLiteral("x")});
+    }
+
+    void highlightsMath() {
+        QTextDocument document;
+        // A bare document keeps no formats until it has a layout, as the
+        // editor's always does.
+        document.documentLayout();
+        MarkdownHighlighter highlighter(&document);
+        highlighter.setColors(QStringLiteral("#101010"), QStringLiteral("#eeeeee"),
+                              QStringLiteral("#5584aa"));
+        document.setPlainText(QStringLiteral(
+            "Sum $x_1 + y_2$ and _it_\n"
+            "$$\n"
+            "a_1 b_2\n"
+            "$$\n"
+            "```\n"
+            "$z$\n"
+            "```"));
+
+        const auto formatAt = [&](int line, int column) {
+            const QTextBlock block = document.findBlockByNumber(line);
+            for (const QTextLayout::FormatRange &range : block.layout()->formats()) {
+                if (column >= range.start && column < range.start + range.length)
+                    return range.format;
+            }
+            return QTextCharFormat();
+        };
+        QColor math(QStringLiteral("#5584aa"));
+        math.setAlphaF(0.8);
+        const auto isMath = [&](int line, int column) {
+            return formatAt(line, column).foreground().color() == math;
+        };
+        const auto isHidden = [&](int line, int column) {
+            return formatAt(line, column).fontLetterSpacing() < 0;
+        };
+
+        // Inline: math coloured, underscores shown, dollars muted.
+        QVERIFY(isMath(0, 5));
+        QVERIFY(isMath(0, 6));
+        QVERIFY(!isHidden(0, 6));
+        QVERIFY(!formatAt(0, 6).fontItalic());
+        QVERIFY(!isMath(0, 4));
+        QCOMPARE(formatAt(0, 4).foreground().color(), QColor(QStringLiteral("#4f525a")));
+        // Emphasis outside math still hides its markers.
+        QVERIFY(isHidden(0, 20));
+        QVERIFY(formatAt(0, 21).fontItalic());
+        // Display block: every line inside is math, underscores shown.
+        QVERIFY(isMath(2, 0));
+        QVERIFY(isMath(2, 1));
+        QVERIFY(!isHidden(2, 1));
+        QCOMPARE(document.findBlockByNumber(2).userState(), int(MarkdownHighlighter::MathDisplayDollars));
+        // Fenced code: no math.
+        QVERIFY(!isMath(5, 1));
+    }
+
+    void keepsCaretOnMathMarkers() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> window(component.create());
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+
+        // Only _it_'s markers are hidden; the formula's underscores are not.
+        editor->setProperty("text", QStringLiteral("$x_1 + y_2$ _it_"));
+        const QVariantList ranges = backend.hiddenRangesAt(0);
+        QCOMPARE(ranges.size(), 2);
+        QCOMPARE(ranges.at(0).toMap().value(QStringLiteral("start")).toInt(), 12);
+        QCOMPARE(ranges.at(1).toMap().value(QStringLiteral("start")).toInt(), 15);
+
+        // The same inside a display block, where the line alone looks plain.
+        editor->setProperty("text", QStringLiteral("$$\na_1 b_2\n$$"));
+        QCOMPARE(backend.hiddenRangesAt(4).size(), 0);
+        QVERIFY(backend.displayMathOpenAt(4));
+        QVERIFY(!backend.displayMathOpenAt(13));
+    }
+
+    void buildsMathEdits() {
+        const QString path = QFINDTESTDATA("../src/EditorMath.js");
+        QVERIFY(!path.isEmpty());
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        QString source = QString::fromUtf8(file.readAll());
+        source.remove(QStringLiteral(".pragma library"));
+        QJSEngine engine;
+        const QJSValue loaded = engine.evaluate(source, path);
+        QVERIFY2(!loaded.isError(), qPrintable(loaded.toString()));
+
+        // Applies an edit and returns the text with the selection marked [ ].
+        const auto run = [&](const char *function, const QString &text, int start, int end) {
+            const QJSValue edit = engine.globalObject().property(QString::fromLatin1(function))
+                .call({text, start, end});
+            const int from = edit.property(QStringLiteral("start")).toInt();
+            const QString replacement = edit.property(QStringLiteral("replacement")).toString();
+            QString result = text.left(from) + replacement
+                + text.mid(edit.property(QStringLiteral("end")).toInt());
+            const int selectionEnd = from + edit.property(QStringLiteral("selectionEnd")).toInt();
+            result.insert(selectionEnd, QLatin1Char(']'));
+            result.insert(from + edit.property(QStringLiteral("selectionStart")).toInt(),
+                          QLatin1Char('['));
+            return result;
+        };
+
+        QCOMPARE(run("inlineMath", QString(), 0, 0), QStringLiteral("$[]$"));
+        QCOMPARE(run("inlineMath", QStringLiteral("let x be"), 4, 5), QStringLiteral("let $[x]$ be"));
+        QCOMPARE(run("inlineMath", QStringLiteral("let x be"), 3, 6), QStringLiteral("let $[x]$ be"));
+
+        QCOMPARE(run("displayMath", QString(), 0, 0), QStringLiteral("$$\n[]\n$$"));
+        QCOMPARE(run("displayMath", QStringLiteral("para"), 4, 4),
+                 QStringLiteral("para\n\n$$\n[]\n$$"));
+        QCOMPARE(run("displayMath", QStringLiteral("para\n\nnext"), 5, 5),
+                 QStringLiteral("para\n\n$$\n[]\n$$\n\nnext"));
+        QCOMPARE(run("displayMath", QStringLiteral("para\n\nnext"), 0, 0),
+                 QStringLiteral("$$\n[]\n$$\n\npara\n\nnext"));
+        QCOMPARE(run("displayMath", QStringLiteral("\npara"), 0, 0),
+                 QStringLiteral("$$\n[]\n$$\n\npara"));
+        QCOMPARE(run("displayMath", QStringLiteral("the y=x here"), 4, 7),
+                 QStringLiteral("the\n\n$$\n[y=x]\n$$\n\nhere"));
+        QCOMPARE(run("displayMath", QStringLiteral("a\n\nx^2\n\nb"), 3, 6),
+                 QStringLiteral("a\n\n$$\n[x^2]\n$$\n\nb"));
+    }
+
+    void editsMathFromTheKeyboard() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> root(component.create());
+        auto *window = qobject_cast<QQuickWindow *>(root.data());
+        QVERIFY(window);
+        window->requestActivate();
+        QVERIFY(QTest::qWaitForWindowActive(window));
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+        const auto select = [&](int start, int end) {
+            QMetaObject::invokeMethod(editor, "select", Q_ARG(int, start), Q_ARG(int, end));
+        };
+        const auto type = [&](const char *text) {
+            for (const char *c = text; *c; ++c)
+                QTest::keyClick(window, *c);
+        };
+
+        // Ctrl+M wraps the selection and keeps it selected.
+        editor->setProperty("text", QStringLiteral("let x be"));
+        select(4, 5);
+        QTest::keyClick(window, Qt::Key_M, Qt::ControlModifier);
+        QCOMPARE(editor->property("text").toString(), QStringLiteral("let $x$ be"));
+        QCOMPARE(editor->property("selectedText").toString(), QStringLiteral("x"));
+        // One undo restores the text.
+        QTest::keyClick(window, Qt::Key_Z, Qt::ControlModifier);
+        QCOMPARE(editor->property("text").toString(), QStringLiteral("let x be"));
+
+        // Without a selection it leaves the caret between the dollars.
+        editor->setProperty("text", QString());
+        QTest::keyClick(window, Qt::Key_M, Qt::ControlModifier);
+        QCOMPARE(editor->property("text").toString(), QStringLiteral("$$"));
+        QCOMPARE(editor->property("cursorPosition").toInt(), 1);
+
+        // Ctrl+Shift+M opens a display block on lines of its own, and Return
+        // inside it adds one line, with no blank line or list marker.
+        editor->setProperty("text", QStringLiteral("- item"));
+        editor->setProperty("cursorPosition", 6);
+        QTest::keyClick(window, Qt::Key_M, Qt::ControlModifier | Qt::ShiftModifier);
+        QCOMPARE(editor->property("text").toString(), QStringLiteral("- item\n\n$$\n\n$$"));
+        QCOMPARE(editor->property("cursorPosition").toInt(), 11);
+        type("a = b");
+        QTest::keyClick(window, Qt::Key_Return);
+        type("- c");
+        QTest::keyClick(window, Qt::Key_Return);
+        QCOMPARE(editor->property("text").toString(),
+                 QStringLiteral("- item\n\n$$\na = b\n- c\n\n$$"));
+
+        // After the block closes, Return is the usual paragraph break.
+        editor->setProperty("cursorPosition", editor->property("text").toString().length());
+        QTest::keyClick(window, Qt::Key_Return);
+        QVERIFY(editor->property("text").toString().endsWith(QStringLiteral("$$\n\n")));
     }
 
 private:

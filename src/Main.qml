@@ -5,6 +5,7 @@ import QtQuick.Dialogs as Dialogs
 import QtQuick.Layouts
 import QtQuick.Window
 import "EditorMutations.js" as EditorMutations
+import "EditorMath.js" as EditorMath
 
 ApplicationWindow {
     id: win
@@ -331,7 +332,7 @@ ApplicationWindow {
         standardButtons: Dialog.Close
         anchors.centerIn: parent
         contentItem: Label {
-            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+P  Print\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
+            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+M  Inline Math\nCtrl+Shift+M  Display Math\nCtrl+P  Print\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
             lineHeight: 1.5
         }
     }
@@ -608,6 +609,11 @@ ApplicationWindow {
                     var before = text.slice(0, cursorPosition);
                     var fences = (before.match(/^\s*```/gm) || []).length;
                     if ((fences % 2) === 1) {
+                        replaceSelectionWith("\n");
+                        return;
+                    }
+                    // Omalorem editor math: inside an open $$ or \[ block, as in a fence.
+                    if (backend.displayMathOpenAt(cursorPosition)) {
                         replaceSelectionWith("\n");
                         return;
                     }
@@ -1007,6 +1013,42 @@ ApplicationWindow {
                     onClicked: win.closeSearch()
                 }
             }
+        }
+    }
+
+    // --- Omalorem editor math ------------------------------------------------
+    // Ctrl+M and Ctrl+Shift+M (docs/SPEC.md §4.2). Editing shortcuts, like
+    // Ctrl+B: they act in the editor window only, in every build, with or
+    // without the preview. The edits themselves are in EditorMath.js.
+    Item {
+        id: editorMath
+        objectName: "editorMath"
+
+        function apply(edit) {
+            editor.forceActiveFocus();
+            if (!backend.replaceTextAsOneEdit(edit.start, edit.end, edit.replacement)) {
+                EditorMutations.replaceRange(editor, edit.start, edit.end, edit.replacement,
+                                             edit.selectionStart, edit.selectionEnd);
+                return;
+            }
+            if (edit.selectionStart === edit.selectionEnd)
+                editor.cursorPosition = edit.start + edit.selectionStart;
+            else
+                editor.select(edit.start + edit.selectionStart, edit.start + edit.selectionEnd);
+        }
+
+        Shortcut {
+            sequence: "Ctrl+M"
+            context: Qt.WindowShortcut
+            onActivated: editorMath.apply(EditorMath.inlineMath(
+                editor.text, editor.selectionStart, editor.selectionEnd))
+        }
+
+        Shortcut {
+            sequence: "Ctrl+Shift+M"
+            context: Qt.WindowShortcut
+            onActivated: editorMath.apply(EditorMath.displayMath(
+                editor.text, editor.selectionStart, editor.selectionEnd))
         }
     }
 
