@@ -1,5 +1,8 @@
 <RCC>
     <qresource prefix="/preview">
+        <file alias="index.html">preview/index.html</file>
+        <file alias="preview.css">preview/preview.css</file>
+        <file alias="preview.js">preview/preview.js</file>
         <file alias="vendor/katex/fonts/KaTeX_AMS-Regular.woff2">../third_party/katex/fonts/KaTeX_AMS-Regular.woff2</file>
         <file alias="vendor/katex/fonts/KaTeX_Caligraphic-Bold.woff2">../third_party/katex/fonts/KaTeX_Caligraphic-Bold.woff2</file>
         <file alias="vendor/katex/fonts/KaTeX_Caligraphic-Regular.woff2">../third_party/katex/fonts/KaTeX_Caligraphic-Regular.woff2</file>
