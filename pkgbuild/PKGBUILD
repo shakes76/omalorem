@@ -9,10 +9,13 @@ arch=('x86_64')
 url='https://github.com/shakes76/omalorem'
 license=('MIT')
 install='omalorem.install'
-# qt6-webengine and qt6-webchannel are needed only by the preview plugin, which
-# the app loads the first time the preview is shown (docs/SPEC.md §5.3).
-depends=('qt6-base' 'qt6-declarative' 'qt6-webengine' 'qt6-webchannel' 'xdg-desktop-portal')
-makedepends=('gcc' 'make' 'qt6-base' 'qt6-declarative' 'qt6-webengine' 'qt6-webchannel')
+depends=('qt6-base' 'qt6-declarative' 'xdg-desktop-portal')
+makedepends=('gcc' 'make' 'qt6-base' 'qt6-declarative')
+# Omalorem preview: qt6-webengine and qt6-webchannel are needed only by the
+# preview plugin, which the app loads the first time the preview is shown
+# (docs/SPEC.md §5.3). Appended, so upstream's lines stay untouched.
+depends+=('qt6-webengine' 'qt6-webchannel')
+makedepends+=('qt6-webengine' 'qt6-webchannel')
 source=()
 sha256sums=()
 
