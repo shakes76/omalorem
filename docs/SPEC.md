@@ -1,6 +1,6 @@
 # Omaview — Specification
 
-Status: Draft v0.2 · 2026-09-21
+Status: Draft v0.3 · 2026-09-21
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -231,7 +231,7 @@ scroll sync. Keep it in mind if JS parsing ever becomes a bottleneck.
 | Docked layout in `Main.qml` | QML | A `SplitView` around the existing editor `Flickable`, with a `Loader` for the second `PreviewPane`. When not docked, the `SplitView` contains only the editor, and the editor subtree is unchanged. |
 | `preview/index.html`, `preview.css`, `preview.js` | qrc assets | Rendering, DOM patching, theme variables, font switching, scroll sync, link and image interception. |
 | `fonts/iAWriterQuattroS-*.ttf` | bundled fonts | Registered with `QFontDatabase`, as Mono is, and exposed to the page through `@font-face` pointing at `qrc:`. |
-| `third_party/` | vendored JS, CSS and fonts | `markdown-it`, `markdown-it-texmath` (or `@vscode/markdown-it-katex`), `katex` (min.js, min.css, woff2 fonts only), `qwebchannel.js` (copied from Qt). Exact versions pinned in `third_party/VERSIONS`, with each licence alongside. |
+| `third_party/` | vendored JS, CSS and fonts | `markdown-it`, `markdown-it-texmath`, `katex` (min.js, min.css, woff2 fonts only), `qwebchannel.js` (copied from Qt). Exact versions pinned in `third_party/VERSIONS`, with each licence alongside. |
 | `RequestInterceptor` | `QWebEngineUrlRequestInterceptor` on an off-the-record profile | Allows only `qrc:` and `file:` under the document folder; blocks everything else. This enforces principle 3. |
 
 ### 5.3 Startup and placement lifecycle
@@ -342,7 +342,7 @@ on a 2024 laptop CPU.
 | # | Deliverable | Acceptance |
 |---|---|---|
 | M0 | Fork and rename *(done)* | Builds as `omaview`, 12/12 tests pass, upstream remote kept |
-| M1 | Pop-out preview window | The preview opens as a separate tiled window by default and `Ctrl+E` shows and hides it. Markdown and math render from qrc with no network. Theme and scale apply live. Chromium loads only when the preview is shown. |
+| M1 | Pop-out preview window | The preview opens as a separate tiled window by default and `Ctrl+E` shows and hides it, as does the footer preview button. Markdown and math render from qrc with no network. Theme and scale apply live. Chromium loads only when the preview is shown. Each update re-renders the whole of `#content` and keeps the scroll position; block-keyed patching comes in M2. The `no_preview` qmake scope builds and passes the inherited tests. |
 | M2 | Fonts, incremental render and scroll sync | Mono/Quattro switching (`Ctrl+Shift+T`). Block-keyed DOM patching. The performance budget is met. Editor→preview sync works. Links, images and escaped HTML behave as in 4.4. |
 | M3 | Docked placement | `Ctrl+Shift+E` switches placement. `SplitView` with a saved ratio. The narrow-window rule. The placement test passes. |
 | M4 | Editor math support | Highlighter rule, `Ctrl+M` / `Ctrl+Shift+M`, and `$$`-aware smart return, each with tests |
@@ -357,6 +357,8 @@ on a 2024 laptop CPU.
 | 2026-09-21 | The preview font matches the editor (iA Writer Mono S). It can be switched to the proportional iA Writer Quattro S. |
 | 2026-09-21 | Raw HTML is escaped and remote images are blocked, with no opt-ins in v1. |
 | 2026-09-21 | Parse Markdown with markdown-it and render math with KaTeX, rather than md4c, to get source-line mapping. |
+| 2026-09-21 | Use `markdown-it-texmath` rather than `@vscode/markdown-it-katex`, because only texmath supports the `\(…\)` and `\[…\]` delimiters as well as `$`. |
+| 2026-09-21 | M1 ships the footer preview button and the `no_preview` qmake scope, and renders by replacing the whole of `#content`. Block patching stays in M2. |
 
 ## 10. Open questions
 
