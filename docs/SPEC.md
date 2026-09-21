@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: Draft v0.8 · 2026-09-21
+Status: Draft v0.9 · 2026-09-21
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -328,6 +328,40 @@ As built in M2:
   Markdown syntax. Math inside fenced code is left alone.
 - `smartReturn` treats an open `$$` block like an open code fence: Return inserts a
   single newline, with no list continuation.
+- These work in every build, `no_preview` included; none of them needs WebEngine.
+
+As built in M4:
+- **One scanner, two users.** `MarkdownHighlighter::mathSpans(line, previousState)`
+  finds the spans in one line. It follows the preview's rules (texmath plus the tightened
+  inline `$` rule in `preview.js`):
+  - no space just inside `$…$`;
+  - no digit just before an opening `$` or just after a closing one;
+  - `\$` and code spans are never math.
+- **Block state.** Display math and fences carry a block state from line to line
+  (`MathState`). Upstream never sets one, so every state belongs to this rule.
+- **Emphasis markers inside math.** Omawrite hides the markers of `*`/`_` emphasis and
+  the caret skips them. Inside math those characters are part of the formula, so any
+  emphasis item with a marker inside a formula is dropped. This applies both in
+  `highlightInline` and in `Backend::hiddenRangesAt`. Without it, `$x_1 + y_2$` would
+  show as `x1 + y2`.
+- **Formats.** Math is `themeAccent` at 80% opacity, and the delimiters use the muted
+  marker colour.
+- **Shortcuts.**
+  - The edits are pure functions in `src/EditorMath.js`: `inlineMath` and
+    `displayMath`.
+  - `Ctrl+M` leaves whitespace at either end of the selection outside the dollars.
+  - `Ctrl+Shift+M` puts a blank line on each side of the block when it's missing,
+    because a `$$` block can't interrupt a paragraph in the preview's parser.
+  - `Backend::replaceTextAsOneEdit` applies each edit in one `QTextCursor` edit block,
+    so a single undo reverts it. Omawrite's `Ctrl+B` still takes two undos, because
+    `EditorMutations` removes and then inserts.
+- **Smart return** asks `Backend::displayMathOpenAt(position)`, which scans the line up
+  to the caret from the previous block's state.
+- **Known limits:**
+  - An inline `$…$` that wraps onto a second source line is not highlighted, though the
+    preview renders it.
+  - Indented (four-space) code blocks are not excluded, only fences.
+  - `Ctrl+Shift+M` on a whitespace-only line replaces that line's indentation.
 
 ## 6. Build, packaging and desktop integration
 
@@ -408,7 +442,7 @@ As built in M2:
 | M1.1 | Lazy WebEngine and an additive-only upstream diff *(done)* | The binary does not link QtWebEngine (`ldd`), and the preview loads as a QML plugin on first show. With the preview hidden, cold start is within 10% of the `no_preview` build. Upstream files differ from the fork point only by added lines (plus the `Ctrl+?` text). The spec in §4.1 and §5.2 matches how shortcuts actually behave. All tests pass. |
 | M2 | Fonts, incremental render and scroll sync *(done)* | Mono/Quattro switching (`Ctrl+Shift+T`). Block-keyed DOM patching. The performance budget is met. Editor→preview sync works. Links, images (served through the document-folder scheme) and escaped HTML behave as in 4.4. |
 | M3 | ~~Docked placement~~ *(deferred)* | Moved to the future features in §11. Omalorem targets Omarchy and tiling window managers only. The milestone numbers after it are kept. |
-| M4 | Editor math support | Highlighter rule, `Ctrl+M` / `Ctrl+Shift+M`, and `$$`-aware smart return, each with tests |
+| M4 | Editor math support *(done)* | Highlighter rule, `Ctrl+M` / `Ctrl+Shift+M`, and `$$`-aware smart return, each with tests. Working in `no_preview` builds too |
 | M5 | PDF export and print | `Ctrl+Shift+P` and `Ctrl+P` produce output with the math rendered |
 | M6 | Packaging and Omarchy docs | PKGBUILD dependencies, desktop file, icon variant, README, `docs/omarchy.md`, `bin/install` works |
 
@@ -432,6 +466,7 @@ As built in M2:
 | 2026-09-21 | M2: the resource policy drops `file:`; document images come only through `omalorem-doc:`, which serves image files inside the folder with symlinks resolved. |
 | 2026-09-21 | Released as Omaview 0.1.0 (tag `omaview-v0.1.0`), then renamed Omalorem, after *lorem ipsum* placeholder text: a small extension to Omawrite. Binary, desktop file, icon, settings, recovery directory, QML module (`Omalorem.Preview`), plugin install path (`/usr/lib/omalorem/qml`), logging categories and the `omalorem-doc:` scheme all follow the name. |
 | 2026-09-21 | M2: `sourceLine` is fractional, and the preview follows the editor until the reader scrolls the preview. |
+| 2026-09-21 | M4: the editor math features work in every build, `no_preview` included. Emphasis markers inside math are neither hidden nor skipped by the caret. `Ctrl+M` and `Ctrl+Shift+M` are one undo step each. |
 | 2026-09-21 | Omalorem is for Omarchy and other tiling window managers only. The docked placement (old M3) moves to the future features (§11), for other users who may want it, because supporting non-tiling desktops adds complexity the project shouldn't carry. `Ctrl+Shift+E` stays unassigned. |
 
 ## 10. Open questions

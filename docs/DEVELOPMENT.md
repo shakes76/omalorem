@@ -1,6 +1,6 @@
 # Omalorem — Development status
 
-Last updated: 2026-09-21 · Branch: `omalorem-rename`, stacked on `m2-fonts-sync` and `m1-preview-window` (none merged to `main` or pushed). Release: `omaview-v0.1.0`, which is the last commit under the old name
+Last updated: 2026-09-21 · Branch: `m4-editor-math`, off `main` (not merged or pushed). Release: `omaview-v0.1.0`, which is the last commit under the old name
 
 This is the working log for developers and coding agents. It records where the project
 stands, how the code is laid out, the rules every change must follow, and what was done
@@ -18,8 +18,8 @@ the gap should be fixed or raised.
 | M1.1 Lazy WebEngine, additive-only upstream diff | Done | Commits `fe28c62`, `22db1c8` |
 | M2 Fonts, incremental render, scroll sync, images | Done | Commits `686f38d`…`2acb47c` |
 | M3 Docked placement | Deferred | Moved to SPEC §11, future features. Omalorem targets Omarchy and tiling window managers only |
-| M4 Editor math support | **Next** | See §7 |
-| M5 PDF export and print | Not started | |
+| M4 Editor math support | Done | Branch `m4-editor-math`. See §8 |
+| M5 PDF export and print | **Next** | See §7 |
 | M6 Packaging and Omarchy docs | Started | The PKGBUILD installs the preview plugin and depends on qt6-webengine and qt6-webchannel (SPEC §6). `docs/omarchy.md` and an icon variant are still to do |
 
 What works today:
@@ -33,12 +33,13 @@ What works today:
 - Scroll sync from the editor to the preview uses a fractional `sourceLine`. The preview follows the editor until the reader scrolls the preview.
 - Local images in the document's folder and its subfolders load through `omalorem-doc:`. Remote, out-of-folder and unsaved-document images show a placeholder with the alt text.
 - Headings have GitHub-style ids, so `#anchor` links scroll within the preview.
+- The editor highlights `$…$`, `$$…$$`, `\(…\)` and `\[…\]`, but not inside fenced code. Emphasis characters inside math (`x_1`) stay visible and the caret doesn't skip them. `Ctrl+M` and `Ctrl+Shift+M` insert inline and display math, each as one undo step. Return inside an open display block adds a plain newline. All of this works in `no_preview` builds too.
 - Closing the preview only hides it. Closing the editor closes both.
 - `Ctrl+F` and `Ctrl+H` from the preview bring the editor forward. F11 in the preview fullscreens the preview.
 - With the preview hidden, the `omalorem` binary never loads QtWebEngine: `ldd` shows no WebEngine library, and none is mapped at runtime.
 - `no_preview` builds are plain Omawrite with the Omalorem name.
 
-Tests: `bin/test` passes both targets. `tst_omalorem` has 22 passed. `tst_preview` has 26 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
+Tests: `bin/test` passes both targets. `tst_omalorem` has 27 passed. `tst_preview` has 26 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
 
 ## 2. Rules for every change
 
@@ -155,22 +156,20 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
 - **`Ctrl+F` from the preview while find is already open** leaves focus in the preview. This is accepted, to keep the editor's find handlers untouched.
 - **Profile lifetime.** The profile lives only as long as its `PreviewPane`. That's fine with one pane for the app's life. Decide before anything creates a second pane, such as offscreen printing in M5 or the future docked placement (SPEC §5.3, §11): the profile would probably move into `PreviewSandbox`.
 - **Dormant placement setting.** Backend's `previewPlacement` and `preview/placement`, with their test, remain from M1. Only `window` is used. They are kept for the future docked placement, but could be removed if that feature is dropped for good.
+- **Full rehighlights are slower with math (M4).** Typing re-highlights only the changed lines, so it isn't affected: 14 ms to load the 2,000-line, 300-formula document, and 23 ms when a new `$$` at the top flips every line below. A full `rehighlight()` is another matter; Omawrite calls it on theme and dark-mode changes and on every find update. Upstream takes about 295 ms on that document, and M4 takes about 440 ms. Scanning isn't the cost: without the math formats it's 240 ms, faster than upstream, because formula underscores are no longer hidden. The cost is laying out the extra format ranges, about 150 ms for 900 ranges, and opacity makes no difference. Colouring content only, without separate delimiter ranges, would save about 90 ms. The spec's muted delimiters were kept.
 - **Not yet checked by a human on Hyprland:**
   - fractional scaling at 1.25 and 1.5
   - the checklist in SPEC §7, repeated after each UI milestone
+  - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: M4, editor math support
+## 7. Next: M5, PDF export and print
 
-This is scope from SPEC §4.2, §5.6 and §8. Every item needs a QtTest case, and all of it is additive to upstream code:
-- **Highlighter math rule** (`MarkdownHighlighter`):
-  - `$…$`, `$$…$$`, `\(…\)` and `\[…\]` spans are drawn in `themeAccent` at reduced opacity, with the delimiters muted like other Markdown syntax.
-  - The highlighter keeps no state between lines today. Display math spans lines, and math inside fenced code must be left alone, so the rule needs block state (`setCurrentBlockState`) for open fences and open `$$` blocks.
-  - The math format must win over the inline rules, which would otherwise italicise `a_1 b_2` inside math.
-  - The inline `$` rule should match the preview's tightened rule (`preview.js`), so that currency like `$5 and $10` stays plain in both.
-- **`Ctrl+M`** wraps the selection in `$…$`, or inserts `$$` with the cursor between. **`Ctrl+Shift+M`** inserts a display block `$$\n…\n$$` on its own lines. Both are window shortcuts, like `Ctrl+B`, and go through `EditorMutations.replaceRange`, so one undo reverts them. Add them to the `Ctrl+?` text and the README.
-- **`$$`-aware smart return:** inside an open `$$` block, Return inserts a single newline with no list continuation, as it already does inside a code fence. This is a check added next to the fence count in `smartReturn`.
-- **Decide:** whether these editor features also work in `no_preview` builds. They don't need WebEngine.
+This is scope from SPEC §4.2, §5.5 and §8:
+- **`Ctrl+Shift+P` exports to PDF** through `WebEngineView.printToPdf`, with a portal save dialog that suggests `<name>.pdf`. A `@media print` stylesheet forces the light palette, drops the column centring, and picks A4 or Letter from the locale.
+- **`Ctrl+P` prints through the preview**, so the math shows. It renders a temporary PDF and sends it to `QPrintDialog` through `QPdfDocument`, which adds `pdf` to the plugin's `QT`. Omawrite's `printDocument` stays untouched, so `Ctrl+P` needs an additive way to reach the new path.
+- **If the preview is hidden or was never loaded**, print loads it offscreen first. That creates a second pane, so decide the profile lifetime (§6) first.
+- The portal dialogs need a human to check them on Hyprland (SPEC §7).
 
 ## 8. History
 
@@ -241,3 +240,23 @@ Findings:
   - Runtime names: the binary, desktop entry, icon, `QSettings` application name and recovery directory, the QML module `Omalorem.Preview` and its install path `/usr/lib/omalorem/qml`, the `omalorem.preview*` logging categories, and the `omalorem-doc:` scheme.
 - There is no settings migration. Nothing was installed under the old name beyond development builds, so `~/.config/omaview` is simply left behind.
 - The name comes from *lorem ipsum*, placeholder text, because the project is a small extension to Omawrite.
+
+### Spec v0.8: Omarchy and tiling window managers only
+- The docked placement (M3) moved to SPEC §11, future features, with its design intact. `Ctrl+Shift+E` is unassigned, and `preview/placement` stays dormant.
+
+### M4: Editor math support
+All of this is additive: new functions, new lines inside `highlightBlock`, `highlightInline`, `hiddenRangesAt` and `smartReturn`, and a `Main.qml` block.
+
+| Part | What |
+|---|---|
+| `MarkdownHighlighter::mathSpans`, `MathState`, `touchesMath`, `highlightMath` | The line scanner, block state for display math and fences, the math format, and dropping emphasis whose markers fall inside math |
+| `Backend::hiddenRangesAt` (added lines) | The caret no longer skips `_`/`*` inside formulas |
+| `Backend::displayMathOpenAt`, `smartReturn` (added lines) | Return in an open `$$` or `\[` block adds a plain newline |
+| `src/EditorMath.js`, `Backend::replaceTextAsOneEdit`, Main.qml "editor math" block | `Ctrl+M` and `Ctrl+Shift+M`, one undo step each, in every build |
+| `tst_omalorem` | `findsMathSpans`, `highlightsMath`, `keepsCaretOnMathMarkers`, `buildsMathEdits`, `editsMathFromTheKeyboard` |
+
+Findings:
+- Omawrite's emphasis rules were hiding and skipping underscores and asterisks inside formulas: `$x_1 + y_2$` showed as `x1 + y2`. The preview was right, so this only showed in the editor.
+- A bare `QTextDocument` keeps no highlighter formats until `documentLayout()` has been created. The editor's document always has one; the unit test creates it.
+- `EditorMutations.replaceRange` removes and then inserts, which is two undo steps. The math edits use a `QTextCursor` edit block instead. Omawrite's `Ctrl+B` keeps its two steps.
+- `QList::append` with a nested braced initializer is ambiguous for aggregate structs, so the scanner builds spans through a typed helper.

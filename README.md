@@ -46,6 +46,9 @@ Omalorem was first released as Omaview 0.1.0 (tag `omaview-v0.1.0`).
   text.
 - **Offline and sandboxed.** Everything the preview uses is compiled into the app. It
   never touches the network, raw HTML is shown as text, and links open in your browser.
+- **Math in the editor too.** Formulas are highlighted in the accent colour, and
+  `Ctrl+M` and `Ctrl+Shift+M` insert inline and display math. These work even in the
+  build without the preview.
 - **Nothing costs anything until you use it.** The preview's web engine (QtWebEngine)
   loads only the first time you show the preview. If you keep the preview hidden,
   Omalorem starts as fast as Omawrite.
@@ -58,8 +61,8 @@ u(x, t) = \frac{1}{\sqrt{4\pi\alpha t}} \int_{-\infty}^{\infty} e^{-\frac{(x-y)^
 $$
 ```
 
-> **Status:** 0.1.0. The preview window is done. Still to come: math highlighting and
-> insertion shortcuts in the editor, and PDF export and printing with the math rendered.
+> **Status:** 0.1.0. The preview window and the editor's math support are done. Still to
+> come: PDF export and printing with the math rendered.
 > Until then, `Ctrl+P` prints the Markdown source, as Omawrite does. Omalorem is made for
 > Omarchy and other tiling window managers; a docked single-window layout is only a
 > possible future feature. See [`docs/SPEC.md`](docs/SPEC.md) for the specification and
@@ -100,6 +103,7 @@ entry, icon and settings.
 - `Ctrl+F` searches the document. Use `Enter` or `Ctrl+G` for the next match and `Shift+Enter` for the previous match.
 - `Ctrl+H` opens find and replace.
 - `Ctrl+B`, `Ctrl+I`, and `Ctrl+K` insert bold, italic, and link Markdown.
+- `Ctrl+M` wraps the selection in inline math `$…$`, or inserts `$$` with the cursor between. `Ctrl+Shift+M` inserts a display math block on its own lines. Return inside an open `$$` block adds a plain newline.
 - `Ctrl+?` shows the keyboard shortcut reference.
 
 Every shortcut except the editing ones also works while the preview window has focus. Find
