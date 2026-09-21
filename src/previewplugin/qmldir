@@ -1,0 +1,6 @@
+module Omaview.Preview
+plugin omaviewpreviewplugin
+classname OmaviewPreviewPlugin
+prefer :/qt/qml/Omaview/Preview/
+PreviewPane 1.0 PreviewPane.qml
+PreviewWindow 1.0 PreviewWindow.qml

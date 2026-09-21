@@ -4,14 +4,11 @@
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickStyle>
-#include <QQuickWebEngineProfile>
 #include <QQuickItem>
 #include <QQuickWindow>
-#include <QtWebEngineQuick/qtwebenginequickglobal.h>
 
 #include "backend.h"
 #include "previewbridge.h"
-#include "previewsandbox.h"
 
 namespace {
 
@@ -20,6 +17,12 @@ QString fixture(const QString &name) {
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
         return {};
     return QString::fromUtf8(file.readAll());
+}
+
+// Whether QtWebEngine has been loaded into this process yet.
+bool webEngineLoaded() {
+    QFile maps(QStringLiteral("/proc/self/maps"));
+    return maps.open(QIODevice::ReadOnly) && maps.readAll().contains("libQt6WebEngineCore");
 }
 
 QUrl fixtureUrl(const QString &name) {
@@ -39,20 +42,46 @@ private slots:
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope,
                            m_settingsDirectory.path());
 
+        // Nothing so far may have pulled in QtWebEngine: the test binary,
+        // like omaview, does not link it.
+        QVERIFY(!webEngineLoaded());
+    }
+
+    // The full editor with the preview available but hidden: Main.qml and
+    // Backend, and not a byte of Chromium. Runs first, before anything in
+    // this process has loaded the preview plugin.
+    void keepsChromiumAwayWhileHidden() {
+        QSettings().setValue(QStringLiteral("preview/visible"), false);
+        auto editor = createEditor();
+        QVERIFY(editor.window);
+        QTest::qWait(300);
+        QVERIFY(!previewWindow());
+        QVERIFY(!webEngineLoaded());
+        closeEditor(editor);
+        QSettings().remove(QStringLiteral("preview"));
+    }
+
+    void loadsPreviewPage() {
         m_bridge = new PreviewBridge(this);
-        m_sandbox = new PreviewSandbox(m_bridge, this);
         m_bridge->setTheme(QStringLiteral("#0a0b0c"), QStringLiteral("#f0f1f2"),
                            QStringLiteral("#abcdef"), QStringLiteral("#123456"), true);
         m_engine = new QQmlEngine(this);
+        m_engine->addImportPath(QCoreApplication::applicationDirPath());
         m_engine->rootContext()->setContextProperty(QStringLiteral("testBridge"), m_bridge);
-        m_engine->rootContext()->setContextProperty(QStringLiteral("testSandbox"), m_sandbox);
 
         QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/PreviewHarness.qml")));
         QVERIFY2(component.isReady(), qPrintable(component.errorString()));
         m_harness = component.create();
         QVERIFY2(m_harness, qPrintable(component.errorString()));
+        QVERIFY(webEngineLoaded());
 
-        QVERIFY(m_sandbox->profile()->isOffTheRecord());
+        m_sandbox = m_engine->singletonInstance<QObject *>(QStringLiteral("Omaview.Preview"),
+                                                            QStringLiteral("PreviewSandbox"));
+        QVERIFY(m_sandbox);
+        QTRY_VERIFY(view());
+        QObject *profile = view()->property("profile").value<QObject *>();
+        QVERIFY(profile);
+        QVERIFY(profile->property("offTheRecord").toBool());
         QTRY_VERIFY_WITH_TIMEOUT(m_bridge->pageReady(), 20000);
     }
 
@@ -179,7 +208,7 @@ private slots:
 
     void makesNoOutsideRequests() {
         // Everything rendered so far loaded only from qrc: and the document.
-        QCOMPARE(m_sandbox->blockedRequests(), QStringList());
+        QCOMPARE(blockedRequests(), QStringList());
     }
 
     void blocksRemoteAndOutsideResources() {
@@ -205,24 +234,26 @@ private slots:
         // A bare view on the sandboxed profile, with no page and no CSP in
         // front, loading URLs the interceptor has to refuse by itself.
         m_bridge->setDocumentUrl(fixtureUrl(QStringLiteral("remote.md")));
+        QQmlContext context(m_engine->rootContext());
+        context.setContextProperty(QStringLiteral("testProfile"), view()->property("profile"));
         QQmlComponent component(m_engine);
         component.setData("import QtQuick\nimport QtWebEngine\n"
-                          "WebEngineView { width: 200; height: 200; profile: testSandbox.profile() }",
+                          "WebEngineView { width: 200; height: 200; profile: testProfile }",
                           QUrl(QStringLiteral("qrc:/BareView.qml")));
         QVERIFY2(component.isReady(), qPrintable(component.errorString()));
-        QScopedPointer<QObject> view(component.create());
-        QVERIFY(view);
+        QScopedPointer<QObject> bareView(component.create(&context));
+        QVERIFY(bareView);
 
         const QUrl local = fixtureUrl(QStringLiteral("pixel.png"));
         const QStringList targets{QStringLiteral("https://example.com/"),
                                   QStringLiteral("file:///etc/hosts"),
                                   local.toString()};
         for (const QString &target : targets) {
-            QSignalSpy loadSpy(view.data(), SIGNAL(loadingChanged(QWebEngineLoadingInfo)));
-            view->setProperty("url", QUrl(target));
-            QTRY_VERIFY_WITH_TIMEOUT(!view->property("loading").toBool() && loadSpy.count() >= 2, 10000);
+            QSignalSpy loadSpy(bareView.data(), SIGNAL(loadingChanged(QWebEngineLoadingInfo)));
+            bareView->setProperty("url", QUrl(target));
+            QTRY_VERIFY_WITH_TIMEOUT(!bareView->property("loading").toBool() && loadSpy.count() >= 2, 10000);
         }
-        QCOMPARE(m_sandbox->blockedRequests(),
+        QCOMPARE(blockedRequests(),
                  QStringList({QStringLiteral("https://example.com/"),
                               QStringLiteral("file:///etc/hosts")}));
         m_bridge->setDocumentUrl(QUrl());
@@ -245,17 +276,7 @@ private slots:
     }
 
     // The full editor with the preview available: Main.qml, Backend and the
-    // real PreviewWindow.
-    void keepsChromiumAwayWhileHidden() {
-        QSettings().setValue(QStringLiteral("preview/visible"), false);
-        auto editor = createEditor();
-        QVERIFY(editor.window);
-        QTest::qWait(300);
-        QVERIFY(!previewWindow());
-        closeEditor(editor);
-        QSettings().remove(QStringLiteral("preview"));
-    }
-
+    // real PreviewWindow from the plugin.
     void opensPreviewWindowBesideEditor() {
         auto editor = createEditor();
         QVERIFY(editor.window);
@@ -356,9 +377,8 @@ private:
         editor.backend = new Backend;
         editor.backend->setPreviewAvailable(true);
         editor.engine = new QQmlEngine;
+        editor.engine->addImportPath(QCoreApplication::applicationDirPath());
         editor.engine->rootContext()->setContextProperty(QStringLiteral("backend"), editor.backend);
-        auto *sandbox = new PreviewSandbox(editor.backend->previewBridge(), editor.engine);
-        editor.engine->rootContext()->setContextProperty(QStringLiteral("previewSandbox"), sandbox);
         QQmlComponent component(editor.engine, QUrl(QStringLiteral("qrc:/Main.qml")));
         if (!component.isReady()) {
             qWarning() << component.errorString();
@@ -382,6 +402,17 @@ private:
                 return qobject_cast<QQuickWindow *>(window);
         }
         return nullptr;
+    }
+
+    QObject *view() const {
+        QObject *pane = m_harness ? m_harness->property("pane").value<QObject *>() : nullptr;
+        return pane ? pane->property("view").value<QObject *>() : nullptr;
+    }
+
+    QStringList blockedRequests() const {
+        QStringList blocked;
+        QMetaObject::invokeMethod(m_sandbox, "blockedRequests", Q_RETURN_ARG(QStringList, blocked));
+        return blocked;
     }
 
     QVariant js(const QString &script) {
@@ -416,15 +447,16 @@ private:
 
     QTemporaryDir m_settingsDirectory;
     PreviewBridge *m_bridge = nullptr;
-    PreviewSandbox *m_sandbox = nullptr;
+    QObject *m_sandbox = nullptr;
     QQmlEngine *m_engine = nullptr;
     QObject *m_harness = nullptr;
     int m_renderCount = 0;
 };
 
 int main(int argc, char *argv[]) {
-    // As in the application, before the QApplication exists.
-    QtWebEngineQuick::initialize();
+    // As in the application: WebEngine arrives with the preview plugin and
+    // needs context sharing set before the QApplication exists.
+    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
     QApplication app(argc, argv);
     PreviewTest test;
     QTEST_SET_MAIN_SOURCE_PATH

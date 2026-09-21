@@ -27,8 +27,20 @@ SOURCES += src/previewbridge.cpp
 no_preview {
     DEFINES += OMAVIEW_NO_PREVIEW
 } else {
-    QT += webenginequick webchannel
-    HEADERS += src/previewsandbox.h
-    SOURCES += src/previewsandbox.cpp
-    RESOURCES += src/preview.qrc
+    # The executable never links QtWebEngine: the preview is the
+    # Omaview.Preview QML plugin, loaded on first show (docs/SPEC.md §5.3).
+    # It is built here into Omaview/Preview beside the executable, which is
+    # where main.cpp looks during development.
+    HEADERS += src/previewpolicy.h
+    RESOURCES += src/previewhost.qrc
+    previewplugin.target = preview-plugin
+    previewplugin.commands = \
+        $(MKDIR) $$shell_quote($$OUT_PWD/preview-plugin) && \
+        cd $$shell_quote($$OUT_PWD/preview-plugin) && \
+        (test -f Makefile || $$QMAKE_QMAKE $$shell_quote($$PWD/src/previewplugin/previewplugin.pro) \
+            PREVIEW_DESTDIR=$$shell_quote($$OUT_PWD/Omaview/Preview)) && \
+        $(MAKE)
+    previewplugin.depends = FORCE
+    QMAKE_EXTRA_TARGETS += previewplugin
+    PRE_TARGETDEPS += preview-plugin
 }

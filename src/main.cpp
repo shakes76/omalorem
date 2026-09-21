@@ -14,16 +14,18 @@
 #include "systemtheme.h"
 
 #ifndef OMAVIEW_NO_PREVIEW
-#include <QtWebEngineQuick/qtwebenginequickglobal.h>
-
-#include "previewsandbox.h"
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
 #endif
 
 int main(int argc, char *argv[]) {
 #ifndef OMAVIEW_NO_PREVIEW
-    // Qt requires this before the application object exists. It only sets up
-    // context sharing; Chromium itself starts when the first view is created.
-    QtWebEngineQuick::initialize();
+    // QtWebEngine arrives later with the preview plugin, and needs OpenGL
+    // context sharing set before the application exists. That is all
+    // QtWebEngineQuick::initialize() does for us, and calling it would link
+    // WebEngine into the executable, costing ~90 ms on every launch.
+    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 #endif
     QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("omaview"));
@@ -65,10 +67,6 @@ int main(int argc, char *argv[]) {
         backend.setTextScale(textScale);
     });
 
-#ifndef OMAVIEW_NO_PREVIEW
-    // Declared before the engine so the views are destroyed before their profile.
-    PreviewSandbox previewSandbox(backend.previewBridge());
-#endif
     QQmlApplicationEngine engine;
     QObject::connect(&engine, &QQmlApplicationEngine::warnings, &app,
                      [](const QList<QQmlError> &warnings) {
@@ -77,8 +75,18 @@ int main(int argc, char *argv[]) {
     });
     engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
 #ifndef OMAVIEW_NO_PREVIEW
-    engine.rootContext()->setContextProperty(QStringLiteral("previewSandbox"), &previewSandbox);
-    backend.setPreviewAvailable(true);
+    // The Omaview.Preview plugin sits beside the executable in a build tree,
+    // and in <prefix>/lib/omaview/qml when installed. Without it the editor
+    // runs as plain Omawrite: no footer button, and Ctrl+E does nothing.
+    const QDir appDir(QCoreApplication::applicationDirPath());
+    for (const QString &importPath : {appDir.absolutePath(),
+                                      appDir.absoluteFilePath(QStringLiteral("../lib/omaview/qml"))}) {
+        if (QFileInfo::exists(importPath + QStringLiteral("/Omaview/Preview/qmldir"))) {
+            engine.addImportPath(importPath);
+            backend.setPreviewAvailable(true);
+            break;
+        }
+    }
 #endif
 
     engine.load(QUrl(QStringLiteral("qrc:/Main.qml")));

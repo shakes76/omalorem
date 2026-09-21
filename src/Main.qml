@@ -1050,7 +1050,7 @@ ApplicationWindow {
 
             function load() {
                 if (wanted && editorShown && status === Loader.Null)
-                    setSource("PreviewWindow.qml", { editorWindow: win });
+                    setSource("PreviewHost.qml", { editorWindow: win });
             }
 
             onWantedChanged: load()

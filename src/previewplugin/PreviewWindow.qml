@@ -94,7 +94,6 @@ Window {
         PreviewPane {
             anchors.fill: parent
             bridge: backend.previewBridge
-            profile: previewSandbox.profile()
         }
     }
 }

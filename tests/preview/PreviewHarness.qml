@@ -1,4 +1,5 @@
 import QtQuick
+import Omaview.Preview
 
 // A bare window around the real PreviewPane, driven by tst_preview.
 Window {
@@ -23,6 +24,5 @@ Window {
         id: pane
         anchors.fill: parent
         bridge: testBridge
-        profile: testSandbox.profile()
     }
 }
