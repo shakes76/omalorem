@@ -44,7 +44,7 @@ Tests: `bin/test` passes both targets. `tst_omalorem` has 22 passed. `tst_previe
 
 These come from the spec and from decisions made with the project owner. Don't break them without a spec change.
 
-1. **Additive-only upstream diff (SPEC §2, principle 1).** Files that came from upstream Omawrite may only gain lines. No existing upstream line is modified or deleted. The exceptions are the `Ctrl+?` reference text in `src/Main.qml` and the lines that carry the project's name (renamed at the fork, and again from Omaview to Omalorem). Preview behaviour lives in the preview's own files and reaches the editor through additive hooks: new properties, functions, blocks and signals. The reason is to keep upstream rebases clean and keep the preview portable to another editor. Check with the audit in §5.
+1. **Additive-only upstream diff (SPEC §2, principle 1).** Files that came from upstream Omawrite may only gain lines. No existing upstream line is modified or deleted. The exceptions are the `Ctrl+?` reference text in `src/Main.qml` and the lines that carry the project's name (renamed at the fork, and again from Omaview to Omalorem). Preview behaviour lives in the preview's own files and reaches the editor through additive hooks: new properties, functions, blocks and signals. The reason is to keep upstream rebases clean and keep the preview portable to another editor. `README.md` counts as the fork's own file, like `docs/`: it describes Omalorem, so it is rewritten as needed. It still keeps upstream's shortcut and requirement lines word for word, to keep rebases small. Check with the audit in §5.
 2. **Nothing costs anything until it's used.** WebEngine code belongs only in the `Omalorem.Preview` plugin (`src/previewplugin/`), never in the executable. Don't call `QtWebEngineQuick::initialize()` from `main.cpp`: that links WebEngine and cost +26% cold start in M1.
 3. **Offline and sandboxed.** All web assets are vendored in `third_party/` (fonts in `fonts/`) and compiled in through qrc. Follow the update procedure in `third_party/VERSIONS`, and never commit `node_modules` or `package.json`. The request interceptor allows only `qrc:` and `omalorem-doc:` inside the document's folder; `file:` is always refused.
 4. **Match the code style.** Use `QStringLiteral`, `Q_PROPERTY` with NOTIFY, the `m_` prefix, 4-space indents and C++17. In QML, sizes go through `win.scaledSize()` and colours come from `backend.theme*`. Comments explain *why*.
@@ -123,7 +123,7 @@ ldd build/omalorem | grep -iE 'webengine|webchannel'          # expect no output
 # files (omaview.pro, tst_omaview.cpp, pkgbuild/omaview.*): the .pro and the
 # test file have more than doubled since the fork, so git's default 50% misses
 # them. Lines carrying the old name belong to the rename and are filtered out.
-git diff -M20% eb6bd1a HEAD -- . ':!docs' ':!third_party' \
+git diff -M20% eb6bd1a HEAD -- . ':!docs' ':!third_party' ':!README.md' \
   | grep -E '^-[^-]' | grep -vi omaview                       # expect only the old Ctrl+? text line
 # To confirm the filtered lines changed only the name: swap omaview for
 # omalorem (all three cases) in each one; each must then appear as an added
