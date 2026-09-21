@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: Draft v0.7 · 2026-09-21
+Status: Draft v0.8 · 2026-09-21
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -16,10 +16,12 @@ right while you write.
 
 Omalorem keeps Omawrite's character: no toolbars, no sidebars, no settings dialog, a
 narrow typographic column, and theme and text size taken from the desktop. Omalorem is
-designed first for **Omarchy**. By default the preview is its own top-level window, and
-Hyprland tiles it beside the editor, so the tiling window manager handles the layout
-rather than the app. A docked split layout is available for other desktops or for anyone
-who prefers a single window.
+designed for **Omarchy and other tiling window managers only**. The preview is its own
+top-level window, and Hyprland tiles it beside the editor, so the window manager handles
+the layout rather than the app. Omalorem deliberately has no layout of its own, such as a
+docked split view, because supporting other desktops would make the project more complex
+than a small extension of Omawrite should be. A docked placement stays on the list of
+future features (§11), in case other users want it.
 
 ## 2. Principles
 
@@ -48,9 +50,8 @@ who prefers a single window.
 ## 3. Scope
 
 ### In scope (v1)
-- A live preview in its **own window by default**. Pressing `Ctrl+Shift+E` switches to a
-  **docked** split inside the editor window. `Ctrl+E` shows or hides the preview in
-  either placement.
+- A live preview in its **own top-level window**, which the tiling window manager places
+  beside the editor. `Ctrl+E` shows or hides it.
 - CommonMark and GFM rendering: tables, task lists, strikethrough, autolinks, fenced code.
 - Math: `$…$` inline and `$$…$$` display, plus `\(…\)` and `\[…\]`. Inside display math,
   KaTeX environments such as `align`, `aligned`, `cases`, `pmatrix` and `gather` work.
@@ -73,19 +74,24 @@ who prefers a single window.
 - A settings UI. Preferences go in `QSettings` and are changed through shortcuts only.
 - A dedicated preview-only mode. To read, fullscreen the preview window instead
   (`Super+F` / `F11`).
-- Windows and macOS. WebView2 is not used. The target is Linux on Wayland (Hyprland),
-  with X11 as best effort.
+- **Non-tiling desktops, and any layout managed by the app.** There is no docked or
+  split-view placement, and no saved window geometry for the preview. The preview window
+  still opens on a floating desktop, but arranging it is left to the user. The docked
+  placement is a future feature (§11).
+- Windows and macOS. WebView2 is not used. The target is Linux on Wayland with Hyprland,
+  as Omarchy ships it. Other tiling compositors, such as Sway, and tiling X11 window
+  managers, such as i3, are best effort.
 
 ## 4. User experience
 
-### 4.1 Preview placement
+### 4.1 The preview window
 
-There are two placements, saved as `preview/placement` with the values `window` and
-`docked`. The default is **`window`**. Whether the preview is showing is saved separately
-as `preview/visible`, which defaults to `true`.
+The preview is always a separate window. Whether it is showing is saved as
+`preview/visible`, which defaults to `true`. (Backend also stores `preview/placement`,
+added in M1. Only the value `window` is used; the setting stays dormant for the future
+docked placement in §11.)
 
-**Pop-out (default).** This is the view on Omarchy, with Hyprland tiling the two windows
-side by side:
+This is the view on Omarchy, with Hyprland tiling the two windows side by side:
 
 ```
 ┌──────────── notes.md - Omalorem ───────────┐┌──────── Preview — notes.md - Omalorem ─────┐
@@ -131,28 +137,6 @@ side by side:
   fullscreens the preview, handled inside the preview's own files. On Omarchy,
   Hyprland's own fullscreen (`Super+F`) works on either window.
 
-**Docked.** This is for desktops without tiling, or for a single-window workflow:
-
-```
-┌─────────────────────────────── Omalorem ───────────────────────────────┐
-│   # Heat equation                 │   Heat equation                   │
-│   …                               │   …                               │
-│  [save][open][◨] status            ┆                         42 Words │
-└───────────────────────────────────┴───────────────────────────────────┘
-```
-
-- The editor and preview each start at 50% width. The divider is a 1px `mutedColor`
-  line with a wider invisible grab area. Dragging it changes the ratio, which is saved
-  (`preview/splitRatio`, clamped to 0.25–0.75). Each pane centres its own text column.
-  The editor column follows the existing `editorWidth` rule, applied to the pane width
-  instead of the window width.
-- If the window is narrower than about 900 logical px, the docked preview hides. It comes
-  back when the window is wide enough again.
-
-**Switching placement** (`Ctrl+Shift+E`) destroys the current preview view and creates a
-new one in the other placement (see §5.3). It then re-renders from the bridge's current
-state and restores the scroll position from `sourceLine`.
-
 The footer gets one extra `FooterIconButton` (`iconName: "preview"`) that shows or hides
 the preview. The word count stays at the bottom right of the editor window.
 
@@ -160,8 +144,7 @@ the preview. The word count stays at the bottom right of the editor window.
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl+E` | Show or hide the preview, in its current placement |
-| `Ctrl+Shift+E` | Switch placement between pop-out window and docked |
+| `Ctrl+E` | Show or hide the preview window |
 | `Ctrl+Shift+T` | Switch the preview font between Mono and Quattro |
 | `Ctrl+M` | Wrap the selection in inline math `$…$`, or insert `$$` with the cursor inside |
 | `Ctrl+Shift+M` | Insert a display math block `$$\n…\n$$` on its own lines |
@@ -196,8 +179,8 @@ All of these are added to the `Ctrl+?` reference dialog and to the README.
   interval as the word-count timer. Opening a file or reloading renders immediately.
 - **Scroll position** stays put across re-renders. The page is never swapped out.
 - **Scroll sync (editor → preview):** the block at the top of the editor viewport lines
-  up with the matching block in the preview, using `data-source-line`. This works the
-  same whether the preview is a separate window or docked. Preview → editor sync is v1.1.
+  up with the matching block in the preview, using `data-source-line`. Preview → editor
+  sync is v1.1.
   - The editor publishes a fractional `sourceLine`: the line at the top of its view, plus
     the fraction of that line's height scrolled past. It probes at the view's top, which
     is the editor's top margin above where the text begins; the page puts the matching
@@ -265,19 +248,18 @@ scroll sync. Keep it in mind if JS parsing ever becomes a bottleneck.
 
 | Unit | Kind | Responsibility |
 |---|---|---|
-| `PreviewBridge` (`src/previewbridge.{h,cpp}`) | `QObject`, registered on a `QWebChannel` | Properties: `markdown`, `baseUrl` (document folder as `file://…/`), `theme` (`QVariantMap`: bg, fg, accent, selection, muted, dark), `textScale`, `fontFamily` (`mono` or `quattro`), `sourceLine` (a `qreal`: line plus fraction, for sync). Invokables called from the page: `openLink(url)`, `ready()`. Owns the debounce timer. There is **one bridge per editor**, shared by whichever placement is active. |
-| `Backend` | existing | Keeps its current API. Additions: a `previewBridge` property, `previewPlacement`, `previewVisible` and `previewFont` (all saved to `QSettings`), `previewLineAt(position)` for scroll sync, and feeding text, theme, scale and font into the bridge. The `editorTextChanged()` path already knows when content has really changed, and that is what triggers the bridge. |
-| `PreviewPane.qml` (`src/previewplugin/`) | plugin QML file | Wraps the `WebEngineView`: transparent background, `settings.javascriptCanOpenWindows: false`, `localContentCanAccessFileUrls: false` (images come through `omalorem-doc:`), `localContentCanAccessRemoteUrls: false`, a `WebChannel` with `propertyUpdateInterval: 16` so scroll sync keeps up with the editor, `onNavigationRequested` blocks everything except the initial qrc load, and `onNewWindowRequested` sends the URL to `openLink`. It knows nothing about which placement it is in. |
+| `PreviewBridge` (`src/previewbridge.{h,cpp}`) | `QObject`, registered on a `QWebChannel` | Properties: `markdown`, `baseUrl` (document folder as `file://…/`), `theme` (`QVariantMap`: bg, fg, accent, selection, muted, dark), `textScale`, `fontFamily` (`mono` or `quattro`), `sourceLine` (a `qreal`: line plus fraction, for sync). Invokables called from the page: `openLink(url)`, `ready()`. Owns the debounce timer. There is **one bridge per editor**, which outlives any view of it. |
+| `Backend` | existing | Keeps its current API. Additions: a `previewBridge` property, `previewVisible` and `previewFont` (saved to `QSettings`), a dormant `previewPlacement` (only `window` is used; see §11), `previewLineAt(position)` for scroll sync, and feeding text, theme, scale and font into the bridge. The `editorTextChanged()` path already knows when content has really changed, and that is what triggers the bridge. |
+| `PreviewPane.qml` (`src/previewplugin/`) | plugin QML file | Wraps the `WebEngineView`: transparent background, `settings.javascriptCanOpenWindows: false`, `localContentCanAccessFileUrls: false` (images come through `omalorem-doc:`), `localContentCanAccessRemoteUrls: false`, a `WebChannel` with `propertyUpdateInterval: 16` so scroll sync keeps up with the editor, `onNavigationRequested` blocks everything except the initial qrc load, and `onNewWindowRequested` sends the URL to `openLink`. It knows nothing about the window it sits in, so it can be reused, for example by print (M5). |
 | `PreviewWindow.qml` (`src/previewplugin/`) | plugin QML file | A top-level `Window` (no `transientParent`) containing a `PreviewPane`. It owns the title, background and close-to-hide behaviour, and moves focus to the editor when find opens. It does not repeat the application-wide `Shortcut`s (see §4.1). It is created by a `Loader` in `Main.qml`, through `src/PreviewHost.qml`, whose `import Omalorem.Preview` is what loads the plugin. |
 | `Omalorem.Preview` plugin (`src/previewplugin/`) | QML plugin module (`previewplugin.pro`, `qmldir`, plugin class, qrc) | Holds everything that depends on QtWebEngine. Built by an extra make target in `omalorem.pro` into `build/Omalorem/Preview/`. `main.cpp` adds its import path and turns the preview on only if its `qmldir` exists; without it, Omalorem runs as plain Omawrite. |
-| Docked layout in `Main.qml` | QML | A `SplitView` around the existing editor `Flickable`, with a `Loader` for the second `PreviewPane`. When not docked, the `SplitView` contains only the editor, and the editor subtree is unchanged. |
 | `src/preview/index.html`, `preview.css`, `preview.js` | qrc assets in the plugin | Rendering, DOM patching, theme variables, font switching, scroll sync, link and image interception. |
 | `fonts/iAWriterQuattroS-*.woff2` | bundled fonts | Compiled into the preview plugin's qrc only and exposed to the page through `@font-face`. They are not registered with `QFontDatabase`, because the editor never uses them. Provenance is in `third_party/VERSIONS`. |
 | `third_party/` | vendored JS, CSS and fonts | `markdown-it`, `markdown-it-texmath`, `katex` (min.js, min.css, woff2 fonts only), `qwebchannel.js` (copied from Qt). Exact versions pinned in `third_party/VERSIONS`, with each licence alongside. |
 | `PreviewSandbox` and its interceptor (`src/previewplugin/previewsandbox.{h,cpp}`) | QML singleton, `QWebEngineUrlRequestInterceptor` and `QWebEngineUrlSchemeHandler`, in the plugin | `PreviewSandbox.protect()` attaches the interceptor and the `omalorem-doc:` handler to the off-the-record profile that `PreviewPane` builds from a `WebEngineProfilePrototype` with no storage name. The URL policy itself is header-only (`src/previewpolicy.h`), so the plugin needs no symbols from the executable and the WebEngine-free tests can cover it. |
 | Interceptor policy (`src/previewpolicy.h`) | header-only C++ | Allows only `qrc:` and `omalorem-doc:` URLs that map inside the document's folder (`previewDocumentPath`), and blocks everything else, `file:` included. This enforces principle 3. |
 
-### 5.3 Startup and placement lifecycle
+### 5.3 Startup and lifecycle
 - **The `omalorem` binary does not link QtWebEngine.** Just linking `libQt6WebEngineCore`
   costs about 90 ms on every launch, which breaks the startup target below. The preview
   (`PreviewSandbox`, `PreviewPane`, `PreviewWindow` and the request interceptor) is built
@@ -287,19 +269,19 @@ scroll sync. Keep it in mind if JS parsing ever becomes a bottleneck.
   `Qt::AA_ShareOpenGLContexts` before `QApplication` is constructed instead, which is
   the requirement `initialize()` exists to meet. `PreviewBridge` stays in the main
   binary, because it has no WebEngine dependency.
-- Both placements create their `PreviewPane` through a `Loader`. It becomes active only
-  when `previewVisible` is true, so with the preview hidden, Chromium never starts.
-- **Hiding the preview** makes its window or pane invisible but leaves the loader
-  active, so showing it again is instant.
-- **Switching placement** deactivates one loader and activates the other. A
-  `WebEngineView` is never moved between `QQuickWindow`s, because moving it across
-  windows breaks its GPU surface. Once loaded, the WebEngine libraries and Chromium's
-  processes stay for the life of the app, which makes recreating the view cheap.
-  **Note for M3:** since M1.1 the profile is built from a `WebEngineProfilePrototype`
-  inside `PreviewPane`, so it lives only as long as its pane. The view itself is created
-  by a `Loader` after the pane completes, because the prototype returns no profile before
-  then, and `setProfile(nullptr)` crashes. M3 must decide whether the profile moves out of
-  the pane, for example into `PreviewSandbox`, so that switching placement reuses it.
+- The preview window, and its `PreviewPane`, are created through a `Loader`. It becomes
+  active only when `previewVisible` is true, so with the preview hidden, Chromium never
+  starts.
+- **Hiding the preview** makes its window invisible but leaves the loader active, so
+  showing it again is instant.
+- **Profile lifetime.** Since M1.1 the profile is built from a `WebEngineProfilePrototype`
+  inside `PreviewPane`, so it lives only as long as its pane. The view itself is created by
+  a `Loader` after the pane completes, because the prototype returns no profile before
+  then, and `setProfile(nullptr)` crashes. That is fine while there is one pane for the
+  life of the app. Anything that creates a second pane, such as offscreen printing (M5)
+  or a docked placement (§11), must decide whether the profile moves out of the pane, for
+  example into `PreviewSandbox`. A `WebEngineView` is never moved between
+  `QQuickWindow`s, because moving it across windows breaks its GPU surface.
 - The editor window is always the primary window: `rootObjects().first()`, the
   `setParentWindow` target, and the owner of the geometry settings. The preview window
   is secondary and never closes the application.
@@ -393,7 +375,8 @@ As built in M2:
   - the theme map's contents after `colors.toml` changes;
   - `baseUrl` for saved and unsaved documents;
   - link filtering (reject `javascript:` and `file:` outside the document folder);
-  - defaults and saving for `previewPlacement`, `previewVisible` and `previewFont`.
+  - defaults and saving for `previewVisible` and `previewFont`, and for the dormant
+    `previewPlacement`.
 - **Render tests:** a `tests/preview/` QtTest target loads `index.html` in an offscreen
   `QQuickWebEngineView` from a fixture corpus (`tests/fixtures/*.md`). It asserts, using
   `runJavaScript`:
@@ -404,8 +387,6 @@ As built in M2:
   - raw HTML escaped;
   - remote and out-of-folder images replaced by placeholders;
   - the computed `font-family` following `fontFamily`.
-- **Placement test:** switching placement twice keeps the rendered content and the
-  `sourceLine` scroll anchor, and leaves exactly one live `WebEngineView`.
 - **Performance test:** the 2,000-line fixture must meet the budget in 5.4. It is run
   manually and logged, not gated in CI.
 - **Manual checklist (Omarchy):**
@@ -426,7 +407,7 @@ As built in M2:
 | M1 | Pop-out preview window *(done)* | The preview opens as a separate tiled window by default and `Ctrl+E` shows and hides it, as does the footer preview button. Markdown and math render from qrc with no network. Theme and scale apply live. Chromium loads only when the preview is shown. Each update re-renders the whole of `#content` and keeps the scroll position; block-keyed patching comes in M2. The `no_preview` qmake scope builds and passes the inherited tests. |
 | M1.1 | Lazy WebEngine and an additive-only upstream diff *(done)* | The binary does not link QtWebEngine (`ldd`), and the preview loads as a QML plugin on first show. With the preview hidden, cold start is within 10% of the `no_preview` build. Upstream files differ from the fork point only by added lines (plus the `Ctrl+?` text). The spec in §4.1 and §5.2 matches how shortcuts actually behave. All tests pass. |
 | M2 | Fonts, incremental render and scroll sync *(done)* | Mono/Quattro switching (`Ctrl+Shift+T`). Block-keyed DOM patching. The performance budget is met. Editor→preview sync works. Links, images (served through the document-folder scheme) and escaped HTML behave as in 4.4. |
-| M3 | Docked placement | `Ctrl+Shift+E` switches placement. `SplitView` with a saved ratio. The narrow-window rule. The placement test passes. |
+| M3 | ~~Docked placement~~ *(deferred)* | Moved to the future features in §11. Omalorem targets Omarchy and tiling window managers only. The milestone numbers after it are kept. |
 | M4 | Editor math support | Highlighter rule, `Ctrl+M` / `Ctrl+Shift+M`, and `$$`-aware smart return, each with tests |
 | M5 | PDF export and print | `Ctrl+Shift+P` and `Ctrl+P` produce output with the math rendered |
 | M6 | Packaging and Omarchy docs | PKGBUILD dependencies, desktop file, icon variant, README, `docs/omarchy.md`, `bin/install` works |
@@ -435,7 +416,7 @@ As built in M2:
 
 | Date | Decision |
 |---|---|
-| 2026-09-21 | The preview defaults to its own top-level window, so Hyprland tiles it on Omarchy. Docked split is optional. |
+| 2026-09-21 | The preview defaults to its own top-level window, so Hyprland tiles it on Omarchy. Docked split is optional. *(Superseded below: there is no docked split in v1.)* |
 | 2026-09-21 | The preview font matches the editor (iA Writer Mono S). It can be switched to the proportional iA Writer Quattro S. |
 | 2026-09-21 | Raw HTML is escaped and remote images are blocked, with no opt-ins in v1. |
 | 2026-09-21 | Parse Markdown with markdown-it and render math with KaTeX, rather than md4c, to get source-line mapping. |
@@ -451,6 +432,7 @@ As built in M2:
 | 2026-09-21 | M2: the resource policy drops `file:`; document images come only through `omalorem-doc:`, which serves image files inside the folder with symlinks resolved. |
 | 2026-09-21 | Released as Omaview 0.1.0 (tag `omaview-v0.1.0`), then renamed Omalorem, after *lorem ipsum* placeholder text: a small extension to Omawrite. Binary, desktop file, icon, settings, recovery directory, QML module (`Omalorem.Preview`), plugin install path (`/usr/lib/omalorem/qml`), logging categories and the `omalorem-doc:` scheme all follow the name. |
 | 2026-09-21 | M2: `sourceLine` is fractional, and the preview follows the editor until the reader scrolls the preview. |
+| 2026-09-21 | Omalorem is for Omarchy and other tiling window managers only. The docked placement (old M3) moves to the future features (§11), for other users who may want it, because supporting non-tiling desktops adds complexity the project shouldn't carry. `Ctrl+Shift+E` stays unassigned. |
 
 ## 10. Open questions
 
@@ -463,3 +445,66 @@ As built in M2:
    first show, and offscreen (no GPU) the first render comes 732 ms after the editor's
    first frame. It needs measuring on Hyprland with the GPU. If it still misses, relax
    the target rather than warm WebEngine up on a background thread, which isn't safe.
+
+## 11. Future features
+
+These are wanted but not planned. They go into a milestone only if users ask for them,
+and only if they don't add complexity to the Omarchy experience, which comes first.
+
+### 11.1 Docked placement
+
+A docked split view inside the editor window, for non-tiling desktops or for anyone who
+prefers a single window. It was planned as M3 and then deferred (§9). The design is kept
+here so that it can be picked up without starting again.
+
+**Settings and shortcut.** Two placements, saved as `preview/placement` with the values
+`window` (the default and today's behaviour) and `docked`. `Ctrl+Shift+E` switches
+between them, and `Ctrl+E` shows or hides the preview in either one.
+
+**Layout.** For desktops without tiling, or for a single-window workflow:
+
+```
+┌─────────────────────────────── Omalorem ───────────────────────────────┐
+│   # Heat equation                 │   Heat equation                   │
+│   …                               │   …                               │
+│  [save][open][◨] status            ┆                         42 Words │
+└───────────────────────────────────┴───────────────────────────────────┘
+```
+
+- The editor and preview each start at 50% width. The divider is a 1px `mutedColor`
+  line with a wider invisible grab area. Dragging it changes the ratio, which is saved
+  (`preview/splitRatio`, clamped to 0.25–0.75). Each pane centres its own text column.
+  The editor column follows the existing `editorWidth` rule, applied to the pane width
+  instead of the window width.
+- If the window is narrower than about 900 logical px, the docked preview hides. It comes
+  back when the window is wide enough again.
+
+**Switching placement** (`Ctrl+Shift+E`) destroys the current preview view and creates a
+new one in the other placement. It then re-renders from the bridge's current
+state and restores the scroll position from `sourceLine`.
+
+**Components.** A new additive block in `Main.qml` puts a `SplitView` around the existing
+editor `Flickable`, with a `Loader` for a second `PreviewPane`. When not docked, the
+`SplitView` contains only the editor, and the editor subtree is unchanged.
+
+**Lifecycle.**
+- **Switching placement** deactivates one loader and activates the other. A
+  `WebEngineView` is never moved between `QQuickWindow`s, because moving it across
+  windows breaks its GPU surface. Once loaded, the WebEngine libraries and Chromium's
+  processes stay for the life of the app, which makes recreating the view cheap.
+- The profile question in §5.3 applies here: the profile would probably move out of the
+  pane, for example into `PreviewSandbox`, so that switching placement reuses it.
+
+**Tests.**
+- Saving the split ratio and clamping it, and the narrow-window rule.
+- **Placement test:** switching placement twice keeps the rendered content and the
+  `sourceLine` scroll anchor, and leaves exactly one live `WebEngineView`.
+
+**What is already in place.**
+- Backend's `previewPlacement` property and its `preview/placement` setting, with a test.
+- A `PreviewPane` that doesn't depend on its window.
+- A bridge that holds the scroll position (`sourceLine`), so a new view lines up as soon
+  as it renders.
+- A `protect()` that skips a profile which already has the `omalorem-doc:` handler.
+
+**Before building it:** settle the profile-lifetime question in §5.3.

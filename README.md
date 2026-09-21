@@ -58,10 +58,11 @@ u(x, t) = \frac{1}{\sqrt{4\pi\alpha t}} \int_{-\infty}^{\infty} e^{-\frac{(x-y)^
 $$
 ```
 
-> **Status:** 0.1.0. The preview window is done. Still to come: a docked split-view
-> placement (`Ctrl+Shift+E`), math highlighting and insertion shortcuts in the editor, and
-> PDF export and printing with the math rendered. Until then, `Ctrl+P` prints the Markdown
-> source, as Omawrite does. See [`docs/SPEC.md`](docs/SPEC.md) for the specification and
+> **Status:** 0.1.0. The preview window is done. Still to come: math highlighting and
+> insertion shortcuts in the editor, and PDF export and printing with the math rendered.
+> Until then, `Ctrl+P` prints the Markdown source, as Omawrite does. Omalorem is made for
+> Omarchy and other tiling window managers; a docked single-window layout is only a
+> possible future feature. See [`docs/SPEC.md`](docs/SPEC.md) for the specification and
 > milestones, and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the development status,
 > code layout and project rules. Upstream Omawrite is tracked as the `upstream` remote.
 

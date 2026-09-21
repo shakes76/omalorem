@@ -17,8 +17,8 @@ the gap should be fixed or raised.
 | M1 Pop-out preview window | Done | Commits `b908f24`…`96906ed` |
 | M1.1 Lazy WebEngine, additive-only upstream diff | Done | Commits `fe28c62`, `22db1c8` |
 | M2 Fonts, incremental render, scroll sync, images | Done | Commits `686f38d`…`2acb47c` |
-| M3 Docked placement | **Next** | Profile lifetime needs a decision first (§6). See §7 |
-| M4 Editor math support | Not started | |
+| M3 Docked placement | Deferred | Moved to SPEC §11, future features. Omalorem targets Omarchy and tiling window managers only |
+| M4 Editor math support | **Next** | See §7 |
 | M5 PDF export and print | Not started | |
 | M6 Packaging and Omarchy docs | Started | The PKGBUILD installs the preview plugin and depends on qt6-webengine and qt6-webchannel (SPEC §6). `docs/omarchy.md` and an icon variant are still to do |
 
@@ -153,19 +153,24 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
 - **Image caching.** Chromium may cache an `omalorem-doc:` image for the session, so replacing an image file on disk may not show until the document is reopened. This hasn't been checked.
 - **Scrollbar drags in the preview** may not count as "the reader scrolled". Wheel, keys, touch and pointer-down do, but whether Chromium sends `pointerdown` for a scrollbar drag hasn't been checked. If not, a render while the preview is scrolled that way would snap it back to the editor's line.
 - **`Ctrl+F` from the preview while find is already open** leaves focus in the preview. This is accepted, to keep the editor's find handlers untouched.
-- **Profile lifetime for M3.** The profile lives only as long as its `PreviewPane`. Before M3 recreates panes, decide whether it moves out, for example into `PreviewSandbox`.
+- **Profile lifetime.** The profile lives only as long as its `PreviewPane`. That's fine with one pane for the app's life. Decide before anything creates a second pane, such as offscreen printing in M5 or the future docked placement (SPEC §5.3, §11): the profile would probably move into `PreviewSandbox`.
+- **Dormant placement setting.** Backend's `previewPlacement` and `preview/placement`, with their test, remain from M1. Only `window` is used. They are kept for the future docked placement, but could be removed if that feature is dropped for good.
 - **Not yet checked by a human on Hyprland:**
   - fractional scaling at 1.25 and 1.5
   - the checklist in SPEC §7, repeated after each UI milestone
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: M3
+## 7. Next: M4, editor math support
 
-This is scope from SPEC §8 plus the decisions above:
-- Decide the profile lifetime first (§6). The `omalorem-doc:` handler and the interceptor are per `PreviewSandbox`, and both are attached in `protect()`, which already skips a profile that has the handler.
-- `Ctrl+Shift+E` switches placement. It destroys one `PreviewPane` and creates the other, and never moves a `WebEngineView` between windows.
-- A `SplitView` in `Main.qml` with a saved `preview/splitRatio`, clamped to 0.25–0.75, and the narrow-window rule (about 900 px).
-- The placement test from SPEC §7: switching twice keeps the content and the `sourceLine` anchor, and leaves exactly one live `WebEngineView`. Because `sourceLine` lives on the bridge, a new pane lines up as soon as it renders.
+This is scope from SPEC §4.2, §5.6 and §8. Every item needs a QtTest case, and all of it is additive to upstream code:
+- **Highlighter math rule** (`MarkdownHighlighter`):
+  - `$…$`, `$$…$$`, `\(…\)` and `\[…\]` spans are drawn in `themeAccent` at reduced opacity, with the delimiters muted like other Markdown syntax.
+  - The highlighter keeps no state between lines today. Display math spans lines, and math inside fenced code must be left alone, so the rule needs block state (`setCurrentBlockState`) for open fences and open `$$` blocks.
+  - The math format must win over the inline rules, which would otherwise italicise `a_1 b_2` inside math.
+  - The inline `$` rule should match the preview's tightened rule (`preview.js`), so that currency like `$5 and $10` stays plain in both.
+- **`Ctrl+M`** wraps the selection in `$…$`, or inserts `$$` with the cursor between. **`Ctrl+Shift+M`** inserts a display block `$$\n…\n$$` on its own lines. Both are window shortcuts, like `Ctrl+B`, and go through `EditorMutations.replaceRange`, so one undo reverts them. Add them to the `Ctrl+?` text and the README.
+- **`$$`-aware smart return:** inside an open `$$` block, Return inserts a single newline with no list continuation, as it already does inside a code fence. This is a check added next to the fence count in `smartReturn`.
+- **Decide:** whether these editor features also work in `no_preview` builds. They don't need WebEngine.
 
 ## 8. History
 
