@@ -8,7 +8,7 @@
 #include "backend.h"
 #include "markdownhighlighter.h"
 
-class OmawriteTest : public QObject {
+class OmaviewTest : public QObject {
     Q_OBJECT
 
 private slots:
@@ -250,5 +250,5 @@ private:
     QTemporaryDir m_settingsDirectory;
 };
 
-QTEST_MAIN(OmawriteTest)
-#include "tst_omawrite.moc"
+QTEST_MAIN(OmaviewTest)
+#include "tst_omaview.moc"
