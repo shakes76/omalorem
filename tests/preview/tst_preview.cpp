@@ -392,6 +392,29 @@ private slots:
         QCOMPARE(js("document.getElementById('content') !== null").toBool(), true);
     }
 
+    void scrollsToHeadingAnchors() {
+        QString markdown = QStringLiteral("# Top\n\n[down](#second-part-x) [again](#notes-1)\n\n");
+        for (int i = 0; i < 60; ++i)
+            markdown += QStringLiteral("Filler paragraph %1.\n\n").arg(i);
+        markdown += QStringLiteral("## Second *part*: $x$!\n\n## Notes\n\n## Notes\n\n");
+        // Enough below the heading for it to reach the top of the view.
+        for (int i = 0; i < 60; ++i)
+            markdown += QStringLiteral("More filler %1.\n\n").arg(i);
+        QVERIFY(renderMarkdown(markdown, QStringLiteral("anchors")));
+        QCOMPARE(js("[...document.querySelectorAll('#content h1, #content h2')].map(h => h.id)"
+                    ".join(',')").toString(),
+                 QStringLiteral("top,second-part-x,notes,notes-1"));
+
+        QSignalSpy linkSpy(m_bridge, &PreviewBridge::externalLinkRequested);
+        js("document.scrollingElement.scrollTop = 0; document.querySelector('a[href=\"#second-part-x\"]').click(); true");
+        QTRY_VERIFY(js("document.scrollingElement.scrollTop").toInt() > 0);
+        QCOMPARE(js("Math.round(document.getElementById('second-part-x').getBoundingClientRect().top)")
+                     .toInt(), 0);
+        QCOMPARE(js("location.href").toString(), QStringLiteral("qrc:/preview/index.html"));
+        QCOMPARE(linkSpy.count(), 0);
+        js("document.scrollingElement.scrollTop = 0; true");
+    }
+
     // The full editor with the preview available: Main.qml, Backend and the
     // real PreviewWindow from the plugin.
     void opensPreviewWindowBesideEditor() {

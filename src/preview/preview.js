@@ -82,6 +82,28 @@
         }
     });
 
+    // Headings get GitHub-style ids, so [link](#some-heading) scrolls to
+    // them: the text lower-cased, punctuation dropped, spaces as hyphens,
+    // and -1, -2… on repeats.
+    md.core.ruler.push("heading_ids", function (state) {
+        const used = new Map();
+        const tokens = state.tokens;
+        for (let i = 0; i < tokens.length - 1; i++) {
+            if (tokens[i].type !== "heading_open")
+                continue;
+            const text = (tokens[i + 1].children || [])
+                .filter((child) => ["text", "code_inline", "math_inline"].includes(child.type))
+                .map((child) => child.content)
+                .join("");
+            const base = text.trim().toLowerCase()
+                .replace(/[^\p{L}\p{N}\s_-]/gu, "")
+                .replace(/\s/g, "-");
+            const count = used.get(base) || 0;
+            used.set(base, count + 1);
+            tokens[i].attrSet("id", count ? base + "-" + count : base);
+        }
+    });
+
     // An image inside the document's folder (a relative path, or a file:
     // URL) is served through omaview-doc:, which maps only to that folder.
     // Returns a reason instead when the image is not shown.
