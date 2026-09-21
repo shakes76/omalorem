@@ -4,6 +4,8 @@
 QT += core gui widgets printsupport qml quick quickcontrols2 quickdialogs2 dbus testlib
 # PDF export tests read the output back.
 QT += pdf
+# The print-portal test registers a mock portal on the session bus.
+QT += dbus
 CONFIG += testcase c++17
 TEMPLATE = app
 TARGET = tst_preview

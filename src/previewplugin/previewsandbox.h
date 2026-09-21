@@ -3,6 +3,8 @@
 #include <QObject>
 #include <QPointer>
 #include <QStringList>
+#include <QVariantMap>
+#include <functional>
 #include <QTemporaryDir>
 #include <QWebEngineUrlRequestInterceptor>
 #include <QWebEngineUrlSchemeHandler>
@@ -75,6 +77,23 @@ private:
     bool m_exposed = false;
 };
 
+// One pending xdg-desktop-portal request: its Response signal arrives on a
+// Request object, and this hands the result to a callback, once.
+class PreviewPortalRequest : public QObject {
+    Q_OBJECT
+
+public:
+    using Callback = std::function<void(uint response, const QVariantMap &results)>;
+    PreviewPortalRequest(Callback callback, QObject *parent)
+        : QObject(parent), m_callback(std::move(callback)) {}
+
+public slots:
+    void response(uint response, const QVariantMap &results);
+
+private:
+    Callback m_callback;
+};
+
 // QML singleton `PreviewSandbox` of the Omalorem.Preview module. The profile
 // comes from a WebEngineProfilePrototype in PreviewPane.qml (a WebEngineProfile
 // declared in QML cannot take an interceptor, and Qt 6.9+ asks for prototypes
@@ -85,6 +104,9 @@ class PreviewSandbox : public QObject {
     // Tests only: when set, printPdf() prints into this PDF file instead of
     // showing the print dialog, so the print path can run unattended.
     Q_PROPERTY(QString printTestTarget MEMBER m_printTestTarget)
+    // The desktop portal that prints (org.freedesktop.portal.Print). Tests
+    // point it at a mock service; see the constructor for the default.
+    Q_PROPERTY(QString portalService MEMBER m_portalService)
 
 public:
     explicit PreviewSandbox(QObject *parent = nullptr);
@@ -104,8 +126,28 @@ public:
     Q_INVOKABLE bool printPdf(const QString &pdfPath, const QString &title, QWindow *parent);
     static bool printPdfPages(const QString &pdfPath, QPrinter *printer);
 
+    // Printing through the desktop's print portal: its dialog opens at once
+    // (Qt's asks CUPS for printers first, which takes seconds), and it takes
+    // the PDF itself, so the output stays vector. Both calls are
+    // asynchronous; the results arrive as the signals below, with response
+    // 0 for done, 1 for cancelled and 2 for failed.
+    Q_INVOKABLE bool portalPrintAvailable();
+    Q_INVOKABLE void preparePortalPrint(const QString &title);
+    // Prints and then removes a PDF from temporaryPdfPath().
+    Q_INVOKABLE void portalPrint(const QString &pdfPath, uint token, const QString &title);
+    // The chosen paper as the page must be rendered: sizeId (a QPageSize id,
+    // which is also WebEngineView's page size id), widthMm and landscape.
+    static QVariantMap paperFromPageSetup(const QVariantMap &pageSetup);
+
+signals:
+    void portalPrintPrepared(int response, uint token, const QVariantMap &paper);
+    void portalPrintFinished(int response);
+
 private:
     QString m_printTestTarget;
+    QString m_portalService;
+    int m_portalAvailable = -1;
+    int m_portalRequests = 0;
     QTemporaryDir m_printDirectory;
     int m_printCount = 0;
 

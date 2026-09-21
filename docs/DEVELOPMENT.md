@@ -162,7 +162,7 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
 - **Not yet checked by a human on Hyprland:**
   - fractional scaling at 1.25 and 1.5
   - the checklist in SPEC §7, repeated after each UI milestone
-  - M5: the portal save dialog for `Ctrl+Shift+P`; `Ctrl+P`'s print dialog and a real printout; export with the preview hidden
+  - M5: the portal save dialog for `Ctrl+Shift+P`; that `Ctrl+P` opens the GTK print dialog at once, and one real printout; export with the preview hidden
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
@@ -276,12 +276,14 @@ Findings:
 | `Backend` | Lines added at the top of `printDocument()` hand print to the preview. `previewExportPdfDialog()`, `previewFlushMarkdown()` and `previewReportStatus()` are new |
 | Main.qml preview block | `Ctrl+Shift+P`, the PDF `FileDialog`, and `requestOutput()`, which loads the preview window (hidden if need be) and hands the request over |
 | `PreviewWindow.produce()` | Flush, wait for the current revision, `preparePrint`, `printToPdf`, then report or print, with a 30 s timeout |
-| `PreviewSandbox` | `printPdf()` (`QPrintDialog`, pages drawn at up to 300 dpi), temporary PDFs, and `printTestTarget` for tests. The plugin adds `pdf printsupport widgets` |
+| `PreviewSandbox` | Portal print (`preparePortalPrint`, `portalPrint`, `paperFromPageSetup`, and `PreviewPortalRequest` for each Response), the `printPdf()` fallback (`QPrintDialog`, pages drawn at up to 300 dpi), temporary PDFs, and the `printTestTarget` and `portalService` test hooks. The plugin adds `pdf printsupport widgets dbus` |
 | `preview.js` / `preview.css` | Render acknowledgement after fonts and images, `preparePrint()` for wide formulas, and the print stylesheet |
-| Tests | `tracksRenderedRevision`, `routesPrintThroughPreview`, `suggestsPdfBesideDocument`, `scalesWideMathForPrint`, `exportsPdfWithRenderedMath` (hidden preview, several pages, margins on each, white paper, typed text included), `printsThroughThePreview` |
+| Tests | `tracksRenderedRevision`, `routesPrintThroughPreview`, `suggestsPdfBesideDocument`, `scalesWideMathForPrint`, `exportsPdfWithRenderedMath` (hidden preview, several pages, margins on each, white paper, typed text included), `printsThroughThePreview` (fallback), `printsThroughThePrintPortal` (a mock portal on its own thread and connection: landscape A4, Letter, the token, vector text, cancel) |
 
 Findings:
 - `PreviewBridge::pageReady` had a getter and a signal but no Q_PROPERTY, so QML read `undefined` and output waited forever. It is a property now.
 - Qt's QML `printToPdf` passes zero margins, and Chromium then ignores an `@page` margin. Cloned body padding gives every page its margins; the export test checks all four sides of every page.
 - A preview window that is loaded but never shown still renders and prints: the page, WebChannel and `printToPdf` all work without the window being visible.
+- `Ctrl+P` was slow to show its dialog: about 10 s on this machine, with no printers configured. Our own render took about 0.5 s. The rest was Qt's CUPS backend: about 1 s to list printers, 2 s to create a `QPrinter`, and 7 s for `QPrintDialog`, all in exact 1.02 s steps. That points to libcups waiting a full second for Avahi-announced network printers on each query. Pointing `CUPS_SERVER` at the local server changed nothing. The fix is the desktop's print portal, whose GTK dialog opens at once and fills in printers as it finds them.
+- A mock portal on the same thread as the client would deadlock the client's blocking availability check, so the test runs it on a `QThread` with its own bus connection.
 - The preview tests' new editor-based cases close their editor in a `qScopeGuard`. A failing check used to leave a hidden preview behind and fail the tests after it.

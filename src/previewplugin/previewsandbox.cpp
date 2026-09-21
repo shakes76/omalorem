@@ -1,6 +1,14 @@
 #include "previewsandbox.h"
 
+#include <QDBusArgument>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
+#include <QDBusUnixFileDescriptor>
 #include <QDir>
+#include <QLocale>
+#include <QPageSize>
 #include <QFile>
 #include <QFileInfo>
 #include <QLoggingCategory>
@@ -117,7 +125,12 @@ void PreviewDocumentSchemeHandler::requestStarted(QWebEngineUrlRequestJob *job) 
 
 PreviewSandbox::PreviewSandbox(QObject *parent)
     : QObject(parent), m_interceptor(new PreviewRequestInterceptor(this)),
-      m_documentHandler(new PreviewDocumentSchemeHandler(this)) {}
+      m_documentHandler(new PreviewDocumentSchemeHandler(this)) {
+    // The test binary sets OMALOREM_PRINT_PORTAL to a service that doesn't
+    // exist, so no test can open a real print dialog on the desktop.
+    m_portalService = qEnvironmentVariable("OMALOREM_PRINT_PORTAL",
+                                           QStringLiteral("org.freedesktop.portal.Desktop"));
+}
 
 QQuickWebEngineProfile *PreviewSandbox::protect(QQuickWebEngineProfile *profile,
                                                 QObject *bridge) {
@@ -214,4 +227,129 @@ bool PreviewSandbox::printPdfPages(const QString &pdfPath, QPrinter *printer) {
                           image);
     }
     return painter.end();
+}
+
+// --- Printing through xdg-desktop-portal --------------------------------------
+
+namespace {
+
+const QString portalPath = QStringLiteral("/org/freedesktop/portal/desktop");
+const QString printInterface = QStringLiteral("org.freedesktop.portal.Print");
+
+// Nested a{sv} values arrive as QDBusArgument.
+QVariantMap toMap(const QVariant &value) {
+    if (value.canConvert<QDBusArgument>())
+        return qdbus_cast<QVariantMap>(value.value<QDBusArgument>());
+    return value.toMap();
+}
+
+// The portal's Request object for a handle_token, known before the call so
+// the Response signal can't be missed.
+QString requestPath(const QDBusConnection &bus, const QString &token) {
+    QString sender = bus.baseService().mid(1);
+    sender.replace(QLatin1Char('.'), QLatin1Char('_'));
+    return QStringLiteral("/org/freedesktop/portal/desktop/request/%1/%2").arg(sender, token);
+}
+
+} // namespace
+
+void PreviewPortalRequest::response(uint response, const QVariantMap &results) {
+    if (m_callback)
+        std::exchange(m_callback, {})(response, results);
+    deleteLater();
+}
+
+bool PreviewSandbox::portalPrintAvailable() {
+    if (m_portalAvailable < 0) {
+        QDBusMessage message = QDBusMessage::createMethodCall(
+            m_portalService, portalPath, QStringLiteral("org.freedesktop.DBus.Properties"),
+            QStringLiteral("Get"));
+        message << printInterface << QStringLiteral("version");
+        const QDBusMessage reply = QDBusConnection::sessionBus().call(message, QDBus::Block, 2000);
+        m_portalAvailable = reply.type() == QDBusMessage::ReplyMessage ? 1 : 0;
+        qCDebug(previewSandboxLog) << "Print portal" << m_portalService
+                                   << (m_portalAvailable ? "available" : "not available");
+    }
+    return m_portalAvailable == 1;
+}
+
+QVariantMap PreviewSandbox::paperFromPageSetup(const QVariantMap &pageSetup) {
+    const qreal width = pageSetup.value(QStringLiteral("Width")).toDouble();
+    const qreal height = pageSetup.value(QStringLiteral("Height")).toDouble();
+    const QString orientation = pageSetup.value(QStringLiteral("Orientation")).toString();
+    QPageSize size;
+    if (width > 0 && height > 0)
+        size = QPageSize(QSizeF(qMin(width, height), qMax(width, height)), QPageSize::Millimeter,
+                         QString(), QPageSize::FuzzyMatch);
+    // No size, or one Chromium has no id for: the locale's default.
+    if (!size.isValid() || size.id() == QPageSize::Custom)
+        size = QPageSize(QLocale().measurementSystem() == QLocale::ImperialUSSystem
+                             ? QPageSize::Letter : QPageSize::A4);
+    const bool landscape = orientation.endsWith(QStringLiteral("landscape"));
+    const QSizeF mm = size.size(QPageSize::Millimeter);
+    return {{QStringLiteral("sizeId"), int(size.id())},
+            {QStringLiteral("widthMm"), landscape ? mm.height() : mm.width()},
+            {QStringLiteral("landscape"), landscape}};
+}
+
+void PreviewSandbox::preparePortalPrint(const QString &title) {
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    const QString token = QStringLiteral("omalorem_prepare_%1").arg(++m_portalRequests);
+    auto *request = new PreviewPortalRequest([this](uint response, const QVariantMap &results) {
+        emit portalPrintPrepared(int(response), results.value(QStringLiteral("token")).toUInt(),
+                                 paperFromPageSetup(toMap(results.value(QStringLiteral("page-setup")))));
+    }, this);
+    bus.connect(m_portalService, requestPath(bus, token), QStringLiteral("org.freedesktop.portal.Request"),
+                QStringLiteral("Response"), request, SLOT(response(uint,QVariantMap)));
+
+    QDBusMessage message = QDBusMessage::createMethodCall(m_portalService, portalPath, printInterface,
+                                                          QStringLiteral("PreparePrint"));
+    // No parent window: Qt has no portable way to name a Wayland one here.
+    message << QString() << title << QVariantMap() << QVariantMap()
+            << QVariantMap{{QStringLiteral("handle_token"), token},
+                           {QStringLiteral("modal"), true}};
+    auto *watcher = new QDBusPendingCallWatcher(bus.asyncCall(message), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [request = QPointer<PreviewPortalRequest>(request)](QDBusPendingCallWatcher *call) {
+        call->deleteLater();
+        if (call->isError() && request) {
+            qCWarning(previewSandboxLog) << "PreparePrint failed:" << call->error().message();
+            request->response(2, {});
+        }
+    });
+}
+
+void PreviewSandbox::portalPrint(const QString &pdfPath, uint token, const QString &title) {
+    QFile file(pdfPath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        emit portalPrintFinished(2);
+        return;
+    }
+
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    const QString handleToken = QStringLiteral("omalorem_print_%1").arg(++m_portalRequests);
+    auto *request = new PreviewPortalRequest([this, pdfPath](uint response, const QVariantMap &) {
+        removeTemporaryPdf(pdfPath);
+        emit portalPrintFinished(int(response));
+    }, this);
+    bus.connect(m_portalService, requestPath(bus, handleToken),
+                QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"),
+                request, SLOT(response(uint,QVariantMap)));
+
+    // The descriptor is duplicated into the message, so the file can close.
+    QDBusMessage message = QDBusMessage::createMethodCall(m_portalService, portalPath, printInterface,
+                                                          QStringLiteral("Print"));
+    message << QString() << title << QVariant::fromValue(QDBusUnixFileDescriptor(file.handle()))
+            << QVariantMap{{QStringLiteral("token"), token},
+                           {QStringLiteral("handle_token"), handleToken},
+                           {QStringLiteral("modal"), true}};
+    auto *watcher = new QDBusPendingCallWatcher(bus.asyncCall(message), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [request = QPointer<PreviewPortalRequest>(request)](QDBusPendingCallWatcher *call) {
+        call->deleteLater();
+        if (call->isError() && request) {
+            qCWarning(previewSandboxLog) << "Print failed:" << call->error().message();
+            request->response(2, {});
+        }
+    });
 }

@@ -93,7 +93,7 @@ entry, icon and settings.
 - `Ctrl+Shift+S` saves as.
 - `Ctrl+O` opens a Markdown file through the portal picker.
 - `Ctrl+P` opens the system print dialog.
-- `Ctrl+P` prints the rendered preview, math included, on white paper with page margins. `Ctrl+Shift+P` exports the same as a PDF, suggesting a name beside the document. Both work with the preview hidden.
+- `Ctrl+P` prints the rendered preview, math included, on white paper with page margins, through the desktop's print dialog. `Ctrl+Shift+P` exports the same as a PDF, suggesting a name beside the document. Both work with the preview hidden.
 - `Ctrl+E` shows or hides the preview window. Closing the preview window only hides it.
 - `Ctrl+Shift+T` switches the preview's prose between iA Writer Mono S and the proportional iA Writer Quattro S. The editor keeps Mono.
 - `F11` in the preview window fullscreens the preview, for reading.

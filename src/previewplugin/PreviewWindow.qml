@@ -77,8 +77,12 @@ Window {
 
     // --- PDF export and print (docs/SPEC.md §5.5) ---------------------------
     // Both render the page to a PDF: export writes it where the user chose,
-    // print hands it to the print dialog. This works while the window is
-    // hidden too; Main.qml loads it for that and it stays hidden.
+    // print sends it to a printer. Print asks the desktop's print portal
+    // first: its dialog opens at once, the page is rendered on the paper
+    // chosen there, and the portal prints the PDF as it is. Without the
+    // portal, the PDF is rendered first and Qt's print dialog prints it.
+    // This works while the window is hidden too; Main.qml loads it for that
+    // and it stays hidden.
     property var outputRequest: null
     // Page size from the locale: Letter where the US system is used, else A4.
     readonly property bool letterPaper: Qt.locale().measurementSystem === Locale.ImperialUSSystem
@@ -88,13 +92,29 @@ Window {
             backend.previewReportStatus("Still preparing the last PDF.");
             return;
         }
-        const path = request.kind === "pdf" ? PreviewSandbox.localPath(request.url)
-                                            : PreviewSandbox.temporaryPdfPath();
+        if (request.kind === "print" && PreviewSandbox.printTestTarget === ""
+                && PreviewSandbox.portalPrintAvailable()) {
+            // No timeout while the dialog is open: the user takes their time.
+            outputRequest = { kind: "print", portal: true, preparing: true, started: false };
+            PreviewSandbox.preparePortalPrint("Print " + backend.fileName);
+            return;
+        }
+        startRender(request.kind, request.kind === "pdf" ? PreviewSandbox.localPath(request.url)
+                                                          : PreviewSandbox.temporaryPdfPath(), null);
+    }
+
+    // Renders the page to `path` once it is current; `paper` is the portal's
+    // choice, or null for the locale's A4 or Letter in portrait.
+    function startRender(kind, path, paper) {
         if (path === "") {
+            outputRequest = null;
             backend.previewReportStatus("Could not choose a file for the PDF.");
             return;
         }
-        outputRequest = { kind: request.kind, path: path, started: false };
+        const portal = outputRequest && outputRequest.portal;
+        const token = portal ? outputRequest.token : 0;
+        outputRequest = { kind: kind, path: path, paper: paper, portal: portal, token: token,
+                          started: false };
         outputTimeout.restart();
         backend.previewFlushMarkdown();
         Qt.callLater(continueOutput);
@@ -105,15 +125,15 @@ Window {
     function continueOutput() {
         const request = outputRequest;
         const bridge = backend.previewBridge;
-        if (!request || request.started || !pane.view || !bridge.pageReady
+        if (!request || request.started || request.preparing || !pane.view || !bridge.pageReady
                 || bridge.renderedRevision !== bridge.markdownRevision)
             return;
         request.started = true;
-        const pageWidthMm = letterPaper ? 215.9 : 210;
-        pane.view.runJavaScript("window.omaloremPreview.preparePrint(" + pageWidthMm + ")", function() {
-            pane.view.printToPdf(request.path,
-                                 letterPaper ? WebEngineView.Letter : WebEngineView.A4,
-                                 WebEngineView.Portrait);
+        const paper = request.paper || { sizeId: letterPaper ? WebEngineView.Letter : WebEngineView.A4,
+                                         widthMm: letterPaper ? 215.9 : 210, landscape: false };
+        pane.view.runJavaScript("window.omaloremPreview.preparePrint(" + paper.widthMm + ")", function() {
+            pane.view.printToPdf(request.path, paper.sizeId,
+                                 paper.landscape ? WebEngineView.Landscape : WebEngineView.Portrait);
         });
     }
 
@@ -130,10 +150,41 @@ Window {
         }
         if (!success) {
             backend.previewReportStatus("Could not prepare the document for printing.");
-        } else if (PreviewSandbox.printPdf(filePath, "Print " + backend.fileName, editorWindow)) {
-            backend.previewReportStatus("Sent " + backend.fileName + " to the printer");
+            PreviewSandbox.removeTemporaryPdf(filePath);
+        } else if (request.portal) {
+            // The portal removes nothing; portalPrint deletes the file after.
+            PreviewSandbox.portalPrint(filePath, request.token, "Print " + backend.fileName);
+        } else {
+            if (PreviewSandbox.printPdf(filePath, "Print " + backend.fileName, editorWindow))
+                backend.previewReportStatus("Sent " + backend.fileName + " to the printer");
+            PreviewSandbox.removeTemporaryPdf(filePath);
         }
-        PreviewSandbox.removeTemporaryPdf(filePath);
+    }
+
+    Connections {
+        target: PreviewSandbox
+
+        // The portal's dialog closed: render on the chosen paper, or stop.
+        function onPortalPrintPrepared(response, token, paper) {
+            const request = previewWindow.outputRequest;
+            if (!request || !request.preparing)
+                return;
+            if (response !== 0) {
+                previewWindow.outputRequest = null;
+                backend.previewReportStatus(response === 1 ? "Print cancelled"
+                                                           : "Could not open the print dialog.");
+                return;
+            }
+            request.preparing = false;
+            request.token = token;
+            previewWindow.startRender("print", PreviewSandbox.temporaryPdfPath(), paper);
+        }
+
+        function onPortalPrintFinished(response) {
+            backend.previewReportStatus(response === 0 ? "Sent " + backend.fileName + " to the printer"
+                                      : response === 1 ? "Print cancelled"
+                                                       : "Could not print " + backend.fileName);
+        }
     }
 
     Connections {

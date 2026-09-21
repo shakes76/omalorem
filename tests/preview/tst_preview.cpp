@@ -7,6 +7,13 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QPdfDocument>
+#include <QBuffer>
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
+#include <QDBusMessage>
+#include <QDBusObjectPath>
+#include <QDBusUnixFileDescriptor>
+#include <QThread>
 #include <QPdfSelection>
 
 #include "backend.h"
@@ -30,6 +37,72 @@ bool webEngineLoaded() {
 QUrl fixtureUrl(const QString &name) {
     return QUrl::fromLocalFile(QDir(QStringLiteral(FIXTURES_DIR)).absoluteFilePath(name));
 }
+
+// Stands in for xdg-desktop-portal's Print interface, so the portal path
+// runs without a real dialog. It lives on its own thread and connection:
+// the client's blocking availability check would otherwise wait on itself.
+class MockPrintPortal : public QObject {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.portal.Print")
+    Q_PROPERTY(uint version READ version)
+
+public:
+    static constexpr const char *service = "org.omalorem.TestPrintPortal";
+
+    explicit MockPrintPortal(const QDBusConnection &bus) : m_bus(bus) {}
+    uint version() const { return 4; }
+
+    // Set before a print; read after it has finished.
+    uint prepareResponse = 0;
+    QVariantMap pageSetup;
+    std::atomic<int> printCalls{0};
+    uint printedToken = 0;
+    QByteArray printed;
+
+public slots:
+    QDBusObjectPath PreparePrint(const QString &, const QString &, const QVariantMap &,
+                                 const QVariantMap &, const QVariantMap &options,
+                                 const QDBusMessage &message) {
+        const QString path = requestPath(message, options);
+        respond(path, prepareResponse,
+                {{QStringLiteral("settings"), QVariantMap()},
+                 {QStringLiteral("page-setup"), pageSetup},
+                 {QStringLiteral("token"), 42u}});
+        return QDBusObjectPath(path);
+    }
+
+    QDBusObjectPath Print(const QString &, const QString &, const QDBusUnixFileDescriptor &fd,
+                          const QVariantMap &options, const QDBusMessage &message) {
+        printedToken = options.value(QStringLiteral("token")).toUInt();
+        QFile file;
+        if (file.open(fd.fileDescriptor(), QIODevice::ReadOnly))
+            printed = file.readAll();
+        ++printCalls;
+        const QString path = requestPath(message, options);
+        respond(path, 0, {});
+        return QDBusObjectPath(path);
+    }
+
+private:
+    static QString requestPath(const QDBusMessage &message, const QVariantMap &options) {
+        QString sender = message.service().mid(1);
+        sender.replace(QLatin1Char('.'), QLatin1Char('_'));
+        return QStringLiteral("/org/freedesktop/portal/desktop/request/%1/%2")
+            .arg(sender, options.value(QStringLiteral("handle_token")).toString());
+    }
+
+    // After the reply, as the real portal does once its dialog closes.
+    void respond(const QString &path, uint response, const QVariantMap &results) {
+        QTimer::singleShot(20, this, [this, path, response, results] {
+            QDBusMessage signal = QDBusMessage::createSignal(
+                path, QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"));
+            signal << response << results;
+            m_bus.send(signal);
+        });
+    }
+
+    QDBusConnection m_bus;
+};
 
 } // namespace
 
@@ -748,6 +821,98 @@ private slots:
         QVERIFY(ink);
     }
 
+    // Ctrl+P through the desktop's print portal (a mock here): the dialog
+    // comes first, the page is rendered on the paper chosen there, and the
+    // PDF itself goes to the portal with the token it handed out.
+    void printsThroughThePrintPortal() {
+        QDBusConnection bus = QDBusConnection::connectToBus(QDBusConnection::SessionBus,
+                                                            QStringLiteral("omalorem-mock-portal"));
+        if (!bus.isConnected())
+            QSKIP("No D-Bus session bus");
+        QThread thread;
+        thread.start();
+        auto *portal = new MockPrintPortal(bus);
+        portal->moveToThread(&thread);
+        const auto stopPortal = qScopeGuard([&] {
+            bus.unregisterService(QString::fromLatin1(MockPrintPortal::service));
+            bus.unregisterObject(QStringLiteral("/org/freedesktop/portal/desktop"));
+            QMetaObject::invokeMethod(portal, &QObject::deleteLater);
+            thread.quit();
+            thread.wait();
+            QDBusConnection::disconnectFromBus(QStringLiteral("omalorem-mock-portal"));
+        });
+        QVERIFY(bus.registerObject(QStringLiteral("/org/freedesktop/portal/desktop"), portal,
+                                   QDBusConnection::ExportAllSlots
+                                       | QDBusConnection::ExportAllProperties));
+        QVERIFY(bus.registerService(QString::fromLatin1(MockPrintPortal::service)));
+
+        auto editor = createEditor();
+        const auto cleanup = qScopeGuard([&] {
+            closeEditor(editor);
+            QSettings().remove(QStringLiteral("preview"));
+        });
+        QVERIFY(editor.window);
+        editor.backend->open(fixtureUrl(QStringLiteral("math-valid.md")));
+        QTRY_VERIFY(previewWindow());
+        QTRY_VERIFY_WITH_TIMEOUT(editor.backend->previewBridge()->pageReady(), 20000);
+        QObject *sandbox = editor.engine->singletonInstance<QObject *>(
+            QStringLiteral("Omalorem.Preview"), QStringLiteral("PreviewSandbox"));
+        QVERIFY(sandbox);
+        sandbox->setProperty("portalService", QString::fromLatin1(MockPrintPortal::service));
+
+        const auto printedPdf = [&](QPdfDocument &pdf, QBuffer &buffer) {
+            buffer.setData(portal->printed);
+            buffer.open(QIODevice::ReadOnly);
+            pdf.load(&buffer);
+        };
+
+        // A4 in landscape, chosen in the dialog.
+        portal->pageSetup = {{QStringLiteral("PPDName"), QStringLiteral("iso_a4")},
+                             {QStringLiteral("Width"), 210.0},
+                             {QStringLiteral("Height"), 297.0},
+                             {QStringLiteral("Orientation"), QStringLiteral("landscape")}};
+        editor.backend->printDocument();
+        QTRY_COMPARE_WITH_TIMEOUT(editor.backend->status(),
+                                  QStringLiteral("Sent math-valid.md to the printer"), 30000);
+        QCOMPARE(portal->printCalls.load(), 1);
+        QCOMPARE(portal->printedToken, 42u);
+        QVERIFY(portal->printed.startsWith("%PDF"));
+        {
+            QBuffer buffer;
+            QPdfDocument pdf;
+            printedPdf(pdf, buffer);
+            QVERIFY(pdf.pageCount() >= 1);
+            QVERIFY(qAbs(pdf.pagePointSize(0).width() - 842) < 2);
+            QVERIFY(qAbs(pdf.pagePointSize(0).height() - 595) < 2);
+            // Vector text, not page images.
+            QVERIFY(pdf.getAllText(0).text().contains(QStringLiteral("Valid math")));
+        }
+
+        // Letter, portrait.
+        portal->pageSetup = {{QStringLiteral("Width"), 215.9},
+                             {QStringLiteral("Height"), 279.4},
+                             {QStringLiteral("Orientation"), QStringLiteral("portrait")}};
+        editor.backend->previewReportStatus(QString());
+        editor.backend->printDocument();
+        QTRY_COMPARE_WITH_TIMEOUT(editor.backend->status(),
+                                  QStringLiteral("Sent math-valid.md to the printer"), 30000);
+        QCOMPARE(portal->printCalls.load(), 2);
+        {
+            QBuffer buffer;
+            QPdfDocument pdf;
+            printedPdf(pdf, buffer);
+            QVERIFY(qAbs(pdf.pagePointSize(0).width() - 612) < 2);
+            QVERIFY(qAbs(pdf.pagePointSize(0).height() - 792) < 2);
+        }
+
+        // Cancelled in the dialog: nothing is rendered or printed.
+        portal->prepareResponse = 1;
+        editor.backend->printDocument();
+        QTRY_COMPARE(editor.backend->status(), QStringLiteral("Print cancelled"));
+        QTest::qWait(200);
+        QCOMPARE(portal->printCalls.load(), 2);
+    }
+
     void handsFindToEditorAndKeepsF11InPreview() {
         auto editor = createEditor();
         QVERIFY(editor.window);
@@ -916,6 +1081,9 @@ private:
 };
 
 int main(int argc, char *argv[]) {
+    // No test may reach the desktop's real print portal and open a dialog:
+    // PreviewSandbox's default service is replaced by one that doesn't exist.
+    qputenv("OMALOREM_PRINT_PORTAL", "org.omalorem.NoPrintPortal");
     // As in the application: WebEngine arrives with the preview plugin and
     // needs context sharing set before the QApplication exists.
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);

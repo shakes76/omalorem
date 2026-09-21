@@ -354,10 +354,25 @@ As built in M5:
 - **Wide formulas.** `preparePrint(pageWidthMm)` scales any display formula wider than
   the printed column to fit, through a `--print-zoom` property that only print uses.
   This is the simple version; see §11.2.
-- **Print.** `PreviewSandbox.printPdf()` shows `QPrintDialog`, as Omawrite's print does,
-  owned by the editor window and limited to the PDF's pages. It then draws each chosen
-  page as an image at up to 300 dpi, fitted to the sheet. For tests, `printTestTarget`
-  sends the output to a PDF file without the dialog.
+- **Print, through the desktop's print portal.**
+  - When `org.freedesktop.portal.Print` is available (on Omarchy, through
+    xdg-desktop-portal-gtk), `Ctrl+P` calls `PreparePrint` first, so the GTK print dialog
+    opens at once.
+  - Once the dialog is accepted, the page is rendered on the paper and orientation
+    chosen there (`paperFromPageSetup`, which maps the size to a `QPageSize` id).
+  - The PDF itself goes to `Print` with the returned token, so the output stays vector.
+  - Cancelling renders nothing.
+  - **Why the portal:** Qt's `QPrintDialog` asks CUPS for its printers several times
+    before it opens, and on a system with Avahi each query waited a full second. That
+    measured about 10 s with no printers configured. Omawrite's own `Ctrl+P` pays the
+    same cost.
+- **Print, fallback without the portal.** `PreviewSandbox.printPdf()` shows `QPrintDialog`
+  after rendering, owned by the editor window and limited to the PDF's pages. It draws
+  each chosen page as an image at up to 300 dpi, fitted to the sheet.
+- **Tests.** `printTestTarget` sends the fallback's output to a PDF file without the
+  dialog, and `portalService` points the portal path at a mock. The test binary sets
+  `OMALOREM_PRINT_PORTAL` to a service that doesn't exist, so no test can open a real
+  dialog.
 
 ### 5.6 Editor-side additions
 - `MarkdownHighlighter` gets a math rule. `$…$`, `$$…$$`, `\(…\)` and `\[…\]` spans are
@@ -505,6 +520,7 @@ As built in M4:
 | 2026-09-21 | M2: `sourceLine` is fractional, and the preview follows the editor until the reader scrolls the preview. |
 | 2026-09-21 | M4: the editor math features work in every build, `no_preview` included. Emphasis markers inside math are neither hidden nor skipped by the caret. `Ctrl+M` and `Ctrl+Shift+M` are one undo step each. |
 | 2026-09-21 | M5: `Ctrl+P` reaches the preview through lines added to `Backend::printDocument()`. With the preview hidden, output comes from the hidden preview window, never a second pane. Page margins come from cloned body padding, because Qt's `printToPdf` has none. Wide formulas are scaled to fit for now (§11.2). Output stays simple: no headers, page numbers or link URLs (§11.3). |
+| 2026-09-21 | M5: print goes through xdg-desktop-portal's Print interface when it's there. Its dialog opens at once, and it prints the PDF as vector output. Qt's `QPrintDialog` is the fallback, because it waited about 10 s on CUPS printer discovery. |
 | 2026-09-21 | Omalorem is for Omarchy and other tiling window managers only. The docked placement (old M3) moves to the future features (§11), for other users who may want it, because supporting non-tiling desktops adds complexity the project shouldn't carry. `Ctrl+Shift+E` stays unassigned. |
 
 ## 10. Open questions
