@@ -18,6 +18,9 @@ preview with KaTeX math.
   decisions and milestones. If a task conflicts with the spec, or the spec is silent on
   something important, stop and report it rather than improvising. Suggest a spec edit
   when that is the right fix.
+- `docs/DEVELOPMENT.md` is the current state: milestone status, code layout, the rules
+  (including the additive-only upstream diff), checks and known issues. Read it after the
+  spec, and update it (status, history, known issues) at the end of every milestone.
 - Upstream is the `upstream` git remote (omacom-io/omawrite). Keep the diff against
   upstream small. Leave the editor subtree in `src/Main.qml` alone unless the task
   requires changing it, and prefer new files (`PreviewPane.qml`, `previewbridge.cpp`) over

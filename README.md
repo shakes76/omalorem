@@ -7,6 +7,7 @@ automatically follows system dark/light mode.
 
 > **Status:** early fork. The preview is being built; see [`docs/SPEC.md`](docs/SPEC.md)
 > for the specification and milestones. Upstream is tracked as the `upstream` remote.
+> Development status, code layout and project rules are in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 <img width="2948" height="3227" alt="screenshot-2026-06-23_15-24-08" src="https://github.com/user-attachments/assets/4e930c0d-edda-4046-b444-a59eff523329" />
 <img width="2948" height="3227" alt="screenshot-2026-06-23_15-23-23" src="https://github.com/user-attachments/assets/8ced7c26-961b-4ded-b263-84403001a951" />

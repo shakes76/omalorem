@@ -1,5 +1,5 @@
 # Vendored web assets for the preview. They are compiled into the binary
-# through src/preview.qrc; nothing is fetched at build or run time.
+# through src/previewplugin/previewplugin.qrc; nothing is fetched at build or run time.
 #
 # To update: fetch the exact version into a scratch directory with npm, copy
 # only the files listed here, update the version and sha256 below, and keep
