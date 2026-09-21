@@ -1,6 +1,6 @@
 # Omalorem — Development status
 
-Last updated: 2026-09-21 · Branch: `m5-pdf-print`, off `main` (not merged or pushed). Release: `omaview-v0.1.0`, which is the last commit under the old name
+Last updated: 2026-09-21 · Branch: `main` at `59b2344`, pushed to `origin` (github.com/shakes76/omalorem). Upstream Omawrite is the `upstream` remote. Release: `omaview-v0.1.0`, the last commit under the old name; the next release tag will be `omalorem-v…` (M6)
 
 This is the working log for developers and coding agents. It records where the project
 stands, how the code is laid out, the rules every change must follow, and what was done
@@ -16,10 +16,11 @@ the gap should be fixed or raised.
 | Release 0.1.0 and rename to Omalorem | Done | Tag `omaview-v0.1.0` at `344343b`, then the rename commit (§8) |
 | M1 Pop-out preview window | Done | Commits `b908f24`…`96906ed` |
 | M1.1 Lazy WebEngine, additive-only upstream diff | Done | Commits `fe28c62`, `22db1c8` |
+| Fix: black preview after a workspace switch | Done, confirmed on Hyprland | Commit `c625da3` |
 | M2 Fonts, incremental render, scroll sync, images | Done | Commits `686f38d`…`2acb47c` |
 | M3 Docked placement | Deferred | Moved to SPEC §11, future features. Omalorem targets Omarchy and tiling window managers only |
-| M4 Editor math support | Done | Branch `m4-editor-math`. See §8 |
-| M5 PDF export and print | Done | Branch `m5-pdf-print`. See §8 |
+| M4 Editor math support | Done | Commits `71ce263`, `e0ab290`. See §8 |
+| M5 PDF export and print | Done | Commits `c04b2a4`…`59b2344`. Print goes through the desktop's print portal. See §8 |
 | M6 Packaging and Omarchy docs | **Next**, started | The PKGBUILD installs the preview plugin and depends on qt6-webengine and qt6-webchannel (SPEC §6). `docs/omarchy.md` and an icon variant are still to do |
 
 What works today:
@@ -33,14 +34,15 @@ What works today:
 - Scroll sync from the editor to the preview uses a fractional `sourceLine`. The preview follows the editor until the reader scrolls the preview.
 - Local images in the document's folder and its subfolders load through `omalorem-doc:`. Remote, out-of-folder and unsaved-document images show a placeholder with the alt text.
 - Headings have GitHub-style ids, so `#anchor` links scroll within the preview.
-- `Ctrl+Shift+P` exports a PDF, and `Ctrl+P` prints, both through the preview, so the math is rendered. The output uses the light palette, 20 mm margins, and A4 or Letter by locale. Both work with the preview hidden: the preview window loads and stays hidden.
+- `Ctrl+Shift+P` exports a PDF, and `Ctrl+P` prints, both through the preview, so the math is rendered. The output uses the light palette and 20 mm margins. Export uses A4 or Letter by locale. Print opens the desktop's GTK print dialog through xdg-desktop-portal at once, renders on the paper chosen there, and sends a vector PDF; Qt's dialog is the fallback. Both work with the preview hidden: the preview window loads and stays hidden.
+- Returning to the preview's workspace repaints it, instead of leaving it black.
 - The editor highlights `$…$`, `$$…$$`, `\(…\)` and `\[…\]`, but not inside fenced code. Emphasis characters inside math (`x_1`) stay visible and the caret doesn't skip them. `Ctrl+M` and `Ctrl+Shift+M` insert inline and display math, each as one undo step. Return inside an open display block adds a plain newline. All of this works in `no_preview` builds too.
 - Closing the preview only hides it. Closing the editor closes both.
 - `Ctrl+F` and `Ctrl+H` from the preview bring the editor forward. F11 in the preview fullscreens the preview.
 - With the preview hidden, the `omalorem` binary never loads QtWebEngine: `ldd` shows no WebEngine library, and none is mapped at runtime.
 - `no_preview` builds are plain Omawrite with the Omalorem name.
 
-Tests: `bin/test` passes both targets. `tst_omalorem` has 30 passed. `tst_preview` has 32 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
+Tests: `bin/test` passes both targets. `tst_omalorem` has 30 passed. `tst_preview` has 33 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
 
 ## 2. Rules for every change
 
@@ -58,16 +60,21 @@ These come from the spec and from decisions made with the project owner. Don't b
 
 ```
 src/
-  main.cpp, Main.qml, backend.*, …    upstream editor (additive changes only)
+  main.cpp, Main.qml, backend.*, …    upstream editor (additive changes only); Main.qml has
+                                      "editor math" and "preview" blocks, backend.cpp an Omalorem section
+  markdownhighlighter.*               upstream highlighter, plus the math scanner (mathSpans, MathState)
+  EditorMath.js                       Ctrl+M and Ctrl+Shift+M edits, as pure functions
   previewbridge.{h,cpp}               PreviewBridge: plain QObject, no WebEngine dependency
   previewpolicy.h                     header-only URL policy and omalorem-doc: path mapping, shared by the bridge, plugin and tests
   PreviewHost.qml, previewhost.qrc    `import Omalorem.Preview; PreviewWindow {}`; this import loads the plugin
   preview/                            index.html, preview.css, preview.js (the page)
   previewplugin/                      Omalorem.Preview QML plugin; everything that needs QtWebEngine
     previewplugin.pro, qmldir, previewplugin.cpp, previewplugin.qrc
-    previewsandbox.{h,cpp}            PreviewSandbox singleton, request interceptor, omalorem-doc: scheme handler
-    PreviewPane.qml                   WebEngineView wrapper (profile prototype, navigation blocking)
-    PreviewWindow.qml                 top-level window: title, close-to-hide, find focus, F11
+    previewsandbox.{h,cpp}            PreviewSandbox singleton: request interceptor, omalorem-doc: scheme
+                                      handler, PreviewExposeWatcher, print portal client, QPrintDialog fallback
+    PreviewPane.qml                   WebEngineView wrapper (profile prototype, navigation blocking, repaint)
+    PreviewWindow.qml                 top-level window: title, close-to-hide, find focus, F11, repaint on
+                                      return, PDF export and print (produce)
 third_party/                          markdown-it 14.3.2, markdown-it-texmath 1.0.0, katex 0.16.47,
                                       qwebchannel.js (Qt 6.11.2); VERSIONS has the pins and sha256s
 fonts/                                upstream's Mono S (.ttf, editor), plus Quattro S (.woff2, preview plugin only)
@@ -75,6 +82,7 @@ tests/
   tst_omalorem.cpp, tests.pro          editor, backend and bridge tests (no WebEngine)
   preview/                            tst_preview: real WebEngineView offscreen, plus the integration tests
   fixtures/                           sample, math-valid, math-invalid, currency, code, raw-html, remote .md, pixel.png
+pkgbuild/                             PKGBUILD (installs the binary and the plugin), desktop file, icon, install hook
 bin/
   build, test, install                upstream scripts; bin/test has appended lines for the preview tests
   build-no-preview                    builds the no_preview variant into build-no-preview/
@@ -92,6 +100,12 @@ Main.qml Loader (after the editor's first frame, while previewVisible)
           └─▶ PreviewWindow ─▶ PreviewPane ─▶ WebEngineView ─QWebChannel─▶ qrc:/preview/index.html
                                                                            markdown-it + texmath → KaTeX
                                                         omalorem-doc:/… ◀── images, via PreviewDocumentSchemeHandler
+
+Ctrl+Shift+P ──▶ backend.previewExportPdfDialog() ──▶ PDF FileDialog ──▶ previewIntegration.requestOutput()
+Ctrl+P ──▶ Backend::printDocument() ──(preview available)──▶ previewPrintRequested ──▶ requestOutput()
+requestOutput() ──▶ loads PreviewWindow if needed (hidden stays hidden) ──▶ PreviewWindow.produce()
+   print: PreviewSandbox.preparePortalPrint (GTK dialog) ──▶ render on the chosen paper ──▶ portalPrint(PDF)
+   pdf:   flush text ──▶ wait for bridge.renderedRevision ──▶ preparePrint ──▶ printToPdf ──▶ status
 ```
 
 - `main.cpp` sets `Qt::AA_ShareOpenGLContexts` before `QApplication`. It adds the plugin's import path, which is `build/` first, then `<bindir>/../lib/omalorem/qml`, and calls `setPreviewAvailable(true)` only if the plugin's `qmldir` exists. Without the plugin, the app runs as plain Omawrite.
@@ -101,7 +115,8 @@ Main.qml Loader (after the editor's first frame, while previewVisible)
 - **Rendering** (`preview.js`): `md.parse`, then the tokens are split into top-level blocks and each is rendered to HTML. That HTML is the block's key, and unchanged blocks keep their nodes. `data-source-line` and `data-source-line-end` are set on the nodes afterwards, outside the key. `window.omaloremPreview.lastRender` holds `{blocks, created, ms}` for the tests.
 - **Scroll sync:** Main.qml probes the editor at `contentY` and publishes line plus fraction. The page maps it through `positionOfLine()` and puts it `paddingTop` below the view's top. A `following` flag decides whether renders re-apply the sync. The channel's `propertyUpdateInterval` is 16 ms, down from the default 50 ms.
 - **Images:** the plugin registers `omalorem-doc:` in `registerTypes()`, which is before any profile exists and so is not too late. The scheme is not `LocalScheme`, because Chromium doesn't count `qrc:` as local and refuses the load with "Not allowed to load local resource". markdown-it's `validateLink` is widened to let `file:` through, so in-folder `file:` images work; the bridge still refuses `file:` links.
-- Debug logging: `QT_LOGGING_RULES="omalorem.preview.info=true"` logs the first render. `omalorem.preview.sandbox` logs blocked requests.
+- **Output** (M5): the page acknowledges each markdown revision once fonts and images have loaded (`PreviewBridge::rendered`), and output waits for it. Margins come from cloned body padding in `@media print`, because Qt's `printToPdf` passes zero margins and Chromium then ignores `@page`.
+- Debug logging: `QT_LOGGING_RULES="omalorem.preview.info=true"` logs the first render. `omalorem.preview.sandbox.debug=true` logs blocked requests and print-portal availability. `omalorem.preview.expose.debug=true` logs the preview window's expose events.
 
 ## 4. Build, run and test
 
@@ -158,11 +173,14 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
 - **Profile lifetime.** The profile lives only as long as its `PreviewPane`. That's fine with one pane for the app's life, and M5 prints from the same (possibly hidden) pane. Decide before anything creates a second pane, such as the future docked placement (SPEC §5.3, §11): the profile would probably move into `PreviewSandbox`.
 - **Dormant placement setting.** Backend's `previewPlacement` and `preview/placement`, with their test, remain from M1. Only `window` is used. They are kept for the future docked placement, but could be removed if that feature is dropped for good.
 - **Full rehighlights are slower with math (M4).** Typing re-highlights only the changed lines, so it isn't affected: 14 ms to load the 2,000-line, 300-formula document, and 23 ms when a new `$$` at the top flips every line below. A full `rehighlight()` is another matter; Omawrite calls it on theme and dark-mode changes and on every find update. Upstream takes about 295 ms on that document, and M4 takes about 440 ms. Scanning isn't the cost: without the math formats it's 240 ms, faster than upstream, because formula underscores are no longer hidden. The cost is laying out the extra format ranges, about 150 ms for 900 ranges, and opacity makes no difference. Colouring content only, without separate delimiter ranges, would save about 90 ms. The spec's muted delimiters were kept.
-- **Black preview after a workspace switch** (reported on Hyprland after 0.1.0). The view stayed black until the page painted again, for example on a scroll. The fix asks the page for a fresh frame: a two-frame opacity of 0.9999, which can't be seen. It does this when the preview window is exposed again (`PreviewExposeWatcher`, a C++ event filter in the plugin) and whenever either window becomes active, then retries once after 150 ms. Offscreen tests show the requests fire, but only Hyprland can show whether they cure the black. If it comes back, run with `QT_LOGGING_RULES="omalorem.preview.expose.debug=true"` to see which window events Hyprland sends.
+- **Black preview after a workspace switch: fixed, and confirmed by the owner on Hyprland.** The view stayed black until the page painted again, for example on a scroll. The fix asks the page for a fresh frame: a two-frame opacity of 0.9999, which can't be seen. It does this when the preview window is exposed again (`PreviewExposeWatcher`) and whenever either window becomes active, retrying once after 150 ms. If it ever comes back, run with `QT_LOGGING_RULES="omalorem.preview.expose.debug=true"` to see which window events arrive.
+- **The portal print dialog has no parent window.** Qt has no portable way to name a Wayland parent to the portal, so the GTK dialog is its own window. Whether Hyprland tiles or floats it may want a window rule in `docs/omarchy.md` (M6).
+- **Omawrite's own `Ctrl+P` is still slow in `no_preview` builds.** It uses Qt's `QPrintDialog`, which waited about 10 s on CUPS printer discovery on the owner's machine. The portal path only applies with the preview.
+- **Confirmed by the owner on Hyprland:** the preview in everyday use; editor math; the black-preview fix; `Ctrl+P` through the portal, with its dialog opening at once.
 - **Not yet checked by a human on Hyprland:**
   - fractional scaling at 1.25 and 1.5
   - the checklist in SPEC §7, repeated after each UI milestone
-  - M5: the portal save dialog for `Ctrl+Shift+P`; that `Ctrl+P` opens the GTK print dialog at once, and one real printout; export with the preview hidden
+  - M5: the portal save dialog for `Ctrl+Shift+P`; one real printout on paper; export with the preview hidden
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
@@ -287,3 +305,6 @@ Findings:
 - `Ctrl+P` was slow to show its dialog: about 10 s on this machine, with no printers configured. Our own render took about 0.5 s. The rest was Qt's CUPS backend: about 1 s to list printers, 2 s to create a `QPrinter`, and 7 s for `QPrintDialog`, all in exact 1.02 s steps. That points to libcups waiting a full second for Avahi-announced network printers on each query. Pointing `CUPS_SERVER` at the local server changed nothing. The fix is the desktop's print portal, whose GTK dialog opens at once and fills in printers as it finds them.
 - A mock portal on the same thread as the client would deadlock the client's blocking availability check, so the test runs it on a `QThread` with its own bus connection.
 - The preview tests' new editor-based cases close their editor in a `qScopeGuard`. A failing check used to leave a hidden preview behind and fail the tests after it.
+
+### Merged and pushed
+- M4 (`71ce263`, `e0ab290`), the black-preview fix (`c625da3`), and M5 with portal print (`c04b2a4`, `273dc75`, `59b2344`) are on `main` and pushed. The owner confirmed the black-preview fix and portal printing on Hyprland.

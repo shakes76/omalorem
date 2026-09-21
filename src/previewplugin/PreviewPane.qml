@@ -3,7 +3,7 @@ import QtWebChannel
 import QtWebEngine
 
 // The rendered document. It knows nothing about the window it sits in, so the
-// docked placement (M3) can reuse it as is.
+// docked placement (a future feature, docs/SPEC.md §11.1) could reuse it as is.
 Item {
     id: pane
 

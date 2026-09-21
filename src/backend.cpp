@@ -880,7 +880,7 @@ QString Backend::previewPlacement() const {
     return m_previewPlacement;
 }
 
-// Only stored for now; the docked placement arrives in M3.
+// Only stored: the docked placement is a future feature (docs/SPEC.md §11.1).
 void Backend::setPreviewPlacement(const QString &placement) {
     if (placement != windowPlacement && placement != dockedPlacement)
         return;
