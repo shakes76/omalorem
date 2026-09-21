@@ -5,6 +5,7 @@
 #include <QQmlEngine>
 #include <QQuickStyle>
 #include <QQuickWebEngineProfile>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 
@@ -296,6 +297,49 @@ private slots:
         editor.window->close();
         QTRY_VERIFY(!previewGuard || !previewGuard->isVisible());
         QCOMPARE(editor.backend->previewVisible(), true);
+        closeEditor(editor);
+        QSettings().remove(QStringLiteral("preview"));
+    }
+
+    void handsFindToEditorAndKeepsF11InPreview() {
+        auto editor = createEditor();
+        QVERIFY(editor.window);
+        QTRY_VERIFY(previewWindow());
+        QQuickWindow *preview = previewWindow();
+        QTRY_VERIFY(preview->isVisible());
+        QTRY_VERIFY_WITH_TIMEOUT(editor.backend->previewBridge()->pageReady(), 20000);
+
+        // Ctrl+F from the preview opens find in the editor and moves the
+        // keyboard there.
+        preview->requestActivate();
+        QVERIFY(QTest::qWaitForWindowActive(preview));
+        QTest::keyClick(preview, Qt::Key_F, Qt::ControlModifier);
+        QCOMPARE(editor.window->property("searchOpen").toBool(), true);
+        QTRY_VERIFY(editor.window->isActive());
+
+        // F11 in the preview fullscreens the preview, not the editor...
+        preview->requestActivate();
+        QVERIFY(QTest::qWaitForWindowActive(preview));
+        QTest::keyClick(preview, Qt::Key_F11);
+        QTRY_COMPARE(preview->visibility(), QWindow::FullScreen);
+        QVERIFY(editor.window->visibility() != QWindow::FullScreen);
+
+        // ...also with the web view itself focused.
+        QTest::mouseClick(preview, Qt::LeftButton, {}, QPoint(preview->width() / 2, 40));
+        QTRY_VERIFY(preview->activeFocusItem()
+                    && QByteArray(preview->activeFocusItem()->metaObject()->className())
+                           .contains("WebEngine"));
+        QTest::keyClick(preview, Qt::Key_F11);
+        QTRY_VERIFY(preview->visibility() != QWindow::FullScreen);
+        QVERIFY(editor.window->visibility() != QWindow::FullScreen);
+
+        // In the editor, F11 still does what it always did.
+        editor.window->requestActivate();
+        QVERIFY(QTest::qWaitForWindowActive(editor.window));
+        QTest::keyClick(editor.window, Qt::Key_F11);
+        QTRY_COMPARE(editor.window->visibility(), QWindow::FullScreen);
+        QVERIFY(preview->visibility() != QWindow::FullScreen);
+
         closeEditor(editor);
         QSettings().remove(QStringLiteral("preview"));
     }

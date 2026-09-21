@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+set -eu
+
+# Builds the plain editor without the preview (no QtWebEngine) into
+# build-no-preview/, beside the normal build. See `no_preview` in omaview.pro.
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+BUILD_DIR="$ROOT/build-no-preview"
+
+if command -v qmake6 >/dev/null 2>&1; then
+  QMAKE=qmake6
+else
+  QMAKE=qmake
+fi
+
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+"$QMAKE" "$ROOT/omaview.pro" CONFIG+=no_preview
+make -j"$(nproc 2>/dev/null || echo 1)"
+
+echo "Built $BUILD_DIR/omaview"

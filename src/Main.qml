@@ -86,18 +86,9 @@ ApplicationWindow {
     }
 
     function toggleFullScreen() {
-        // F11 in the preview window fullscreens the preview, for reading.
-        var target = previewWindowLoader.item && previewWindowLoader.item.active
-            ? previewWindowLoader.item
-            : win;
-        target.visibility = target.visibility === Window.FullScreen
+        win.visibility = win.visibility === Window.FullScreen
             ? Window.Windowed
             : Window.FullScreen;
-    }
-
-    function togglePreview() {
-        if (backend.previewAvailable)
-            backend.previewVisible = !backend.previewVisible;
     }
 
     function updateSearch() {
@@ -158,7 +149,6 @@ ApplicationWindow {
         onActivated: {
             searchOpen = true;
             replaceOpen = true;
-            win.requestActivate();
             searchField.forceActiveFocus();
             searchField.selectAll();
         }
@@ -213,12 +203,6 @@ ApplicationWindow {
     }
 
     Shortcut {
-        sequence: "Ctrl+E"
-        context: Qt.ApplicationShortcut
-        onActivated: win.togglePreview()
-    }
-
-    Shortcut {
         sequences: ["Meta+F", "F11"]
         context: Qt.ApplicationShortcut
         onActivated: toggleFullScreen()
@@ -241,7 +225,6 @@ ApplicationWindow {
         context: Qt.ApplicationShortcut
         onActivated: {
             searchOpen = true;
-            win.requestActivate();
             searchField.forceActiveFocus();
             searchField.selectAll();
         }
@@ -252,35 +235,6 @@ ApplicationWindow {
         context: Qt.ApplicationShortcut
         enabled: win.searchOpen
         onActivated: win.moveSearch(1)
-    }
-
-    // The preview window is created the first time the preview is shown, so
-    // Chromium never starts in a session that doesn't show it. It then stays
-    // loaded while hidden, which makes showing it again instant.
-    Loader {
-        id: previewWindowLoader
-
-        readonly property bool wanted: backend.previewAvailable && backend.previewVisible
-        property bool editorShown: false
-
-        function load() {
-            if (wanted && editorShown && status === Loader.Null)
-                setSource("PreviewWindow.qml", { editorWindow: win });
-        }
-
-        onWantedChanged: load()
-
-        // Wait for the editor's first frame: creating the web view blocks the
-        // GUI thread, and the editor should be up before the preview opens.
-        Connections {
-            target: win
-            enabled: !previewWindowLoader.editorShown
-
-            function onFrameSwapped() {
-                previewWindowLoader.editorShown = true;
-                Qt.callLater(previewWindowLoader.load);
-            }
-        }
     }
 
     Connections {
@@ -867,13 +821,14 @@ ApplicationWindow {
                 onClicked: backend.openDialog()
             }
 
+            // Omaview preview: shows or hides the preview window.
             FooterIconButton {
                 objectName: "previewButton"
                 visible: backend.previewAvailable
                 iconName: "preview"
                 iconColor: win.mutedColor
                 tooltip: backend.previewVisible ? "Hide preview" : "Show preview"
-                onClicked: win.togglePreview()
+                onClicked: previewIntegration.toggle()
             }
 
             Label {
@@ -1051,6 +1006,65 @@ ApplicationWindow {
                     iconColor: win.darkMode ? win.textColor : "#62635f"
                     onClicked: win.closeSearch()
                 }
+            }
+        }
+    }
+
+    // --- Omaview preview ---------------------------------------------------
+    // Everything the preview needs from this window, in one additive block:
+    // Ctrl+E, the text feed, and the preview window, loaded the first time
+    // the preview is shown. The preview's own behaviour (find, F11, closing)
+    // lives in its files. See docs/SPEC.md §4.1 and §5.3.
+    Item {
+        id: previewIntegration
+        objectName: "previewIntegration"
+
+        function toggle() {
+            if (backend.previewAvailable)
+                backend.previewVisible = !backend.previewVisible;
+        }
+
+        Shortcut {
+            sequence: "Ctrl+E"
+            context: Qt.ApplicationShortcut
+            onActivated: previewIntegration.toggle()
+        }
+
+        Connections {
+            target: editor
+            enabled: backend.previewAvailable
+
+            function onTextChanged() {
+                backend.previewEditorTextChanged();
+            }
+        }
+
+        // Creating the window starts Chromium, so it happens only when the
+        // preview is first shown. It then stays loaded while hidden, which
+        // makes showing it again instant.
+        Loader {
+            id: previewWindowLoader
+
+            readonly property bool wanted: backend.previewAvailable && backend.previewVisible
+            property bool editorShown: false
+
+            function load() {
+                if (wanted && editorShown && status === Loader.Null)
+                    setSource("PreviewWindow.qml", { editorWindow: win });
+            }
+
+            onWantedChanged: load()
+        }
+
+        // Wait for the editor's first frame: creating the web view blocks the
+        // GUI thread, and the editor should be up before the preview opens.
+        Connections {
+            target: win
+            enabled: !previewWindowLoader.editorShown
+
+            function onFrameSwapped() {
+                previewWindowLoader.editorShown = true;
+                Qt.callLater(previewWindowLoader.load);
             }
         }
     }

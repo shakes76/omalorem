@@ -212,7 +212,9 @@ private slots:
         QCOMPARE(previewButton->property("visible").toBool(), false);
         const bool visibleBefore = backend.previewVisible();
         QVERIFY(QMetaObject::invokeMethod(previewButton, "clicked"));
-        QVERIFY(QMetaObject::invokeMethod(window.data(), "togglePreview"));
+        QObject *integration = window->findChild<QObject *>(QStringLiteral("previewIntegration"));
+        QVERIFY(integration);
+        QVERIFY(QMetaObject::invokeMethod(integration, "toggle"));
         QCOMPARE(backend.previewVisible(), visibleBefore);
     }
 
@@ -291,26 +293,34 @@ private slots:
     }
 
     void feedsEditorTextToPreview() {
-        QQmlEngine engine;
-        QQmlComponent component(&engine);
-        component.setData("import QtQuick\nTextEdit {}", QUrl());
-        QScopedPointer<QObject> editor(component.create());
-        QVERIFY2(editor, qPrintable(component.errorString()));
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
 
+        // Available, but hidden: Main.qml's preview block feeds the bridge
+        // without ever loading the preview window (and WebEngine).
+        QSettings().setValue(QStringLiteral("preview/visible"), false);
         Backend backend;
-        backend.attachDocument(editor->property("textDocument").value<QObject *>());
+        backend.setPreviewAvailable(true);
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> window(component.create());
+        QVERIFY2(window, qPrintable(component.errorString()));
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+
         PreviewBridge *bridge = backend.previewBridge();
         QVERIFY(bridge);
         QSignalSpy markdownSpy(bridge, &PreviewBridge::markdownChanged);
 
         editor->setProperty("text", QStringLiteral("$x^2$"));
-        QVERIFY(backend.editorTextChanged());
         editor->setProperty("text", QStringLiteral("$x^3$"));
-        QVERIFY(backend.editorTextChanged());
         QCOMPARE(markdownSpy.count(), 0);
         QTRY_COMPARE(markdownSpy.count(), 1);
         QCOMPARE(bridge->markdown(), QStringLiteral("$x^3$"));
 
+        // Opening a file renders at once, without the debounce.
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
         const QString path = directory.filePath(QStringLiteral("opened.md"));
@@ -321,6 +331,9 @@ private slots:
         backend.open(QUrl::fromLocalFile(path));
         QCOMPARE(markdownSpy.count(), 2);
         QCOMPARE(bridge->markdown(), QStringLiteral("# Opened\n"));
+        QVERIFY(bridge->baseUrl().endsWith(QLatin1Char('/')));
+
+        QSettings().remove(QStringLiteral("preview"));
     }
 
     void updatesPreviewThemeFromOmarchy() {

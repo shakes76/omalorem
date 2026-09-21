@@ -7,7 +7,9 @@ import QtQuick.Window
 //
 // Main.qml's Qt.ApplicationShortcut shortcuts already fire while this window
 // has focus. Repeating them here would make each one ambiguous, and Qt then
-// fires neither, so this window declares none of its own.
+// fires neither, so this window declares none of its own. The two it needs to
+// behave differently here, find and F11, are handled below without touching
+// the editor's handlers.
 Window {
     id: previewWindow
 
@@ -44,6 +46,10 @@ Window {
             Qt.callLater(editorWindow.requestActivate);
     }
 
+    function toggleFullScreen() {
+        visibility = visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen;
+    }
+
     Connections {
         target: previewWindow.editorWindow
 
@@ -54,11 +60,41 @@ Window {
             previewWindow.closingWithEditor = true;
             previewWindow.close();
         }
+
+        // Ctrl+F or Ctrl+H pressed here opens the editor's find bar; typing
+        // belongs over there, so hand the keyboard to the editor window.
+        function onSearchOpenChanged() {
+            if (previewWindow.editorWindow.searchOpen && previewWindow.active)
+                previewWindow.editorWindow.requestActivate();
+        }
     }
 
-    PreviewPane {
+    Item {
         anchors.fill: parent
-        bridge: backend.previewBridge
-        profile: previewSandbox.profile()
+        focus: true
+
+        // F11 here fullscreens the preview, for reading. Main.qml binds F11
+        // application-wide to the editor. Qt offers every shortcut to the
+        // focused item first, as a ShortcutOverride that bubbles up to here
+        // even from inside the web view; accepting it stops Main's shortcut.
+        // The toggle happens here too, because once Chromium has focus the
+        // key press itself never comes back out of the page.
+        Keys.onShortcutOverride: function(event) {
+            if (event.key !== Qt.Key_F11 || event.modifiers !== Qt.NoModifier)
+                return;
+            event.accepted = true;
+            if (!event.isAutoRepeat)
+                previewWindow.toggleFullScreen();
+        }
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_F11 && event.modifiers === Qt.NoModifier)
+                event.accepted = true;
+        }
+
+        PreviewPane {
+            anchors.fill: parent
+            bridge: backend.previewBridge
+            profile: previewSandbox.profile()
+        }
     }
 }

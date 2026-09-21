@@ -55,14 +55,15 @@ public:
     QString themeForeground() const { return m_themeForeground; }
     QString themeAccent() const { return m_themeAccent; }
     QString themeSelection() const { return m_themeSelection; }
-    PreviewBridge *previewBridge() const { return m_previewBridge; }
+    PreviewBridge *previewBridge() const;
     bool previewAvailable() const { return m_previewAvailable; }
     void setPreviewAvailable(bool available);
-    bool previewVisible() const { return m_previewVisible; }
+    bool previewVisible() const;
     void setPreviewVisible(bool visible);
-    QString previewPlacement() const { return m_previewPlacement; }
+    QString previewPlacement() const;
     void setPreviewPlacement(const QString &placement);
-    static bool isExternalUrlAllowed(const QUrl &url);
+    // Called by Main.qml's preview block on every editor text change.
+    Q_INVOKABLE void previewEditorTextChanged();
     static int countWords(const QString &text);
     static QString normalizedLinkUrl(const QString &clipboardText);
     static QString suggestedFileName(const QString &text);
@@ -127,7 +128,8 @@ private:
     void watchCurrentFile();
     void loadOmarchyTheme();
     void watchOmarchyTheme();
-    void updatePreviewTheme();
+    void updatePreviewTheme() const;
+    void loadPreviewSettings() const;
 
     QUrl m_fileUrl;
     bool m_modified = false;
@@ -159,8 +161,11 @@ private:
     QString m_themeSelection;
     QFileSystemWatcher m_themeWatcher;
 
-    PreviewBridge *m_previewBridge = nullptr;
+    // The preview's state is created on first use, so a session that never
+    // touches the preview (or a no_preview build) never builds any of it.
+    mutable PreviewBridge *m_previewBridge = nullptr;
     bool m_previewAvailable = false;
-    bool m_previewVisible = true;
-    QString m_previewPlacement;
+    mutable bool m_previewSettingsLoaded = false;
+    mutable bool m_previewVisible = true;
+    mutable QString m_previewPlacement;
 };

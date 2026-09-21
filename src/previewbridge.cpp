@@ -6,7 +6,6 @@
 
 #include <utility>
 
-#include "backend.h"
 
 // Off by default; QT_LOGGING_RULES="omaview.preview.info=true" shows when the
 // page first renders, which is how the startup budget in spec 5.3 is measured.
@@ -120,8 +119,16 @@ void PreviewBridge::ready() {
     emit pageReadyChanged();
 }
 
+// The same rule as Backend::openExternalUrl, checked here as well so the page
+// can never hand the desktop anything but web and mail links.
+bool PreviewBridge::isExternalLinkAllowed(const QUrl &url) {
+    const QString scheme = url.scheme().toLower();
+    return scheme == QStringLiteral("http") || scheme == QStringLiteral("https")
+        || scheme == QStringLiteral("mailto");
+}
+
 void PreviewBridge::openLink(const QString &url) {
     const QUrl target(url);
-    if (Backend::isExternalUrlAllowed(target))
+    if (isExternalLinkAllowed(target))
         emit externalLinkRequested(target);
 }

@@ -7,11 +7,13 @@ INCLUDEPATH += ../src
 SOURCES += \
     tst_omaview.cpp \
     ../src/backend.cpp \
-    ../src/markdownhighlighter.cpp \
-    ../src/previewbridge.cpp
+    ../src/markdownhighlighter.cpp
 HEADERS += \
     ../src/backend.h \
-    ../src/markdownhighlighter.h \
-    ../src/previewbridge.h
+    ../src/markdownhighlighter.h
 
 QT += widgets printsupport quickcontrols2 quickdialogs2 dbus
+
+# Omaview preview: the bridge has no WebEngine dependency.
+SOURCES += ../src/previewbridge.cpp
+HEADERS += ../src/previewbridge.h

@@ -46,6 +46,7 @@ public:
     // The request interceptor's policy: bundled qrc assets, plus local files
     // inside the document's folder. Everything else, remote or not, is refused.
     bool isResourceAllowed(const QUrl &url) const;
+    static bool isExternalLinkAllowed(const QUrl &url);
 
     Q_INVOKABLE void ready();
     Q_INVOKABLE void openLink(const QString &url);

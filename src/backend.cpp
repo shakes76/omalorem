@@ -35,10 +35,6 @@
 
 constexpr qreal typoraLineHeightPercent = 140;
 const QString lastSaveDirectorySetting = QStringLiteral("file/lastSaveDirectory");
-const QString previewVisibleSetting = QStringLiteral("preview/visible");
-const QString previewPlacementSetting = QStringLiteral("preview/placement");
-const QString windowPlacement = QStringLiteral("window");
-const QString dockedPlacement = QStringLiteral("docked");
 
 QString Backend::normalizedLinkUrl(const QString &clipboardText) {
     QString candidate = clipboardText.trimmed();
@@ -121,19 +117,6 @@ Backend::Backend(QObject *parent) : QObject(parent) {
                 emit externalChangeDetected(deleted, m_modified);
             });
 
-    // Created before the theme loads, so the first palette reaches the page.
-    m_previewBridge = new PreviewBridge(this);
-    m_previewBridge->setTextScale(m_textScale);
-    connect(m_previewBridge, &PreviewBridge::externalLinkRequested, this,
-            &Backend::openExternalUrl);
-    connect(this, &Backend::themeColorsChanged, this, &Backend::updatePreviewTheme);
-    connect(this, &Backend::darkModeChanged, this, &Backend::updatePreviewTheme);
-
-    const QSettings settings;
-    m_previewVisible = settings.value(previewVisibleSetting, true).toBool();
-    const QString placement = settings.value(previewPlacementSetting).toString();
-    m_previewPlacement = placement == dockedPlacement ? dockedPlacement : windowPlacement;
-
     loadOmarchyTheme();
     watchOmarchyTheme();
     connect(&m_themeWatcher, &QFileSystemWatcher::fileChanged, this, [this]() {
@@ -180,37 +163,7 @@ void Backend::setTextScale(qreal textScale) {
         return;
 
     m_textScale = textScale;
-    m_previewBridge->setTextScale(textScale);
     emit textScaleChanged();
-}
-
-void Backend::setPreviewAvailable(bool available) {
-    if (m_previewAvailable == available)
-        return;
-
-    m_previewAvailable = available;
-    emit previewAvailableChanged();
-}
-
-void Backend::setPreviewVisible(bool visible) {
-    if (m_previewVisible == visible)
-        return;
-
-    m_previewVisible = visible;
-    QSettings().setValue(previewVisibleSetting, visible);
-    emit previewVisibleChanged();
-}
-
-// Only stored for now; the docked placement arrives in M3.
-void Backend::setPreviewPlacement(const QString &placement) {
-    if (placement != windowPlacement && placement != dockedPlacement)
-        return;
-    if (m_previewPlacement == placement)
-        return;
-
-    m_previewPlacement = placement;
-    QSettings().setValue(previewPlacementSetting, placement);
-    emit previewPlacementChanged();
 }
 
 void Backend::attachDocument(QObject *textDocument) {
@@ -402,7 +355,6 @@ bool Backend::editorTextChanged() {
     }
 
     scheduleWordCount();
-    m_previewBridge->scheduleMarkdown(text);
     setModified(true);
     setStatus(QStringLiteral("Unsaved"));
     scheduleRecovery();
@@ -443,14 +395,10 @@ void Backend::setSearchHighlight(const QString &query, int currentMatchStart) {
         m_highlighter->setSearch(query, currentMatchStart);
 }
 
-bool Backend::isExternalUrlAllowed(const QUrl &url) {
-    const QString scheme = url.scheme().toLower();
-    return scheme == QStringLiteral("http") || scheme == QStringLiteral("https")
-        || scheme == QStringLiteral("mailto");
-}
-
 void Backend::openExternalUrl(const QUrl &url) {
-    if (isExternalUrlAllowed(url))
+    const QString scheme = url.scheme().toLower();
+    if (scheme == QStringLiteral("http") || scheme == QStringLiteral("https")
+            || scheme == QStringLiteral("mailto"))
         QDesktopServices::openUrl(url);
 }
 
@@ -484,7 +432,6 @@ void Backend::loadDocumentText(const QString &text) {
     m_document->setPlainText(text);
     m_lastDocumentText = text;
     m_loading = false;
-    m_previewBridge->setMarkdown(text);
 
     applyDocumentTypography();
     m_wordCountTimer.stop();
@@ -496,7 +443,6 @@ void Backend::setFileUrl(const QUrl &url) {
         return;
 
     m_fileUrl = url;
-    m_previewBridge->setDocumentUrl(url);
     emit fileUrlChanged();
     watchCurrentFile();
 }
@@ -698,11 +644,6 @@ void Backend::loadOmarchyTheme() {
     emit themeColorsChanged();
 }
 
-void Backend::updatePreviewTheme() {
-    m_previewBridge->setTheme(m_themeBackground, m_themeForeground, m_themeAccent,
-                              m_themeSelection, m_darkMode);
-}
-
 void Backend::watchOmarchyTheme() {
     const QStringList watched = m_themeWatcher.files() + m_themeWatcher.directories();
     if (!watched.isEmpty())
@@ -822,4 +763,113 @@ void Backend::reapplyTypographyToChange() {
     cursor.mergeBlockFormat(blockFormat);
     cursor.endEditBlock();
     m_formattingTypography = false;
+}
+
+// --- Omaview preview ------------------------------------------------------
+// Everything below is added for the preview. It hooks into the editor only
+// through Backend's existing signals and the QML block that calls
+// previewEditorTextChanged(), so no upstream function is changed.
+
+namespace {
+const QString previewVisibleSetting = QStringLiteral("preview/visible");
+const QString previewPlacementSetting = QStringLiteral("preview/placement");
+const QString windowPlacement = QStringLiteral("window");
+const QString dockedPlacement = QStringLiteral("docked");
+}
+
+PreviewBridge *Backend::previewBridge() const {
+    if (m_previewBridge)
+        return m_previewBridge;
+
+    // Lazily created, so the (logically const) getter builds the bridge and
+    // wires it to this backend's existing signals.
+    auto *self = const_cast<Backend *>(this);
+    m_previewBridge = new PreviewBridge(self);
+    m_previewBridge->setTextScale(m_textScale);
+    m_previewBridge->setDocumentUrl(m_fileUrl);
+    m_previewBridge->setMarkdown(currentDocumentText());
+    updatePreviewTheme();
+
+    connect(self, &Backend::themeColorsChanged, self, &Backend::updatePreviewTheme);
+    connect(self, &Backend::darkModeChanged, self, &Backend::updatePreviewTheme);
+    connect(self, &Backend::textScaleChanged, m_previewBridge, [self]() {
+        self->m_previewBridge->setTextScale(self->m_textScale);
+    });
+    connect(self, &Backend::fileUrlChanged, m_previewBridge, [self]() {
+        self->m_previewBridge->setDocumentUrl(self->m_fileUrl);
+    });
+    // openExternalUrl keeps its own scheme filter; the bridge pre-checks too.
+    connect(m_previewBridge, &PreviewBridge::externalLinkRequested, self,
+            &Backend::openExternalUrl);
+    return m_previewBridge;
+}
+
+void Backend::previewEditorTextChanged() {
+    if (m_formattingTypography)
+        return;
+
+    // Opening, reloading and recovering a file all load text with m_loading
+    // set: render those at once. Typing goes through the debounce.
+    const QString text = currentDocumentText();
+    if (m_loading)
+        previewBridge()->setMarkdown(text);
+    else
+        previewBridge()->scheduleMarkdown(text);
+}
+
+void Backend::updatePreviewTheme() const {
+    if (!m_previewBridge)
+        return;
+    m_previewBridge->setTheme(m_themeBackground, m_themeForeground, m_themeAccent,
+                              m_themeSelection, m_darkMode);
+}
+
+void Backend::setPreviewAvailable(bool available) {
+    if (m_previewAvailable == available)
+        return;
+
+    m_previewAvailable = available;
+    emit previewAvailableChanged();
+}
+
+void Backend::loadPreviewSettings() const {
+    if (m_previewSettingsLoaded)
+        return;
+
+    m_previewSettingsLoaded = true;
+    const QSettings settings;
+    m_previewVisible = settings.value(previewVisibleSetting, true).toBool();
+    const QString placement = settings.value(previewPlacementSetting).toString();
+    m_previewPlacement = placement == dockedPlacement ? dockedPlacement : windowPlacement;
+}
+
+bool Backend::previewVisible() const {
+    loadPreviewSettings();
+    return m_previewVisible;
+}
+
+void Backend::setPreviewVisible(bool visible) {
+    if (previewVisible() == visible)
+        return;
+
+    m_previewVisible = visible;
+    QSettings().setValue(previewVisibleSetting, visible);
+    emit previewVisibleChanged();
+}
+
+QString Backend::previewPlacement() const {
+    loadPreviewSettings();
+    return m_previewPlacement;
+}
+
+// Only stored for now; the docked placement arrives in M3.
+void Backend::setPreviewPlacement(const QString &placement) {
+    if (placement != windowPlacement && placement != dockedPlacement)
+        return;
+    if (previewPlacement() == placement)
+        return;
+
+    m_previewPlacement = placement;
+    QSettings().setValue(previewPlacementSetting, placement);
+    emit previewPlacementChanged();
 }
