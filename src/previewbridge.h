@@ -12,6 +12,12 @@
 class PreviewBridge : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString markdown READ markdown NOTIFY markdownChanged)
+    // Counts markdown changes. The page reports back the revision it has
+    // finished rendering (fonts and images included), so PDF export and
+    // print can wait until the page shows the text as it is now.
+    Q_PROPERTY(int markdownRevision READ markdownRevision NOTIFY markdownChanged)
+    Q_PROPERTY(int renderedRevision READ renderedRevision NOTIFY renderedRevisionChanged)
+    Q_PROPERTY(bool pageReady READ pageReady NOTIFY pageReadyChanged)
     Q_PROPERTY(QString baseUrl READ baseUrl NOTIFY baseUrlChanged)
     Q_PROPERTY(QVariantMap theme READ theme NOTIFY themeChanged)
     Q_PROPERTY(qreal textScale READ textScale NOTIFY textScaleChanged)
@@ -27,6 +33,10 @@ public:
     explicit PreviewBridge(QObject *parent = nullptr);
 
     QString markdown() const { return m_markdown; }
+    int markdownRevision() const { return m_markdownRevision; }
+    int renderedRevision() const { return m_renderedRevision; }
+    // Whether the page shows the current markdown, settled.
+    bool renderedCurrent() const { return m_pageReady && m_renderedRevision == m_markdownRevision; }
     QString baseUrl() const { return m_baseUrl; }
     QVariantMap theme() const { return m_theme; }
     qreal textScale() const { return m_textScale; }
@@ -52,6 +62,8 @@ public:
 
     Q_INVOKABLE void ready();
     Q_INVOKABLE void openLink(const QString &url);
+    // Called by the page once a render has settled.
+    Q_INVOKABLE void rendered(int revision);
 
 signals:
     void markdownChanged();
@@ -61,12 +73,15 @@ signals:
     void fontFamilyChanged();
     void sourceLineChanged();
     void pageReadyChanged();
+    void renderedRevisionChanged();
     // Only emitted for URLs that pass Backend's external-link filter.
     void externalLinkRequested(const QUrl &url);
 
 private:
     QString m_markdown;
     QString m_pendingMarkdown;
+    int m_markdownRevision = 0;
+    int m_renderedRevision = -1;
     QString m_baseUrl;
     QVariantMap m_theme;
     qreal m_textScale = 1.0;

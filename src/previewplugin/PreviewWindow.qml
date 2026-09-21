@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Window
+import QtWebEngine
 
 // The pop-out preview: its own top-level window so Hyprland tiles it beside
 // the editor. It deliberately has no transientParent, because Hyprland floats
@@ -72,6 +73,99 @@ Window {
         id: repaintRetry
         interval: 150
         onTriggered: pane.repaint()
+    }
+
+    // --- PDF export and print (docs/SPEC.md §5.5) ---------------------------
+    // Both render the page to a PDF: export writes it where the user chose,
+    // print hands it to the print dialog. This works while the window is
+    // hidden too; Main.qml loads it for that and it stays hidden.
+    property var outputRequest: null
+    // Page size from the locale: Letter where the US system is used, else A4.
+    readonly property bool letterPaper: Qt.locale().measurementSystem === Locale.ImperialUSSystem
+
+    function produce(request) {
+        if (outputRequest) {
+            backend.previewReportStatus("Still preparing the last PDF.");
+            return;
+        }
+        const path = request.kind === "pdf" ? PreviewSandbox.localPath(request.url)
+                                            : PreviewSandbox.temporaryPdfPath();
+        if (path === "") {
+            backend.previewReportStatus("Could not choose a file for the PDF.");
+            return;
+        }
+        outputRequest = { kind: request.kind, path: path, started: false };
+        outputTimeout.restart();
+        backend.previewFlushMarkdown();
+        Qt.callLater(continueOutput);
+    }
+
+    // Starts once the page shows the current text with fonts and images
+    // loaded; the bridge's revisions say when.
+    function continueOutput() {
+        const request = outputRequest;
+        const bridge = backend.previewBridge;
+        if (!request || request.started || !pane.view || !bridge.pageReady
+                || bridge.renderedRevision !== bridge.markdownRevision)
+            return;
+        request.started = true;
+        const pageWidthMm = letterPaper ? 215.9 : 210;
+        pane.view.runJavaScript("window.omaloremPreview.preparePrint(" + pageWidthMm + ")", function() {
+            pane.view.printToPdf(request.path,
+                                 letterPaper ? WebEngineView.Letter : WebEngineView.A4,
+                                 WebEngineView.Portrait);
+        });
+    }
+
+    function finishOutput(filePath, success) {
+        const request = outputRequest;
+        outputRequest = null;
+        outputTimeout.stop();
+        if (!request)
+            return;
+        if (request.kind === "pdf") {
+            backend.previewReportStatus(success ? "Exported " + filePath.split("/").pop()
+                                                : "Could not export the PDF.");
+            return;
+        }
+        if (!success) {
+            backend.previewReportStatus("Could not prepare the document for printing.");
+        } else if (PreviewSandbox.printPdf(filePath, "Print " + backend.fileName, editorWindow)) {
+            backend.previewReportStatus("Sent " + backend.fileName + " to the printer");
+        }
+        PreviewSandbox.removeTemporaryPdf(filePath);
+    }
+
+    Connections {
+        target: backend.previewBridge
+
+        function onRenderedRevisionChanged() {
+            previewWindow.continueOutput();
+        }
+        function onPageReadyChanged() {
+            previewWindow.continueOutput();
+        }
+    }
+
+    Connections {
+        target: pane.view
+        ignoreUnknownSignals: true
+
+        function onPdfPrintingFinished(filePath, success) {
+            previewWindow.finishOutput(filePath, success);
+        }
+    }
+
+    // A page that never settles must not block the next request for good.
+    Timer {
+        id: outputTimeout
+        interval: 30000
+        onTriggered: {
+            if (!previewWindow.outputRequest)
+                return;
+            previewWindow.outputRequest = null;
+            backend.previewReportStatus("Could not prepare the PDF: the preview did not finish rendering.");
+        }
     }
 
     function toggleFullScreen() {

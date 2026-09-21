@@ -6,6 +6,8 @@
 #include <QQuickStyle>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QPdfDocument>
+#include <QPdfSelection>
 
 #include "backend.h"
 #include "previewbridge.h"
@@ -631,6 +633,119 @@ private slots:
 
         closeEditor(editor);
         QSettings().remove(QStringLiteral("preview"));
+    }
+
+    // Wide display math is scaled to fit the printed column.
+    void scalesWideMathForPrint() {
+        QVERIFY(renderFixture(QStringLiteral("sample.md")));
+        QVERIFY(js("window.omaloremPreview.preparePrint(210)").toInt() >= 1);
+        const double zoom = js("Math.min(...[...document.querySelectorAll('.katex-display')]"
+                               ".map(d => parseFloat(d.style.getPropertyValue('--print-zoom')) || 1))")
+                                .toDouble();
+        QVERIFY(zoom > 0.1 && zoom < 1);
+        // On screen nothing changes: the zoom is used by print only.
+        QCOMPARE(js("getComputedStyle(document.querySelector('.katex-display')).zoom").toString(),
+                 QStringLiteral("1"));
+    }
+
+    // Ctrl+Shift+P's path, with the preview hidden: the page loads in a
+    // window that stays hidden, the text just typed is included, and the PDF
+    // has the math typeset, on white, inside the page margins.
+    void exportsPdfWithRenderedMath() {
+        QSettings().setValue(QStringLiteral("preview/visible"), false);
+        auto editor = createEditor();
+        // Close it even when a check fails, so the next test starts clean.
+        const auto cleanup = qScopeGuard([&] {
+            closeEditor(editor);
+            QSettings().remove(QStringLiteral("preview"));
+        });
+        QVERIFY(editor.window);
+        editor.backend->open(fixtureUrl(QStringLiteral("sample.md")));
+        QObject *integration = editor.window->findChild<QObject *>(QStringLiteral("previewIntegration"));
+        QObject *text = editor.window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(integration && text);
+        // Typed a moment ago: still inside the preview's debounce. Enough
+        // of it to run over several pages.
+        QString typed = QStringLiteral("\n\nFreshly typed line.\n");
+        for (int i = 0; i < 80; ++i)
+            typed += QStringLiteral("\nFiller paragraph %1, long enough to be a line of prose.\n").arg(i);
+        text->setProperty("text", text->property("text").toString() + typed);
+
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("sample.pdf"));
+        QVERIFY(QMetaObject::invokeMethod(
+            integration, "requestOutput",
+            Q_ARG(QVariant, QVariantMap({{QStringLiteral("kind"), QStringLiteral("pdf")},
+                                         {QStringLiteral("url"), QUrl::fromLocalFile(path)}}))));
+        QTRY_COMPARE_WITH_TIMEOUT(editor.backend->status(), QStringLiteral("Exported sample.pdf"), 30000);
+        QTRY_VERIFY(previewWindow());
+        QVERIFY(!previewWindow()->isVisible());
+        QCOMPARE(editor.backend->previewVisible(), false);
+
+        QPdfDocument pdf;
+        QCOMPARE(pdf.load(path), QPdfDocument::Error::None);
+        QVERIFY(pdf.pageCount() >= 3);
+        const QSizeF page = pdf.pagePointSize(0);
+        QVERIFY(qAbs(page.width() - 595) < 2 || qAbs(page.width() - 612) < 2);
+        QString all;
+        for (int i = 0; i < pdf.pageCount(); ++i)
+            all += pdf.getAllText(i).text();
+        QVERIFY(all.contains(QStringLiteral("Heat equation")));
+        QVERIFY(all.contains(QStringLiteral("Freshly typed line.")));
+        QVERIFY(all.contains(QChar(0x03B1)));            // α, typeset by KaTeX
+        QVERIFY(!all.contains(QStringLiteral("$$")));     // no source delimiters
+        // Inside 20 mm (57 pt) margins on every page, top and bottom
+        // included, on white paper despite the dark theme.
+        for (int i = 0; i < pdf.pageCount(); ++i) {
+            const QRectF bounds = pdf.getAllText(i).boundingRectangle();
+            QVERIFY2(bounds.left() >= 50 && bounds.top() >= 50
+                         && bounds.right() <= page.width() - 50
+                         && bounds.bottom() <= page.height() - 50,
+                     qPrintable(QStringLiteral("page %1: text in %2,%3 to %4,%5").arg(i)
+                                    .arg(bounds.left()).arg(bounds.top())
+                                    .arg(bounds.right()).arg(bounds.bottom())));
+        }
+        const QImage image = pdf.render(0, (page * 0.5).toSize());
+        QCOMPARE(QColor(image.pixel(5, 5)), QColor(Qt::white));
+    }
+
+    // Ctrl+P's path: Backend hands print to the preview, which renders a
+    // temporary PDF and prints its pages (to a file here, not a dialog).
+    void printsThroughThePreview() {
+        auto editor = createEditor();
+        // Close it even when a check fails, so the next test starts clean.
+        const auto cleanup = qScopeGuard([&] {
+            closeEditor(editor);
+            QSettings().remove(QStringLiteral("preview"));
+        });
+        QVERIFY(editor.window);
+        editor.backend->open(fixtureUrl(QStringLiteral("math-valid.md")));
+        QTRY_VERIFY(previewWindow());
+        QTRY_VERIFY_WITH_TIMEOUT(editor.backend->previewBridge()->pageReady(), 20000);
+        QObject *sandbox = editor.engine->singletonInstance<QObject *>(
+            QStringLiteral("Omalorem.Preview"), QStringLiteral("PreviewSandbox"));
+        QVERIFY(sandbox);
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString printed = directory.filePath(QStringLiteral("printed.pdf"));
+        sandbox->setProperty("printTestTarget", printed);
+
+        editor.backend->printDocument();
+        QTRY_COMPARE_WITH_TIMEOUT(editor.backend->status(),
+                                  QStringLiteral("Sent math-valid.md to the printer"), 30000);
+        sandbox->setProperty("printTestTarget", QString());
+        QPdfDocument pdf;
+        QCOMPARE(pdf.load(printed), QPdfDocument::Error::None);
+        QVERIFY(pdf.pageCount() >= 1);
+        // Printed as page images: not blank.
+        const QImage image = pdf.render(0, QSize(300, 420));
+        bool ink = false;
+        for (int y = 0; y < image.height() && !ink; ++y) {
+            for (int x = 0; x < image.width() && !ink; ++x)
+                ink = QColor(image.pixel(x, y)).lightness() < 128;
+        }
+        QVERIFY(ink);
     }
 
     void handsFindToEditorAndKeepsF11InPreview() {

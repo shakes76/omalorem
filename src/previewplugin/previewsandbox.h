@@ -3,10 +3,12 @@
 #include <QObject>
 #include <QPointer>
 #include <QStringList>
+#include <QTemporaryDir>
 #include <QWebEngineUrlRequestInterceptor>
 #include <QWebEngineUrlSchemeHandler>
 #include <QWindow>
 
+class QPrinter;
 class QQuickWebEngineProfile;
 
 // Enforces the preview's offline rule: every request the page makes, from
@@ -80,6 +82,9 @@ private:
 // handler for the document folder's scheme.
 class PreviewSandbox : public QObject {
     Q_OBJECT
+    // Tests only: when set, printPdf() prints into this PDF file instead of
+    // showing the print dialog, so the print path can run unattended.
+    Q_PROPERTY(QString printTestTarget MEMBER m_printTestTarget)
 
 public:
     explicit PreviewSandbox(QObject *parent = nullptr);
@@ -88,7 +93,22 @@ public:
                                                 QObject *bridge);
     Q_INVOKABLE QStringList blockedRequests() const;
 
+    // --- PDF export and print (docs/SPEC.md §5.5) ---
+    Q_INVOKABLE QString localPath(const QUrl &url) const { return url.toLocalFile(); }
+    // A fresh file name for the PDF that Ctrl+P prints, in a private
+    // directory removed when the app quits.
+    Q_INVOKABLE QString temporaryPdfPath();
+    Q_INVOKABLE void removeTemporaryPdf(const QString &path);
+    // Shows the print dialog and prints the pages of a PDF, drawn as images:
+    // Qt can't send a PDF to a printer as it is. Returns whether it printed.
+    Q_INVOKABLE bool printPdf(const QString &pdfPath, const QString &title, QWindow *parent);
+    static bool printPdfPages(const QString &pdfPath, QPrinter *printer);
+
 private:
+    QString m_printTestTarget;
+    QTemporaryDir m_printDirectory;
+    int m_printCount = 0;
+
     PreviewRequestInterceptor *m_interceptor = nullptr;
     PreviewDocumentSchemeHandler *m_documentHandler = nullptr;
 };

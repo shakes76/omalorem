@@ -800,6 +800,62 @@ private slots:
         QVERIFY(editor->property("text").toString().endsWith(QStringLiteral("$$\n\n")));
     }
 
+    // --- Omalorem PDF export and print (M5) ----------------------------------
+
+    void tracksRenderedRevision() {
+        PreviewBridge bridge;
+        QSignalSpy renderedSpy(&bridge, &PreviewBridge::renderedRevisionChanged);
+        const int start = bridge.markdownRevision();
+        bridge.setMarkdown(QStringLiteral("a"));
+        bridge.setMarkdown(QStringLiteral("a"));
+        QCOMPARE(bridge.markdownRevision(), start + 1);
+        QVERIFY(!bridge.renderedCurrent());
+        bridge.rendered(bridge.markdownRevision());
+        QCOMPARE(renderedSpy.count(), 1);
+        // Not current until the page has said it is ready.
+        QVERIFY(!bridge.renderedCurrent());
+        bridge.ready();
+        QVERIFY(bridge.renderedCurrent());
+        bridge.setMarkdown(QStringLiteral("b"));
+        QVERIFY(!bridge.renderedCurrent());
+    }
+
+    // Ctrl+P goes to the preview when there is one; the no_preview build
+    // keeps Omawrite's print (which opens a dialog, so isn't run here).
+    void routesPrintThroughPreview() {
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine);
+        component.setData("import QtQuick\nTextEdit { text: 'x'\n"
+                          "  Component.onCompleted: backend.attachDocument(textDocument) }",
+                          QUrl(QStringLiteral("qrc:/PrintHarness.qml")));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> editor(component.create());
+        QVERIFY(editor);
+
+        QSignalSpy printSpy(&backend, &Backend::previewPrintRequested);
+        backend.setPreviewAvailable(true);
+        backend.printDocument();
+        QCOMPARE(printSpy.count(), 1);
+    }
+
+    void suggestsPdfBesideDocument() {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        Backend backend;
+        QSignalSpy dialogSpy(&backend, &Backend::previewPdfDialogRequested);
+        backend.previewExportPdfDialog();
+        QCOMPARE(dialogSpy.count(), 0);
+
+        backend.setPreviewAvailable(true);
+        backend.saveAs(QUrl::fromLocalFile(directory.filePath(QStringLiteral("heat.notes.md"))));
+        backend.previewExportPdfDialog();
+        QCOMPARE(dialogSpy.count(), 1);
+        QCOMPARE(dialogSpy.at(0).constFirst().toUrl().toLocalFile(),
+                 directory.filePath(QStringLiteral("heat.notes.pdf")));
+    }
+
 private:
     QTemporaryDir m_settingsDirectory;
 };

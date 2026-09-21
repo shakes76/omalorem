@@ -1,9 +1,14 @@
 #include "previewsandbox.h"
 
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QLoggingCategory>
 #include <QMimeDatabase>
+#include <QPainter>
+#include <QPdfDocument>
+#include <QPrintDialog>
+#include <QPrinter>
 #include <QQmlEngine>
 #include <QQuickWebEngineProfile>
 #include <QWebEngineUrlRequestInfo>
@@ -133,4 +138,80 @@ QQuickWebEngineProfile *PreviewSandbox::protect(QQuickWebEngineProfile *profile,
 
 QStringList PreviewSandbox::blockedRequests() const {
     return m_interceptor->blockedRequests();
+}
+
+QString PreviewSandbox::temporaryPdfPath() {
+    if (!m_printDirectory.isValid())
+        return {};
+    return m_printDirectory.filePath(QStringLiteral("print-%1.pdf").arg(++m_printCount));
+}
+
+void PreviewSandbox::removeTemporaryPdf(const QString &path) {
+    // Only ever a file this object handed out.
+    if (m_printDirectory.isValid()
+        && QFileInfo(path).absolutePath() == QDir(m_printDirectory.path()).absolutePath())
+        QFile::remove(path);
+}
+
+bool PreviewSandbox::printPdf(const QString &pdfPath, const QString &title, QWindow *parent) {
+    QPrinter printer(QPrinter::HighResolution);
+    if (!m_printTestTarget.isEmpty()) {
+        printer.setOutputFormat(QPrinter::PdfFormat);
+        printer.setOutputFileName(m_printTestTarget);
+        return printPdfPages(pdfPath, &printer);
+    }
+
+    // As Omawrite's own print: the dialog belongs to the editor window.
+    QPdfDocument document;
+    document.load(pdfPath);
+    QPrintDialog dialog(&printer);
+    dialog.setWindowTitle(title);
+    if (document.pageCount() > 0)
+        dialog.setMinMax(1, document.pageCount());
+    dialog.winId();
+    if (dialog.windowHandle() && parent)
+        dialog.windowHandle()->setTransientParent(parent);
+    if (dialog.exec() != QDialog::Accepted)
+        return false;
+    return printPdfPages(pdfPath, &printer);
+}
+
+bool PreviewSandbox::printPdfPages(const QString &pdfPath, QPrinter *printer) {
+    QPdfDocument document;
+    if (document.load(pdfPath) != QPdfDocument::Error::None || document.pageCount() == 0)
+        return false;
+
+    QList<int> pages;
+    const QPageRanges ranges = printer->pageRanges();
+    for (int page = 0; page < document.pageCount(); ++page) {
+        if (ranges.isEmpty() || ranges.contains(page + 1))
+            pages.append(page);
+    }
+    if (pages.isEmpty())
+        return false;
+
+    // The PDF already has its margins; use the whole sheet. 300 dpi is
+    // print quality, and keeps an A4 page image near 35 MB.
+    printer->setFullPage(true);
+    QPainter painter;
+    if (!painter.begin(printer))
+        return false;
+    const qreal dpi = qMin(300, printer->resolution());
+    bool first = true;
+    for (const int page : std::as_const(pages)) {
+        if (!first)
+            printer->newPage();
+        first = false;
+        const QSizeF points = document.pagePointSize(page);
+        const QImage image = document.render(page, (points * dpi / 72.0).toSize());
+        // Fit the page to the sheet, centred, in case the paper differs.
+        const QRect sheet = painter.viewport();
+        const QSize fitted = image.size().scaled(sheet.size(), Qt::KeepAspectRatio);
+        painter.setViewport(sheet);
+        painter.setWindow(sheet);
+        painter.drawImage(QRect(QPoint((sheet.width() - fitted.width()) / 2,
+                                       (sheet.height() - fitted.height()) / 2), fitted),
+                          image);
+    }
+    return painter.end();
 }

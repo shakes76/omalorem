@@ -237,3 +237,72 @@ section.eqno > eqn {
 .katex-error {
     color: var(--accent) !important;
 }
+
+/* Print and PDF export (spec 5.5): the light palette whatever the theme,
+   page margins instead of the centred column, and no block split across
+   pages where that can be helped. The theme colours and text size are set
+   inline from the bridge, so these overrides need !important.
+
+   Page margins: Qt's printToPdf gives Chromium zero margins, and then
+   Chromium ignores an @page margin. So the body carries a 20 mm padding,
+   repeated on every page it breaks across (box-decoration-break: clone).
+   It must match printMarginMm in preview.js. */
+@page {
+    margin: 0;
+}
+
+@media print {
+    :root {
+        --bg: #ffffff !important;
+        --fg: #1a1a1a !important;
+        --accent: #1f4e79 !important;
+        --muted: #8a8a8a !important;
+        --base-size: 11pt !important;
+        --code-bg: #f2f2f2 !important;
+        color-scheme: light !important;
+        opacity: 1 !important;
+    }
+
+    body {
+        padding: 20mm;
+        -webkit-box-decoration-break: clone;
+        box-decoration-break: clone;
+    }
+
+    #content {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Links print as text; their targets are a future option. */
+    a {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        break-after: avoid;
+    }
+
+    pre, table, blockquote, img, li, .katex-display, section.eqno {
+        break-inside: avoid;
+    }
+
+    /* Paper can't scroll: wrap long code lines, and show wide tables and
+       formulas in full. A formula wider than the column is scaled down by
+       preparePrint(). */
+    pre {
+        overflow: visible;
+        white-space: pre-wrap;
+    }
+
+    table {
+        overflow: visible;
+    }
+
+    .katex-display {
+        overflow: visible;
+        zoom: var(--print-zoom, 1);
+    }
+}

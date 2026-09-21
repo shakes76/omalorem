@@ -74,6 +74,11 @@ public:
     Q_INVOKABLE bool displayMathOpenAt(int position) const;
     // Replaces a range as one undo step (Ctrl+M, Ctrl+Shift+M).
     Q_INVOKABLE bool replaceTextAsOneEdit(int start, int end, const QString &text);
+    // Omalorem PDF export and print: Ctrl+Shift+P asks for a file name; the
+    // preview then flushes the text, renders and reports back.
+    Q_INVOKABLE void previewExportPdfDialog();
+    Q_INVOKABLE void previewFlushMarkdown();
+    Q_INVOKABLE void previewReportStatus(const QString &status);
     static int countWords(const QString &text);
     static QString normalizedLinkUrl(const QString &clipboardText);
     static QString suggestedFileName(const QString &text);
@@ -111,6 +116,8 @@ signals:
     void previewAvailableChanged();
     void previewVisibleChanged();
     void previewPlacementChanged();
+    void previewPrintRequested();
+    void previewPdfDialogRequested(const QUrl &suggestedUrl);
     void previewFontChanged();
     void closeAfterSave();
     void openDialogRequested();

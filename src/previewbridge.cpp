@@ -35,6 +35,7 @@ void PreviewBridge::setMarkdown(const QString &markdown) {
         return;
 
     m_markdown = markdown;
+    ++m_markdownRevision;
     emit markdownChanged();
 }
 
@@ -126,4 +127,12 @@ void PreviewBridge::openLink(const QString &url) {
     const QUrl target(url);
     if (isExternalLinkAllowed(target))
         emit externalLinkRequested(target);
+}
+
+void PreviewBridge::rendered(int revision) {
+    if (m_renderedRevision == revision)
+        return;
+
+    m_renderedRevision = revision;
+    emit renderedRevisionChanged();
 }

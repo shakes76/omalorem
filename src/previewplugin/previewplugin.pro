@@ -5,6 +5,8 @@ TEMPLATE = lib
 CONFIG += plugin c++17 release
 TARGET = omalorempreviewplugin
 QT += qml quick webenginequick webchannel
+# PDF export and print (docs/SPEC.md §5.5).
+QT += pdf printsupport widgets
 
 INCLUDEPATH += $$PWD/..
 HEADERS += previewsandbox.h ../previewpolicy.h

@@ -332,7 +332,7 @@ ApplicationWindow {
         standardButtons: Dialog.Close
         anchors.centerIn: parent
         contentItem: Label {
-            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+M  Inline Math\nCtrl+Shift+M  Display Math\nCtrl+P  Print\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
+            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+M  Inline Math\nCtrl+Shift+M  Display Math\nCtrl+P  Print\nCtrl+Shift+P  Export PDF\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
             lineHeight: 1.5
         }
     }
@@ -1090,6 +1090,55 @@ ApplicationWindow {
             }
         }
 
+        // PDF export and print (docs/SPEC.md §5.5) go through the preview
+        // page, so the math is rendered. The preview window is loaded for
+        // them even while hidden; it then stays hidden, and stays loaded.
+        property var pendingOutput: null
+
+        function requestOutput(request) {
+            if (!backend.previewAvailable)
+                return;
+            if (previewWindowLoader.item) {
+                previewWindowLoader.item.produce(request);
+                return;
+            }
+            pendingOutput = request;
+            previewWindowLoader.forced = true;
+            previewWindowLoader.load();
+        }
+
+        Shortcut {
+            sequence: "Ctrl+Shift+P"
+            context: Qt.ApplicationShortcut
+            enabled: backend.previewAvailable
+            onActivated: backend.previewExportPdfDialog()
+        }
+
+        Dialogs.FileDialog {
+            id: pdfFileDialog
+            objectName: "pdfFileDialog"
+            title: "Export PDF"
+            fileMode: Dialogs.FileDialog.SaveFile
+            defaultSuffix: "pdf"
+            nameFilters: ["PDF files (*.pdf)", "All files (*)"]
+            onAccepted: previewIntegration.requestOutput({ kind: "pdf", url: selectedFile })
+        }
+
+        Connections {
+            target: backend
+            enabled: backend.previewAvailable
+
+            // Ctrl+P, through Backend::printDocument.
+            function onPreviewPrintRequested() {
+                previewIntegration.requestOutput({ kind: "print" });
+            }
+
+            function onPreviewPdfDialogRequested(suggestedUrl) {
+                pdfFileDialog.selectedFile = suggestedUrl;
+                pdfFileDialog.open();
+            }
+        }
+
         // Scroll sync (editor → preview): the source line at the top of the
         // editor's view, plus how far through it the view has scrolled. The
         // probe sits the editor's top margin below the view's top, which is
@@ -1138,11 +1187,20 @@ ApplicationWindow {
             id: previewWindowLoader
 
             readonly property bool wanted: backend.previewAvailable && backend.previewVisible
+            // Set when PDF export or print needs the page with the preview hidden.
+            property bool forced: false
             property bool editorShown: false
 
             function load() {
-                if (wanted && editorShown && status === Loader.Null)
+                if ((wanted || forced) && editorShown && status === Loader.Null)
                     setSource("PreviewHost.qml", { editorWindow: win });
+            }
+
+            onLoaded: {
+                if (previewIntegration.pendingOutput) {
+                    item.produce(previewIntegration.pendingOutput);
+                    previewIntegration.pendingOutput = null;
+                }
             }
 
             onWantedChanged: {

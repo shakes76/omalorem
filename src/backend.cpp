@@ -282,6 +282,12 @@ void Backend::printDocument() {
         setStatus(QStringLiteral("There is no document to print."));
         return;
     }
+    // Omalorem preview: print the rendered preview, math included, when
+    // there is one (docs/SPEC.md §5.5). Without it, Omawrite's print below.
+    if (m_previewAvailable) {
+        emit previewPrintRequested();
+        return;
+    }
 
     QPrinter printer(QPrinter::HighResolution);
     QPrintDialog dialog(&printer);
@@ -951,4 +957,27 @@ bool Backend::replaceTextAsOneEdit(int start, int end, const QString &text) {
     cursor.insertText(text);
     cursor.endEditBlock();
     return true;
+}
+
+// --- Omalorem PDF export and print (docs/SPEC.md §5.5) ------------------------
+
+void Backend::previewExportPdfDialog() {
+    if (!m_previewAvailable)
+        return;
+
+    // Beside the document, named after it; for an unsaved document, where
+    // Save would suggest.
+    const QString markdownPath = suggestedSaveUrl().toLocalFile();
+    const QFileInfo info(markdownPath);
+    emit previewPdfDialogRequested(
+        QUrl::fromLocalFile(info.dir().filePath(info.completeBaseName() + QStringLiteral(".pdf"))));
+}
+
+// Output renders what the editor holds now, not what the debounce last sent.
+void Backend::previewFlushMarkdown() {
+    previewBridge()->setMarkdown(currentDocumentText());
+}
+
+void Backend::previewReportStatus(const QString &status) {
+    setStatus(status);
 }

@@ -362,7 +362,48 @@
         result.ms = performance.now() - started;
         stats.lastRender = result;
         stats.renders++;
+        acknowledge(bridge.markdownRevision);
     }
+
+    // Tells the bridge a revision is on the page once its fonts and images
+    // have loaded, which is what a PDF of it needs. An image that never
+    // answers holds this up for at most three seconds.
+    function acknowledge(revision) {
+        const images = [...document.images].filter((image) => !image.complete)
+            .map((image) => new Promise((resolve) => {
+                image.addEventListener("load", resolve, { once: true });
+                image.addEventListener("error", resolve, { once: true });
+            }));
+        const settled = Promise.all([document.fonts.ready, ...images]);
+        const timeout = new Promise((resolve) => setTimeout(resolve, 3000));
+        Promise.race([settled, timeout]).then(() => {
+            if (bridge && bridge.markdownRevision === revision)
+                bridge.rendered(revision);
+        });
+    }
+
+    // Print (spec 5.5). The page margins here and in preview.css's @page must
+    // match. A display formula wider than the printed column is scaled down
+    // to fit (--print-zoom, used only by the print stylesheet), since paper
+    // can't scroll. Proper handling of wide formulas is a future feature.
+    const printMarginMm = 20;
+    const printFontPx = 11 * 96 / 72;
+    stats.preparePrint = function (pageWidthMm) {
+        const columnPx = (pageWidthMm - 2 * printMarginMm) * 96 / 25.4;
+        const screenFontPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 20;
+        let scaled = 0;
+        for (const display of document.querySelectorAll("#content .katex-display")) {
+            const printedWidth = display.scrollWidth * printFontPx / screenFontPx;
+            const zoom = Math.min(1, columnPx / printedWidth);
+            if (zoom < 1) {
+                display.style.setProperty("--print-zoom", zoom.toFixed(4));
+                scaled++;
+            } else {
+                display.style.removeProperty("--print-zoom");
+            }
+        }
+        return scaled;
+    };
 
     function applyTheme() {
         const theme = bridge.theme || {};
