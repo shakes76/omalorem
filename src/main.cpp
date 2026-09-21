@@ -13,14 +13,14 @@
 #include "backend.h"
 #include "systemtheme.h"
 
-#ifndef OMAVIEW_NO_PREVIEW
+#ifndef OMALOREM_NO_PREVIEW
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #endif
 
 int main(int argc, char *argv[]) {
-#ifndef OMAVIEW_NO_PREVIEW
+#ifndef OMALOREM_NO_PREVIEW
     // QtWebEngine arrives later with the preview plugin, and needs OpenGL
     // context sharing set before the application exists. That is all
     // QtWebEngineQuick::initialize() does for us, and calling it would link
@@ -28,9 +28,9 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 #endif
     QApplication app(argc, argv);
-    app.setApplicationName(QStringLiteral("omaview"));
-    app.setDesktopFileName(QStringLiteral("omaview"));
-    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("omaview")));
+    app.setApplicationName(QStringLiteral("omalorem"));
+    app.setDesktopFileName(QStringLiteral("omalorem"));
+    app.setWindowIcon(QIcon::fromTheme(QStringLiteral("omalorem")));
 
     QFontDatabase::addApplicationFont(QStringLiteral(":/fonts/iAWriterMonoS-Regular.ttf"));
     QFontDatabase::addApplicationFont(QStringLiteral(":/fonts/iAWriterMonoS-Italic.ttf"));
@@ -74,14 +74,14 @@ int main(int argc, char *argv[]) {
             qWarning().noquote() << warning.toString();
     });
     engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
-#ifndef OMAVIEW_NO_PREVIEW
-    // The Omaview.Preview plugin sits beside the executable in a build tree,
-    // and in <prefix>/lib/omaview/qml when installed. Without it the editor
+#ifndef OMALOREM_NO_PREVIEW
+    // The Omalorem.Preview plugin sits beside the executable in a build tree,
+    // and in <prefix>/lib/omalorem/qml when installed. Without it the editor
     // runs as plain Omawrite: no footer button, and Ctrl+E does nothing.
     const QDir appDir(QCoreApplication::applicationDirPath());
     for (const QString &importPath : {appDir.absolutePath(),
-                                      appDir.absoluteFilePath(QStringLiteral("../lib/omaview/qml"))}) {
-        if (QFileInfo::exists(importPath + QStringLiteral("/Omaview/Preview/qmldir"))) {
+                                      appDir.absoluteFilePath(QStringLiteral("../lib/omalorem/qml"))}) {
+        if (QFileInfo::exists(importPath + QStringLiteral("/Omalorem/Preview/qmldir"))) {
             engine.addImportPath(importPath);
             backend.setPreviewAvailable(true);
             break;
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) {
 
     engine.load(QUrl(QStringLiteral("qrc:/Main.qml")));
     if (engine.rootObjects().isEmpty()) {
-        qCritical() << "Could not load the Omaview interface; resource available:"
+        qCritical() << "Could not load the Omalorem interface; resource available:"
                     << QFile::exists(QStringLiteral(":/Main.qml"));
         return -1;
     }

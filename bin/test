@@ -14,9 +14,9 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 "$QMAKE" "$ROOT/tests/tests.pro"
 make -j"$(nproc 2>/dev/null || echo 1)"
-QT_QPA_PLATFORM=offscreen ./tst_omaview
+QT_QPA_PLATFORM=offscreen ./tst_omalorem
 
-# --- Omaview preview --------------------------------------------------------
+# --- Omalorem preview --------------------------------------------------------
 JOBS="$(nproc 2>/dev/null || echo 1)"
 
 # The preview's render tests drive a real QtWebEngine view offscreen. They

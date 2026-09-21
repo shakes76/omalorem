@@ -47,10 +47,10 @@ Dialog {
         Label {
             width: parent.width
             text: root.deleted
-                ? "This file was removed outside Omaview. Keep your text as an unsaved document?"
+                ? "This file was removed outside Omalorem. Keep your text as an unsaved document?"
                 : (root.locallyModified
-                   ? "This file changed outside Omaview. Reloading will discard your changes."
-                   : "This file changed outside Omaview.")
+                   ? "This file changed outside Omalorem. Reloading will discard your changes."
+                   : "This file changed outside Omalorem.")
             color: root.textColor
             wrapMode: Text.Wrap
             font.family: "iA Writer Mono S"

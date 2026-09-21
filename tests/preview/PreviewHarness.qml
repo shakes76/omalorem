@@ -1,5 +1,5 @@
 import QtQuick
-import Omaview.Preview
+import Omalorem.Preview
 
 // A bare window around the real PreviewPane, driven by tst_preview.
 Window {

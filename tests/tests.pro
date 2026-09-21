@@ -1,11 +1,11 @@
 QT += core gui quick testlib
 CONFIG += testcase c++17
 TEMPLATE = app
-TARGET = tst_omaview
+TARGET = tst_omalorem
 
 INCLUDEPATH += ../src
 SOURCES += \
-    tst_omaview.cpp \
+    tst_omalorem.cpp \
     ../src/backend.cpp \
     ../src/markdownhighlighter.cpp
 HEADERS += \
@@ -14,6 +14,6 @@ HEADERS += \
 
 QT += widgets printsupport quickcontrols2 quickdialogs2 dbus
 
-# Omaview preview: the bridge has no WebEngine dependency.
+# Omalorem preview: the bridge has no WebEngine dependency.
 SOURCES += ../src/previewbridge.cpp
 HEADERS += ../src/previewbridge.h

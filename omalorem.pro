@@ -1,7 +1,7 @@
 QT += core gui widgets printsupport qml quick quickcontrols2 quickdialogs2 dbus
 
 CONFIG += c++17 release
-TARGET = omaview
+TARGET = omalorem
 TEMPLATE = app
 
 HEADERS += \
@@ -17,7 +17,7 @@ SOURCES += \
 
 RESOURCES += src/resources.qrc
 
-# --- Omaview preview --------------------------------------------------------
+# --- Omalorem preview --------------------------------------------------------
 HEADERS += src/previewbridge.h
 SOURCES += src/previewbridge.cpp
 
@@ -25,11 +25,11 @@ SOURCES += src/previewbridge.cpp
 # editor: no QtWebEngine, no WebChannel, no web assets. Useful for debugging
 # and for rebasing on upstream.
 no_preview {
-    DEFINES += OMAVIEW_NO_PREVIEW
+    DEFINES += OMALOREM_NO_PREVIEW
 } else {
     # The executable never links QtWebEngine: the preview is the
-    # Omaview.Preview QML plugin, loaded on first show (docs/SPEC.md §5.3).
-    # It is built here into Omaview/Preview beside the executable, which is
+    # Omalorem.Preview QML plugin, loaded on first show (docs/SPEC.md §5.3).
+    # It is built here into Omalorem/Preview beside the executable, which is
     # where main.cpp looks during development.
     HEADERS += src/previewpolicy.h
     RESOURCES += src/previewhost.qrc
@@ -38,7 +38,7 @@ no_preview {
         $(MKDIR) $$shell_quote($$OUT_PWD/preview-plugin) && \
         cd $$shell_quote($$OUT_PWD/preview-plugin) && \
         (test -f Makefile || $$QMAKE_QMAKE $$shell_quote($$PWD/src/previewplugin/previewplugin.pro) \
-            PREVIEW_DESTDIR=$$shell_quote($$OUT_PWD/Omaview/Preview)) && \
+            PREVIEW_DESTDIR=$$shell_quote($$OUT_PWD/Omalorem/Preview)) && \
         $(MAKE)
     previewplugin.depends = FORCE
     QMAKE_EXTRA_TARGETS += previewplugin

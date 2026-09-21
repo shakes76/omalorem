@@ -1,5 +1,5 @@
 <RCC>
-    <qresource prefix="/qt/qml/Omaview/Preview">
+    <qresource prefix="/qt/qml/Omalorem/Preview">
         <file alias="qmldir">qmldir</file>
         <file alias="PreviewWindow.qml">PreviewWindow.qml</file>
         <file alias="PreviewPane.qml">PreviewPane.qml</file>

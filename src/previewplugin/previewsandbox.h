@@ -28,7 +28,7 @@ private:
     QStringList m_blockedRequests;
 };
 
-// Serves omaview-doc: requests from the document's folder: image files only,
+// Serves omalorem-doc: requests from the document's folder: image files only,
 // and only if the file, with any symlinks resolved, is inside the folder.
 class PreviewDocumentSchemeHandler : public QWebEngineUrlSchemeHandler {
     Q_OBJECT
@@ -47,7 +47,7 @@ private:
     QPointer<QObject> m_bridge;
 };
 
-// QML singleton `PreviewSandbox` of the Omaview.Preview module. The profile
+// QML singleton `PreviewSandbox` of the Omalorem.Preview module. The profile
 // comes from a WebEngineProfilePrototype in PreviewPane.qml (a WebEngineProfile
 // declared in QML cannot take an interceptor, and Qt 6.9+ asks for prototypes
 // over profiles built directly); this adds the interceptor to it, and the

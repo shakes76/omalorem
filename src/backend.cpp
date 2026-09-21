@@ -765,7 +765,7 @@ void Backend::reapplyTypographyToChange() {
     m_formattingTypography = false;
 }
 
-// --- Omaview preview ------------------------------------------------------
+// --- Omalorem preview ------------------------------------------------------
 // Everything below is added for the preview. It hooks into the editor only
 // through Backend's existing signals and the QML block that calls
 // previewEditorTextChanged(), so no upstream function is changed.

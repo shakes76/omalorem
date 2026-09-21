@@ -1,6 +1,6 @@
 # Render and integration tests for the preview: a real QtWebEngine view,
 # offscreen. Like the application, the test binary does not link QtWebEngine;
-# it loads the Omaview.Preview plugin, built here into Omaview/Preview.
+# it loads the Omalorem.Preview plugin, built here into Omalorem/Preview.
 QT += core gui widgets printsupport qml quick quickcontrols2 quickdialogs2 dbus testlib
 CONFIG += testcase c++17
 TEMPLATE = app
@@ -25,7 +25,7 @@ previewplugin.commands = \
     $(MKDIR) $$shell_quote($$OUT_PWD/preview-plugin) && \
     cd $$shell_quote($$OUT_PWD/preview-plugin) && \
     (test -f Makefile || $$QMAKE_QMAKE $$shell_quote($$PWD/../../src/previewplugin/previewplugin.pro) \
-        PREVIEW_DESTDIR=$$shell_quote($$OUT_PWD/Omaview/Preview)) && \
+        PREVIEW_DESTDIR=$$shell_quote($$OUT_PWD/Omalorem/Preview)) && \
     $(MAKE)
 previewplugin.depends = FORCE
 QMAKE_EXTRA_TARGETS += previewplugin

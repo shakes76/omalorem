@@ -1,17 +1,21 @@
-# Omaview — Specification
+# Omalorem — Specification
 
-Status: Draft v0.6 · 2026-09-21
+Status: Draft v0.7 · 2026-09-21
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
 
-Omaview is Omawrite plus a live preview. You write Markdown in Omawrite's editor, and a
+*The name.* Omalorem was released as Omaview 0.1.0 (tag `omaview-v0.1.0`) and renamed
+straight after. The name comes from *lorem ipsum*, the standard placeholder text, because
+the project is meant as a small extension to Omawrite rather than a new app of its own.
+
+Omalorem is Omawrite plus a live preview. You write Markdown in Omawrite's editor, and a
 separate preview window shows it rendered, with LaTeX math typeset by KaTeX. It is meant
 for notes, papers and technical writing where you need to check that the equations are
 right while you write.
 
-Omaview keeps Omawrite's character: no toolbars, no sidebars, no settings dialog, a
-narrow typographic column, and theme and text size taken from the desktop. Omaview is
+Omalorem keeps Omawrite's character: no toolbars, no sidebars, no settings dialog, a
+narrow typographic column, and theme and text size taken from the desktop. Omalorem is
 designed first for **Omarchy**. By default the preview is its own top-level window, and
 Hyprland tiles it beside the editor, so the tiling window manager handles the layout
 rather than the app. A docked split layout is available for other desktops or for anyone
@@ -24,8 +28,10 @@ who prefers a single window.
    working exactly as it does upstream. The preview is added beside it. The fork should
    stay easy to rebase onto upstream Omawrite, and the preview easy to port to another
    editor. So changes to upstream files are **additive only**: new blocks, properties,
-   signals and files. No existing upstream line is modified, with one exception: the
-   `Ctrl+?` reference text (§4.2). Preview behaviour lives in the preview's own files and
+   signals and files. No existing upstream line is modified, with two exceptions: the
+   `Ctrl+?` reference text (§4.2), and the lines that carry the project's name, which
+   were renamed at the fork (Omawrite → Omaview) and again at the rename (Omaview →
+   Omalorem). Preview behaviour lives in the preview's own files and
    reaches the editor through the hooks those additive blocks expose.
 2. **Lightweight at rest.** Chromium (QtWebEngine) loads only the first time the preview
    is shown. If you never open the preview, startup time and memory stay the same as
@@ -82,7 +88,7 @@ as `preview/visible`, which defaults to `true`.
 side by side:
 
 ```
-┌──────────── notes.md - Omaview ───────────┐┌──────── Preview — notes.md - Omaview ─────┐
+┌──────────── notes.md - Omalorem ───────────┐┌──────── Preview — notes.md - Omalorem ─────┐
 │                                           ││                                           │
 │   # Heat equation                         ││   Heat equation                           │
 │                                           ││                                           │
@@ -98,7 +104,7 @@ side by side:
 
 - The preview is a separate top-level `Window`. It has **no transient parent**, because
   Hyprland floats transient windows, and tiling is the point. Its title is
-  `Preview — <fileName> - Omaview`, following the editor's title as it changes. Its
+  `Preview — <fileName> - Omalorem`, following the editor's title as it changes. Its
   background is `themeBackground` and it has no chrome of its own.
 - **Order of opening.** On startup, and whenever `Ctrl+E` shows the preview, the preview
   window opens after the editor window and the editor keeps keyboard focus. The code
@@ -110,7 +116,7 @@ side by side:
   affect the document or the unsaved-changes flow.
 - **Several documents.** `Ctrl+N` starts a new process, as upstream does. Each editor has
   its own preview window.
-- **Geometry.** Omaview does not save the preview window's size or position. Hyprland
+- **Geometry.** Omalorem does not save the preview window's size or position. Hyprland
   decides it when tiling. If the user floats the window, the compositor takes over.
 - **Shortcuts in the preview.** Every `Qt.ApplicationShortcut` defined in `Main.qml`
   (save, open, print, find, `Ctrl+E`, and so on) already fires while the preview window
@@ -128,7 +134,7 @@ side by side:
 **Docked.** This is for desktops without tiling, or for a single-window workflow:
 
 ```
-┌─────────────────────────────── Omaview ───────────────────────────────┐
+┌─────────────────────────────── Omalorem ───────────────────────────────┐
 │   # Heat equation                 │   Heat equation                   │
 │   …                               │   …                               │
 │  [save][open][◨] status            ┆                         42 Words │
@@ -168,7 +174,7 @@ All of these are added to the `Ctrl+?` reference dialog and to the README.
 - **The font matches the editor by default.** Prose uses **iA Writer Mono S**, the font
   the editor already bundles.
 - **Proportional option.** `Ctrl+Shift+T` switches prose to **iA Writer Quattro S**, the
-  proportional version of the same family. It has the same OFL licence, and Omaview
+  proportional version of the same family. It has the same OFL licence, and Omalorem
   bundles Regular, Italic, Bold and BoldItalic as woff2, in the preview plugin only. The
   choice is saved in `preview/font` (`mono` by default, or `quattro`). It applies
   straight away and doesn't touch the editor font. Code spans and fenced code always
@@ -214,7 +220,7 @@ All of these are added to the `Ctrl+?` reference dialog and to the README.
   - The placeholder's tooltip says why the image isn't shown.
   - Chromium refuses `file:` URLs to a page loaded from `qrc:`, even when access to local
     files is enabled. So document images are served through a custom URL scheme,
-    `omaview-doc:/<path in folder>`, and the page rewrites relative and in-folder `file:`
+    `omalorem-doc:/<path in folder>`, and the page rewrites relative and in-folder `file:`
     `src`s to it. The plugin registers the scheme as it loads (before any profile
     exists) as a secure, path-syntax scheme. It is not `LocalScheme`, because Chromium
     doesn't count `qrc:` as local and would lock the page out. Its
@@ -261,18 +267,18 @@ scroll sync. Keep it in mind if JS parsing ever becomes a bottleneck.
 |---|---|---|
 | `PreviewBridge` (`src/previewbridge.{h,cpp}`) | `QObject`, registered on a `QWebChannel` | Properties: `markdown`, `baseUrl` (document folder as `file://…/`), `theme` (`QVariantMap`: bg, fg, accent, selection, muted, dark), `textScale`, `fontFamily` (`mono` or `quattro`), `sourceLine` (a `qreal`: line plus fraction, for sync). Invokables called from the page: `openLink(url)`, `ready()`. Owns the debounce timer. There is **one bridge per editor**, shared by whichever placement is active. |
 | `Backend` | existing | Keeps its current API. Additions: a `previewBridge` property, `previewPlacement`, `previewVisible` and `previewFont` (all saved to `QSettings`), `previewLineAt(position)` for scroll sync, and feeding text, theme, scale and font into the bridge. The `editorTextChanged()` path already knows when content has really changed, and that is what triggers the bridge. |
-| `PreviewPane.qml` (`src/previewplugin/`) | plugin QML file | Wraps the `WebEngineView`: transparent background, `settings.javascriptCanOpenWindows: false`, `localContentCanAccessFileUrls: false` (images come through `omaview-doc:`), `localContentCanAccessRemoteUrls: false`, a `WebChannel` with `propertyUpdateInterval: 16` so scroll sync keeps up with the editor, `onNavigationRequested` blocks everything except the initial qrc load, and `onNewWindowRequested` sends the URL to `openLink`. It knows nothing about which placement it is in. |
-| `PreviewWindow.qml` (`src/previewplugin/`) | plugin QML file | A top-level `Window` (no `transientParent`) containing a `PreviewPane`. It owns the title, background and close-to-hide behaviour, and moves focus to the editor when find opens. It does not repeat the application-wide `Shortcut`s (see §4.1). It is created by a `Loader` in `Main.qml`, through `src/PreviewHost.qml`, whose `import Omaview.Preview` is what loads the plugin. |
-| `Omaview.Preview` plugin (`src/previewplugin/`) | QML plugin module (`previewplugin.pro`, `qmldir`, plugin class, qrc) | Holds everything that depends on QtWebEngine. Built by an extra make target in `omaview.pro` into `build/Omaview/Preview/`. `main.cpp` adds its import path and turns the preview on only if its `qmldir` exists; without it, Omaview runs as plain Omawrite. |
+| `PreviewPane.qml` (`src/previewplugin/`) | plugin QML file | Wraps the `WebEngineView`: transparent background, `settings.javascriptCanOpenWindows: false`, `localContentCanAccessFileUrls: false` (images come through `omalorem-doc:`), `localContentCanAccessRemoteUrls: false`, a `WebChannel` with `propertyUpdateInterval: 16` so scroll sync keeps up with the editor, `onNavigationRequested` blocks everything except the initial qrc load, and `onNewWindowRequested` sends the URL to `openLink`. It knows nothing about which placement it is in. |
+| `PreviewWindow.qml` (`src/previewplugin/`) | plugin QML file | A top-level `Window` (no `transientParent`) containing a `PreviewPane`. It owns the title, background and close-to-hide behaviour, and moves focus to the editor when find opens. It does not repeat the application-wide `Shortcut`s (see §4.1). It is created by a `Loader` in `Main.qml`, through `src/PreviewHost.qml`, whose `import Omalorem.Preview` is what loads the plugin. |
+| `Omalorem.Preview` plugin (`src/previewplugin/`) | QML plugin module (`previewplugin.pro`, `qmldir`, plugin class, qrc) | Holds everything that depends on QtWebEngine. Built by an extra make target in `omalorem.pro` into `build/Omalorem/Preview/`. `main.cpp` adds its import path and turns the preview on only if its `qmldir` exists; without it, Omalorem runs as plain Omawrite. |
 | Docked layout in `Main.qml` | QML | A `SplitView` around the existing editor `Flickable`, with a `Loader` for the second `PreviewPane`. When not docked, the `SplitView` contains only the editor, and the editor subtree is unchanged. |
 | `src/preview/index.html`, `preview.css`, `preview.js` | qrc assets in the plugin | Rendering, DOM patching, theme variables, font switching, scroll sync, link and image interception. |
 | `fonts/iAWriterQuattroS-*.woff2` | bundled fonts | Compiled into the preview plugin's qrc only and exposed to the page through `@font-face`. They are not registered with `QFontDatabase`, because the editor never uses them. Provenance is in `third_party/VERSIONS`. |
 | `third_party/` | vendored JS, CSS and fonts | `markdown-it`, `markdown-it-texmath`, `katex` (min.js, min.css, woff2 fonts only), `qwebchannel.js` (copied from Qt). Exact versions pinned in `third_party/VERSIONS`, with each licence alongside. |
-| `PreviewSandbox` and its interceptor (`src/previewplugin/previewsandbox.{h,cpp}`) | QML singleton, `QWebEngineUrlRequestInterceptor` and `QWebEngineUrlSchemeHandler`, in the plugin | `PreviewSandbox.protect()` attaches the interceptor and the `omaview-doc:` handler to the off-the-record profile that `PreviewPane` builds from a `WebEngineProfilePrototype` with no storage name. The URL policy itself is header-only (`src/previewpolicy.h`), so the plugin needs no symbols from the executable and the WebEngine-free tests can cover it. |
-| Interceptor policy (`src/previewpolicy.h`) | header-only C++ | Allows only `qrc:` and `omaview-doc:` URLs that map inside the document's folder (`previewDocumentPath`), and blocks everything else, `file:` included. This enforces principle 3. |
+| `PreviewSandbox` and its interceptor (`src/previewplugin/previewsandbox.{h,cpp}`) | QML singleton, `QWebEngineUrlRequestInterceptor` and `QWebEngineUrlSchemeHandler`, in the plugin | `PreviewSandbox.protect()` attaches the interceptor and the `omalorem-doc:` handler to the off-the-record profile that `PreviewPane` builds from a `WebEngineProfilePrototype` with no storage name. The URL policy itself is header-only (`src/previewpolicy.h`), so the plugin needs no symbols from the executable and the WebEngine-free tests can cover it. |
+| Interceptor policy (`src/previewpolicy.h`) | header-only C++ | Allows only `qrc:` and `omalorem-doc:` URLs that map inside the document's folder (`previewDocumentPath`), and blocks everything else, `file:` included. This enforces principle 3. |
 
 ### 5.3 Startup and placement lifecycle
-- **The `omaview` binary does not link QtWebEngine.** Just linking `libQt6WebEngineCore`
+- **The `omalorem` binary does not link QtWebEngine.** Just linking `libQt6WebEngineCore`
   costs about 90 ms on every launch, which breaks the startup target below. The preview
   (`PreviewSandbox`, `PreviewPane`, `PreviewWindow` and the request interceptor) is built
   as a QML plugin module that the `Loader` imports only when the preview is first shown,
@@ -343,7 +349,7 @@ As built in M2:
 
 ## 6. Build, packaging and desktop integration
 
-- `omaview.pro`: the executable does **not** add WebEngine to `QT` (§5.3). New sources
+- `omalorem.pro`: the executable does **not** add WebEngine to `QT` (§5.3). New sources
   are added on fresh `SOURCES +=` lines, so upstream lines stay untouched (principle 1).
   An extra make target builds the plugin (`src/previewplugin/previewplugin.pro`), which
   is where `webenginequick webchannel` live, plus `pdf` in M5. The plugin's qrc holds the
@@ -351,21 +357,21 @@ As built in M2:
 - `PKGBUILD` (M6):
   - add `qt6-webengine` and `qt6-webchannel` to `depends`;
   - in `package()`, also run `make -C build/preview-plugin install INSTALL_ROOT="$pkgdir"`.
-    That installs `/usr/lib/omaview/qml/Omaview/Preview/{libomaviewpreviewplugin.so,qmldir}`;
+    That installs `/usr/lib/omalorem/qml/Omalorem/Preview/{libomalorempreviewplugin.so,qmldir}`;
     qmake's `PREVIEW_INSTALL_DIR` overrides the path;
-  - keep the existing `install -Dm755 build/omaview …/usr/bin/omaview`. `main.cpp` finds
-    the plugin at `<bindir>/../lib/omaview/qml` (and first at `build/` for development).
+  - keep the existing `install -Dm755 build/omalorem …/usr/bin/omalorem`. `main.cpp` finds
+    the plugin at `<bindir>/../lib/omalorem/qml` (and first at `build/` for development).
 - `bin/build`, `bin/test` and `bin/install` keep their upstream lines (qmake6 + make).
   `bin/test` gains appended lines that build and run the `tests/preview/` target.
   `bin/build-no-preview` is new, and builds the `no_preview` variant into
   `build-no-preview/`.
 - The binary, desktop file, icon, `QSettings` app name and recovery directory are all
-  named `omaview`. Omaview and Omawrite can be installed together without clashing.
+  named `omalorem`. Omalorem and Omawrite can be installed together without clashing.
 - A qmake scope (`no_preview { … }`, enabled with `qmake6 CONFIG+=no_preview`) builds
   the editor without WebEngine or the plugin, for debugging and for rebasing on upstream.
 
 ### 6.1 Omarchy and Hyprland
-- On Wayland both windows share the app id `omaview`, which comes from
+- On Wayland both windows share the app id `omalorem`, which comes from
   `setDesktopFileName`. Window rules tell them apart by **title**: the preview title
   always starts with `Preview — `.
 - Out of the box nothing is configured: Hyprland tiles the preview next to the editor,
@@ -416,7 +422,7 @@ As built in M2:
 
 | # | Deliverable | Acceptance |
 |---|---|---|
-| M0 | Fork and rename *(done)* | Builds as `omaview`, 12/12 tests pass, upstream remote kept |
+| M0 | Fork and rename *(done)* | Built as `omaview`, 12/12 tests pass, upstream remote kept. Renamed to `omalorem` after the 0.1.0 release |
 | M1 | Pop-out preview window *(done)* | The preview opens as a separate tiled window by default and `Ctrl+E` shows and hides it, as does the footer preview button. Markdown and math render from qrc with no network. Theme and scale apply live. Chromium loads only when the preview is shown. Each update re-renders the whole of `#content` and keeps the scroll position; block-keyed patching comes in M2. The `no_preview` qmake scope builds and passes the inherited tests. |
 | M1.1 | Lazy WebEngine and an additive-only upstream diff *(done)* | The binary does not link QtWebEngine (`ldd`), and the preview loads as a QML plugin on first show. With the preview hidden, cold start is within 10% of the `no_preview` build. Upstream files differ from the fork point only by added lines (plus the `Ctrl+?` text). The spec in §4.1 and §5.2 matches how shortcuts actually behave. All tests pass. |
 | M2 | Fonts, incremental render and scroll sync *(done)* | Mono/Quattro switching (`Ctrl+Shift+T`). Block-keyed DOM patching. The performance budget is met. Editor→preview sync works. Links, images (served through the document-folder scheme) and escaped HTML behave as in 4.4. |
@@ -440,17 +446,18 @@ As built in M2:
 | 2026-09-21 | `PreviewWindow` does not repeat application shortcuts, because Qt treats duplicates as ambiguous. |
 | 2026-09-21 | Local images go through a custom document-folder URL scheme in M2, because Chromium blocks `file:` from `qrc:` pages. |
 | 2026-09-21 | `Ctrl+F` from the preview while find is already open leaves focus in the preview. Accepted, to keep the editor's find handlers untouched. |
-| 2026-09-21 | The preview's QtWebEngine code lives in the `Omaview.Preview` plugin under `src/previewplugin/`, and the plugin installs to `/usr/lib/omaview/qml`. |
+| 2026-09-21 | The preview's QtWebEngine code lives in the `Omalorem.Preview` plugin under `src/previewplugin/`, and the plugin installs to `/usr/lib/omalorem/qml`. |
 | 2026-09-21 | M2: Quattro S ships as woff2 in the plugin only, not registered with `QFontDatabase`. |
-| 2026-09-21 | M2: the resource policy drops `file:`; document images come only through `omaview-doc:`, which serves image files inside the folder with symlinks resolved. |
+| 2026-09-21 | M2: the resource policy drops `file:`; document images come only through `omalorem-doc:`, which serves image files inside the folder with symlinks resolved. |
+| 2026-09-21 | Released as Omaview 0.1.0 (tag `omaview-v0.1.0`), then renamed Omalorem, after *lorem ipsum* placeholder text: a small extension to Omawrite. Binary, desktop file, icon, settings, recovery directory, QML module (`Omalorem.Preview`), plugin install path (`/usr/lib/omalorem/qml`), logging categories and the `omalorem-doc:` scheme all follow the name. |
 | 2026-09-21 | M2: `sourceLine` is fractional, and the preview follows the editor until the reader scrolls the preview. |
 
 ## 10. Open questions
 
 1. **KaTeX macros:** read a `macros:` block from YAML front matter, or a
-   `~/.config/omaview/macros.tex` file?
+   `~/.config/omalorem/macros.tex` file?
 2. **Restoring the preview's workspace:** if the user moves the preview to another
-   workspace or monitor, should Omaview try to reopen it there next time? Hyprland has
+   workspace or monitor, should Omalorem try to reopen it there next time? Hyprland has
    no portable way to do this, so the current answer is no.
 3. **First-render target (§5.3, 600 ms).** Since M1.1 the WebEngine libraries load on
    first show, and offscreen (no GPU) the first render comes 732 ms after the editor's

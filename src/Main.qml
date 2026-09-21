@@ -13,7 +13,7 @@ ApplicationWindow {
     minimumWidth: 720
     minimumHeight: 520
     visible: true
-    title: (backend.modified ? "* " : "") + backend.fileName + " - Omaview"
+    title: (backend.modified ? "* " : "") + backend.fileName + " - Omalorem"
 
     readonly property bool darkMode: backend.darkMode
     readonly property color pageColor: backend.themeBackground
@@ -821,7 +821,7 @@ ApplicationWindow {
                 onClicked: backend.openDialog()
             }
 
-            // Omaview preview: shows or hides the preview window.
+            // Omalorem preview: shows or hides the preview window.
             FooterIconButton {
                 objectName: "previewButton"
                 visible: backend.previewAvailable
@@ -1010,7 +1010,7 @@ ApplicationWindow {
         }
     }
 
-    // --- Omaview preview ---------------------------------------------------
+    // --- Omalorem preview ---------------------------------------------------
     // Everything the preview needs from this window, in one additive block:
     // Ctrl+E, the text feed, and the preview window, loaded the first time
     // the preview is shown. The preview's own behaviour (find, F11, closing)

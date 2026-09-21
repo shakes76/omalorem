@@ -43,7 +43,7 @@ private slots:
                            m_settingsDirectory.path());
 
         // Nothing so far may have pulled in QtWebEngine: the test binary,
-        // like omaview, does not link it.
+        // like omalorem, does not link it.
         QVERIFY(!webEngineLoaded());
     }
 
@@ -75,7 +75,7 @@ private slots:
         QVERIFY2(m_harness, qPrintable(component.errorString()));
         QVERIFY(webEngineLoaded());
 
-        m_sandbox = m_engine->singletonInstance<QObject *>(QStringLiteral("Omaview.Preview"),
+        m_sandbox = m_engine->singletonInstance<QObject *>(QStringLiteral("Omalorem.Preview"),
                                                             QStringLiteral("PreviewSandbox"));
         QVERIFY(m_sandbox);
         QTRY_VERIFY(view());
@@ -301,7 +301,7 @@ private slots:
         QCOMPARE(js("document.querySelectorAll('#content .katex-error').length").toInt(), 0);
 
         // Mark the typeset nodes; they must survive edits elsewhere.
-        js("document.querySelectorAll('#content .katex').forEach(k => k.omaviewMark = true); true");
+        js("document.querySelectorAll('#content .katex').forEach(k => k.omaloremMark = true); true");
         QList<double> timings;
         QStringList lines = document.split(QLatin1Char('\n'));
         for (int edit = 1; edit <= 15; ++edit) {
@@ -316,7 +316,7 @@ private slots:
             timings.append(stats.value(QStringLiteral("ms")).toDouble());
         }
         QCOMPARE(js("[...document.querySelectorAll('#content .katex')]"
-                    ".filter(k => k.omaviewMark).length").toInt(), 200);
+                    ".filter(k => k.omaloremMark).length").toInt(), 200);
 
         // A line added at the top shifts every block's source line without
         // re-creating any of them.
@@ -326,7 +326,7 @@ private slots:
         QCOMPARE(js("document.querySelector('#content > h2').dataset.sourceLine").toString(),
                  QStringLiteral("1"));
         QCOMPARE(js("[...document.querySelectorAll('#content .katex')]"
-                    ".filter(k => k.omaviewMark).length").toInt(), 200);
+                    ".filter(k => k.omaloremMark).length").toInt(), 200);
 
         // The first update after loading also pays for one full relayout
         // once KaTeX's web fonts arrive, so it is reported on its own.
@@ -346,14 +346,14 @@ private slots:
     void showsOnlyDocumentFolderImages() {
         m_bridge->setDocumentUrl(fixtureUrl(QStringLiteral("remote.md")));
         QVERIFY(renderFixture(QStringLiteral("remote.md")));
-        // The image beside the document loads through omaview-doc:; the
+        // The image beside the document loads through omalorem-doc:; the
         // remote one and the one outside the folder are placeholders and
         // are never requested at all.
         QTRY_VERIFY(js("[...document.images].every(i => i.complete)").toBool());
         QCOMPARE(js("[...document.images].filter(i => i.naturalWidth > 0).map(i => i.alt)"
                     ".join(',')").toString(), QStringLiteral("local"));
         QCOMPARE(js("document.images[0].getAttribute('src')").toString(),
-                 QStringLiteral("omaview-doc:/pixel.png"));
+                 QStringLiteral("omalorem-doc:/pixel.png"));
         QCOMPARE(js("[...document.querySelectorAll('#content .image-placeholder')]"
                     ".map(p => p.textContent + ':' + p.title).join('|')").toString(),
                  QStringLiteral("remote:Remote images are not shown|"
@@ -385,7 +385,7 @@ private slots:
         const QStringList targets{QStringLiteral("https://example.com/"),
                                   QStringLiteral("file:///etc/hosts"),
                                   local.toString(),
-                                  QStringLiteral("omaview-doc:/pixel.png")};
+                                  QStringLiteral("omalorem-doc:/pixel.png")};
         for (const QString &target : targets) {
             QSignalSpy loadSpy(bareView.data(), SIGNAL(loadingChanged(QWebEngineLoadingInfo)));
             bareView->setProperty("url", QUrl(target));
@@ -481,10 +481,10 @@ private slots:
         QQuickWindow *preview = previewWindow();
         QTRY_VERIFY(preview->isVisible());
         QCOMPARE(preview->transientParent(), nullptr);
-        QCOMPARE(preview->title(), QStringLiteral("Preview — Untitled.md - Omaview"));
+        QCOMPARE(preview->title(), QStringLiteral("Preview — Untitled.md - Omalorem"));
 
         editor.backend->open(fixtureUrl(QStringLiteral("math-valid.md")));
-        QCOMPARE(preview->title(), QStringLiteral("Preview — math-valid.md - Omaview"));
+        QCOMPARE(preview->title(), QStringLiteral("Preview — math-valid.md - Omalorem"));
         QTRY_VERIFY_WITH_TIMEOUT(editor.backend->previewBridge()->pageReady(), 20000);
 
         // Ctrl+E works with focus in the preview window, and hides it.
@@ -685,7 +685,7 @@ private:
     }
 
     QVariantMap lastRender() {
-        return js("window.omaviewPreview.lastRender").toMap();
+        return js("window.omaloremPreview.lastRender").toMap();
     }
 
     // The performance fixture from spec 5.4: 100 sections of 20 lines, each

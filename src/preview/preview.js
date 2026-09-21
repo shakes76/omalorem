@@ -105,7 +105,7 @@
     });
 
     // An image inside the document's folder (a relative path, or a file:
-    // URL) is served through omaview-doc:, which maps only to that folder.
+    // URL) is served through omalorem-doc:, which maps only to that folder.
     // Returns a reason instead when the image is not shown.
     function documentImage(source, baseUrl) {
         if (!baseUrl)
@@ -123,7 +123,7 @@
         const folder = new URL(baseUrl).pathname;
         if (url.host !== "" || !url.pathname.startsWith(folder) || url.pathname === folder)
             return { reason: "Only images in the document's folder are shown" };
-        return { src: "omaview-doc:/" + url.pathname.slice(folder.length) };
+        return { src: "omalorem-doc:/" + url.pathname.slice(folder.length) };
     }
 
     // markdown-it drops file: URLs outright, but spec 4.4 shows a file:
@@ -211,11 +211,11 @@
     function patch(container, blocks) {
         const unused = new Map();
         for (const node of container.children) {
-            const queue = unused.get(node.omaviewKey);
+            const queue = unused.get(node.omaloremKey);
             if (queue)
                 queue.push(node);
             else
-                unused.set(node.omaviewKey, [node]);
+                unused.set(node.omaloremKey, [node]);
         }
 
         const nodes = blocks.map((block) => {
@@ -227,7 +227,7 @@
         for (let i = 0, next = 0; i < nodes.length; i++) {
             if (nodes[i] === null) {
                 nodes[i] = created[next++];
-                nodes[i].omaviewKey = blocks[i].html;
+                nodes[i].omaloremKey = blocks[i].html;
             }
         }
 
@@ -258,7 +258,7 @@
     // Timing and counts of the last render, for the tests and the
     // performance budget in spec 5.4.
     const stats = { lastRender: null, renders: 0 };
-    window.omaviewPreview = stats;
+    window.omaloremPreview = stats;
 
     // Scroll sync (editor → preview). The page-y of a fractional source
     // line: inside a block, the same fraction of the way through its lines;

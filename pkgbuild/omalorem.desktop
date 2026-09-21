@@ -1,12 +1,12 @@
 [Desktop Entry]
 Type=Application
-Name=Omaview
+Name=Omalorem
 GenericName=Markdown Writer & Previewer
 Comment=Distraction-free Markdown writing with a live math preview
-Exec=omaview %f
-Icon=omaview
+Exec=omalorem %f
+Icon=omalorem
 Terminal=false
 Categories=Office;WordProcessor;TextEditor;
 MimeType=text/markdown;text/x-markdown;text/plain;
 Keywords=markdown;write;notes;text;editor;
-StartupWMClass=omaview
+StartupWMClass=omalorem

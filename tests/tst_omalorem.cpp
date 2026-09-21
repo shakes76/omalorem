@@ -11,7 +11,7 @@
 #include "previewbridge.h"
 #include "previewpolicy.h"
 
-class OmaviewTest : public QObject {
+class OmaloremTest : public QObject {
     Q_OBJECT
 
 private slots:
@@ -433,19 +433,19 @@ private slots:
 
     void allowsOnlyBundledAndDocumentResources() {
         PreviewBridge bridge;
-        const QUrl image(QStringLiteral("omaview-doc:/figures/plot.png"));
+        const QUrl image(QStringLiteral("omalorem-doc:/figures/plot.png"));
         QVERIFY(bridge.isResourceAllowed(QUrl(QStringLiteral("qrc:/preview/index.html"))));
         QVERIFY(!bridge.isResourceAllowed(image));
 
         bridge.setDocumentUrl(QUrl::fromLocalFile(QStringLiteral("/notes/heat.md")));
         QVERIFY(bridge.isResourceAllowed(image));
-        QVERIFY(bridge.isResourceAllowed(QUrl(QStringLiteral("omaview-doc:/a%20b.png"))));
-        QVERIFY(bridge.isResourceAllowed(QUrl(QStringLiteral("OMAVIEW-DOC:/x.png"))));
-        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("omaview-doc:/"))));
-        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("omaview-doc:/../etc/passwd"))));
-        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("omaview-doc:/%2e%2e/etc/passwd"))));
-        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("omaview-doc:/..%2Fetc/passwd"))));
-        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("omaview-doc://host/x.png"))));
+        QVERIFY(bridge.isResourceAllowed(QUrl(QStringLiteral("omalorem-doc:/a%20b.png"))));
+        QVERIFY(bridge.isResourceAllowed(QUrl(QStringLiteral("OMALOREM-DOC:/x.png"))));
+        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("omalorem-doc:/"))));
+        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("omalorem-doc:/../etc/passwd"))));
+        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("omalorem-doc:/%2e%2e/etc/passwd"))));
+        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("omalorem-doc:/..%2Fetc/passwd"))));
+        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("omalorem-doc://host/x.png"))));
         // Local files never load directly, not even the document's own.
         QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("file:///notes/figures/plot.png"))));
         QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("file:///etc/passwd"))));
@@ -456,15 +456,15 @@ private slots:
 
     void mapsDocumentSchemeIntoFolder() {
         const QString base = QStringLiteral("file:///notes/a b/");
-        QCOMPARE(previewDocumentPath(QUrl(QStringLiteral("omaview-doc:/fig/plot.png")), base),
+        QCOMPARE(previewDocumentPath(QUrl(QStringLiteral("omalorem-doc:/fig/plot.png")), base),
                  QStringLiteral("/notes/a b/fig/plot.png"));
-        QCOMPARE(previewDocumentPath(QUrl(QStringLiteral("omaview-doc:/x%20y.png")), base),
+        QCOMPARE(previewDocumentPath(QUrl(QStringLiteral("omalorem-doc:/x%20y.png")), base),
                  QStringLiteral("/notes/a b/x y.png"));
-        QCOMPARE(previewDocumentPath(QUrl(QStringLiteral("omaview-doc:/fig/../x.png")), base),
+        QCOMPARE(previewDocumentPath(QUrl(QStringLiteral("omalorem-doc:/fig/../x.png")), base),
                  QStringLiteral("/notes/a b/x.png"));
-        QCOMPARE(previewDocumentPath(QUrl(QStringLiteral("omaview-doc:/../a b2/x.png")), base),
+        QCOMPARE(previewDocumentPath(QUrl(QStringLiteral("omalorem-doc:/../a b2/x.png")), base),
                  QString());
-        QCOMPARE(previewDocumentPath(QUrl(QStringLiteral("omaview-doc:/x.png")), QString()),
+        QCOMPARE(previewDocumentPath(QUrl(QStringLiteral("omalorem-doc:/x.png")), QString()),
                  QString());
         QCOMPARE(previewDocumentPath(QUrl(QStringLiteral("file:///notes/a b/x.png")), base),
                  QString());
@@ -563,5 +563,5 @@ private:
     QTemporaryDir m_settingsDirectory;
 };
 
-QTEST_MAIN(OmaviewTest)
-#include "tst_omaview.moc"
+QTEST_MAIN(OmaloremTest)
+#include "tst_omalorem.moc"

@@ -12,7 +12,7 @@
 
 #include "previewpolicy.h"
 
-Q_LOGGING_CATEGORY(previewSandboxLog, "omaview.preview.sandbox")
+Q_LOGGING_CATEGORY(previewSandboxLog, "omalorem.preview.sandbox")
 
 PreviewRequestInterceptor::PreviewRequestInterceptor(QObject *parent)
     : QWebEngineUrlRequestInterceptor(parent) {}

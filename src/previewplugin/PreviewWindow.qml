@@ -19,12 +19,12 @@ Window {
     // A Window declared inside another window's items would otherwise get
     // that window as its transient parent automatically.
     transientParent: null
-    title: "Preview — " + backend.fileName + " - Omaview"
+    title: "Preview — " + backend.fileName + " - Omalorem"
     color: backend.themeBackground
     visible: backend.previewVisible
 
     // A starting size only: a tiling compositor decides the real one, and
-    // Omaview never saves it.
+    // Omalorem never saves it.
     Component.onCompleted: {
         width = editorWindow.width;
         height = editorWindow.height;

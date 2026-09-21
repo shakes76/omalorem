@@ -3,10 +3,10 @@
 
 #include "previewsandbox.h"
 
-// The Omaview.Preview QML module. The editor imports it only when the preview
+// The Omalorem.Preview QML module. The editor imports it only when the preview
 // is first shown, and loading this plugin is what brings in QtWebEngine: the
-// omaview executable itself does not link it (docs/SPEC.md §5.3).
-class OmaviewPreviewPlugin : public QQmlExtensionPlugin {
+// omalorem executable itself does not link it (docs/SPEC.md §5.3).
+class OmaloremPreviewPlugin : public QQmlExtensionPlugin {
     Q_OBJECT
     Q_PLUGIN_METADATA(IID QQmlExtensionInterface_iid)
 

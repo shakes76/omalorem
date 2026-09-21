@@ -1,7 +1,9 @@
-# Omaview
+# Omalorem
 
 A fork of [Omawrite](https://github.com/omacom-io/omawrite) that adds a live preview pane
 with LaTeX math rendered by KaTeX, next to Omawrite's distraction-free editor.
+The name comes from *lorem ipsum*, the placeholder text: Omalorem is meant as a small
+extension to Omawrite, not an app of its own. It was first released as Omaview 0.1.0.
 It is a dead-simple Markdown writing app built with Qt Quick and C++ that
 automatically follows system dark/light mode.
 
@@ -16,7 +18,7 @@ automatically follows system dark/light mode.
 ## Install
 
 Build and install locally with `bin/install` (requires `makepkg`), or just build with
-`bin/build` and run `build/omaview`. Tests: `bin/test`.
+`bin/build` and run `build/omalorem`. Tests: `bin/test`.
 
 ## Shortcuts
 
@@ -26,7 +28,7 @@ Build and install locally with `bin/install` (requires `makepkg`), or just build
 - `Ctrl+P` opens the system print dialog.
 - `Ctrl+E` shows or hides the preview window. Closing the preview window only hides it.
 - `Ctrl+Shift+T` switches the preview's prose between iA Writer Mono S and the proportional iA Writer Quattro S. The editor keeps Mono.
-- `Ctrl+N` opens a new Omaview window.
+- `Ctrl+N` opens a new Omalorem window.
 - `Ctrl+Z`, `Ctrl+Shift+Z`, and `Ctrl+Y` handle undo and redo.
 - `Super+F` toggles fullscreen. Qt maps this key as `Meta+F`.
 - `Ctrl+F` searches the document. Use `Enter` or `Ctrl+G` for the next match and `Shift+Enter` for the previous match.
@@ -34,12 +36,12 @@ Build and install locally with `bin/install` (requires `makepkg`), or just build
 - `Ctrl+B`, `Ctrl+I`, and `Ctrl+K` insert bold, italic, and link Markdown.
 - `Ctrl+?` shows the keyboard shortcut reference.
 
-Unsaved drafts are recovered after an abnormal exit. Omaview also watches open files
+Unsaved drafts are recovered after an abnormal exit. Omalorem also watches open files
 and warns before an external change can replace local work.
 
 Text follows the desktop text size — `omarchy display text size`, or GNOME's
 `text-scaling-factor` — and re-flows without a restart. The default of 12px leaves
-Omaview at the size it is designed around; larger and smaller sizes scale from there.
+Omalorem at the size it is designed around; larger and smaller sizes scale from there.
 
 ## Requirements
 

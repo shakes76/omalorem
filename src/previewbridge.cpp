@@ -9,9 +9,9 @@
 #include "previewpolicy.h"
 
 
-// Off by default; QT_LOGGING_RULES="omaview.preview.info=true" shows when the
+// Off by default; QT_LOGGING_RULES="omalorem.preview.info=true" shows when the
 // page first renders, which is how the startup budget in spec 5.3 is measured.
-Q_LOGGING_CATEGORY(previewLog, "omaview.preview", QtWarningMsg)
+Q_LOGGING_CATEGORY(previewLog, "omalorem.preview", QtWarningMsg)
 
 PreviewBridge::PreviewBridge(QObject *parent) : QObject(parent) {
     m_debounceTimer.setSingleShot(true);
