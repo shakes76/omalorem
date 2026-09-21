@@ -20,7 +20,7 @@ the gap should be fixed or raised.
 | M3 Docked placement | **Next** | Profile lifetime needs a decision first (§6). See §7 |
 | M4 Editor math support | Not started | |
 | M5 PDF export and print | Not started | |
-| M6 Packaging and Omarchy docs | Not started | PKGBUILD steps are already written in SPEC §6 |
+| M6 Packaging and Omarchy docs | Started | The PKGBUILD installs the preview plugin and depends on qt6-webengine and qt6-webchannel (SPEC §6). `docs/omarchy.md` and an icon variant are still to do |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
