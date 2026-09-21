@@ -2,7 +2,9 @@
 set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-BUILD_DIR="$ROOT/build"
+# BUILD_DIR and extra qmake arguments let a variant build sit beside the
+# default one, e.g. BUILD_DIR=build-no-preview bin/build CONFIG+=no_preview
+BUILD_DIR="${BUILD_DIR:-$ROOT/build}"
 
 if command -v qmake6 >/dev/null 2>&1; then
   QMAKE=qmake6
@@ -18,7 +20,7 @@ JOBS="$(nproc 2>/dev/null || echo 1)"
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
-"$QMAKE" "$ROOT/omaview.pro"
+"$QMAKE" "$ROOT/omaview.pro" "$@"
 make -j"$JOBS"
 
 echo "Built $BUILD_DIR/omaview"

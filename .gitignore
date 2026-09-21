@@ -1,5 +1,7 @@
 /build/
 /build-tests/
+/build-no-preview/
+/build-preview-tests/
 /pkg/
 /pkgbuild/pkg/
 /pkgbuild/src/

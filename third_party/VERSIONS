@@ -1,0 +1,35 @@
+# Vendored web assets for the preview. They are compiled into the binary
+# through src/preview.qrc; nothing is fetched at build or run time.
+#
+# To update: fetch the exact version into a scratch directory with npm, copy
+# only the files listed here, update the version and sha256 below, and keep
+# the licence next to the files. Never commit node_modules or package.json.
+
+markdown-it 14.3.2
+  source:  https://www.npmjs.com/package/markdown-it/v/14.3.2
+  files:   markdown-it/markdown-it.min.js (dist UMD build)
+  sha256:  e32488403e2e565ac12a9669bfdf2b1b876eb0a5c84f8e0699884b562d18eb52
+  licence: MIT, markdown-it/LICENSE
+  bundles: linkify-it ^5.0.2, mdurl ^2.0.0, uc.micro ^2.1.0 (MIT),
+           entities ^4.5.0 (BSD-2-Clause), punycode.js ^2.3.1 (MIT);
+           licences in markdown-it/bundled-licenses/
+
+markdown-it-texmath 1.0.0
+  source:  https://www.npmjs.com/package/markdown-it-texmath/v/1.0.0
+  files:   markdown-it-texmath/texmath.js
+  sha256:  926e075a1745e1019813b8418b90183feea0c7b3782c85dceb4f246da999edc6
+  licence: MIT, markdown-it-texmath/LICENSE
+
+katex 0.16.47
+  source:  https://www.npmjs.com/package/katex/v/0.16.47
+  files:   katex/katex.min.js, katex/katex.min.css, katex/fonts/*.woff2 (20 files)
+  sha256:  katex.min.js  a29d2961d3146de5949d78ac7c1a9d93ae54955bad22a6db4fbe836e88e8bf48
+           katex.min.css 0289a02cf451a44dd73add683a09644252363871ac11713a647b732cee8b1ee3
+  licence: MIT, katex/LICENSE
+
+qwebchannel.js (Qt WebChannel 6.11.2)
+  source:  /usr/share/qt6/webchannel/qwebchannel.js from Arch qt6-webchannel 6.11.2-1
+  files:   qwebchannel/qwebchannel.js
+  sha256:  bb21d1663083c3fefed95b895282d095aaa1f57f7697c0170ea79ffd205421b2
+  licence: LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only (Qt), used under LGPL-3.0;
+           qwebchannel/LICENSE.LGPL-3.0 and qwebchannel/LICENSE.GPL-3.0
