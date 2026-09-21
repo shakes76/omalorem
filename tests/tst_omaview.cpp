@@ -393,6 +393,25 @@ private slots:
         QCOMPARE(linkSpy.at(0).constFirst().toUrl(), QUrl(QStringLiteral("https://example.com/a")));
     }
 
+    void allowsOnlyBundledAndDocumentResources() {
+        PreviewBridge bridge;
+        const QUrl image(QStringLiteral("file:///notes/figures/plot.png"));
+        QVERIFY(bridge.isResourceAllowed(QUrl(QStringLiteral("qrc:/preview/index.html"))));
+        QVERIFY(!bridge.isResourceAllowed(image));
+
+        bridge.setDocumentUrl(QUrl::fromLocalFile(QStringLiteral("/notes/heat.md")));
+        QVERIFY(bridge.isResourceAllowed(image));
+        QVERIFY(bridge.isResourceAllowed(QUrl(QStringLiteral("file:///notes/a%20b.png"))));
+        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("file:///notes/"))));
+        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("file:///notes-other/x.png"))));
+        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("file:///notes/../etc/passwd"))));
+        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("file:///etc/passwd"))));
+        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("file://host/notes/x.png"))));
+        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("https://example.com/x.png"))));
+        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("data:image/png;base64,AAAA"))));
+        QVERIFY(!bridge.isResourceAllowed(QUrl(QStringLiteral("javascript:alert(1)"))));
+    }
+
     void storesPreviewSettings() {
         QSettings settings;
         settings.remove(QStringLiteral("preview"));

@@ -1,5 +1,6 @@
 #include "previewbridge.h"
 
+#include <QDir>
 #include <QFileInfo>
 
 #include <utility>
@@ -90,6 +91,19 @@ void PreviewBridge::setSourceLine(int sourceLine) {
 // secondary text matches the editor's footer and placeholder.
 QString PreviewBridge::mutedColor(bool dark) {
     return dark ? QStringLiteral("#909191") : QStringLiteral("#aeb1b5");
+}
+
+bool PreviewBridge::isResourceAllowed(const QUrl &url) const {
+    const QString scheme = url.scheme().toLower();
+    if (scheme == QStringLiteral("qrc"))
+        return true;
+    if (scheme != QStringLiteral("file") || m_baseUrl.isEmpty() || !url.host().isEmpty())
+        return false;
+
+    // Compare cleaned paths so `..` segments cannot climb out of the folder.
+    const QString folder = QUrl(m_baseUrl).toLocalFile();
+    const QString path = QDir::cleanPath(url.toLocalFile());
+    return path.startsWith(folder) && path.size() > folder.size();
 }
 
 void PreviewBridge::ready() {

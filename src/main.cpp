@@ -13,7 +13,18 @@
 #include "backend.h"
 #include "systemtheme.h"
 
+#ifndef OMAVIEW_NO_PREVIEW
+#include <QtWebEngineQuick/qtwebenginequickglobal.h>
+
+#include "previewsandbox.h"
+#endif
+
 int main(int argc, char *argv[]) {
+#ifndef OMAVIEW_NO_PREVIEW
+    // Qt requires this before the application object exists. It only sets up
+    // context sharing; Chromium itself starts when the first view is created.
+    QtWebEngineQuick::initialize();
+#endif
     QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("omaview"));
     app.setDesktopFileName(QStringLiteral("omaview"));
@@ -54,6 +65,10 @@ int main(int argc, char *argv[]) {
         backend.setTextScale(textScale);
     });
 
+#ifndef OMAVIEW_NO_PREVIEW
+    // Declared before the engine so the views are destroyed before their profile.
+    PreviewSandbox previewSandbox(backend.previewBridge());
+#endif
     QQmlApplicationEngine engine;
     QObject::connect(&engine, &QQmlApplicationEngine::warnings, &app,
                      [](const QList<QQmlError> &warnings) {
@@ -61,6 +76,10 @@ int main(int argc, char *argv[]) {
             qWarning().noquote() << warning.toString();
     });
     engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+#ifndef OMAVIEW_NO_PREVIEW
+    engine.rootContext()->setContextProperty(QStringLiteral("previewSandbox"), &previewSandbox);
+    backend.setPreviewAvailable(true);
+#endif
 
     engine.load(QUrl(QStringLiteral("qrc:/Main.qml")));
     if (engine.rootObjects().isEmpty()) {
