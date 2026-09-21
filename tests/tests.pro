@@ -7,9 +7,11 @@ INCLUDEPATH += ../src
 SOURCES += \
     tst_omaview.cpp \
     ../src/backend.cpp \
-    ../src/markdownhighlighter.cpp
+    ../src/markdownhighlighter.cpp \
+    ../src/previewbridge.cpp
 HEADERS += \
     ../src/backend.h \
-    ../src/markdownhighlighter.h
+    ../src/markdownhighlighter.h \
+    ../src/previewbridge.h
 
 QT += widgets printsupport quickcontrols2 quickdialogs2 dbus

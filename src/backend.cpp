@@ -35,6 +35,10 @@
 
 constexpr qreal typoraLineHeightPercent = 140;
 const QString lastSaveDirectorySetting = QStringLiteral("file/lastSaveDirectory");
+const QString previewVisibleSetting = QStringLiteral("preview/visible");
+const QString previewPlacementSetting = QStringLiteral("preview/placement");
+const QString windowPlacement = QStringLiteral("window");
+const QString dockedPlacement = QStringLiteral("docked");
 
 QString Backend::normalizedLinkUrl(const QString &clipboardText) {
     QString candidate = clipboardText.trimmed();
@@ -117,6 +121,19 @@ Backend::Backend(QObject *parent) : QObject(parent) {
                 emit externalChangeDetected(deleted, m_modified);
             });
 
+    // Created before the theme loads, so the first palette reaches the page.
+    m_previewBridge = new PreviewBridge(this);
+    m_previewBridge->setTextScale(m_textScale);
+    connect(m_previewBridge, &PreviewBridge::externalLinkRequested, this,
+            &Backend::openExternalUrl);
+    connect(this, &Backend::themeColorsChanged, this, &Backend::updatePreviewTheme);
+    connect(this, &Backend::darkModeChanged, this, &Backend::updatePreviewTheme);
+
+    const QSettings settings;
+    m_previewVisible = settings.value(previewVisibleSetting, true).toBool();
+    const QString placement = settings.value(previewPlacementSetting).toString();
+    m_previewPlacement = placement == dockedPlacement ? dockedPlacement : windowPlacement;
+
     loadOmarchyTheme();
     watchOmarchyTheme();
     connect(&m_themeWatcher, &QFileSystemWatcher::fileChanged, this, [this]() {
@@ -163,7 +180,37 @@ void Backend::setTextScale(qreal textScale) {
         return;
 
     m_textScale = textScale;
+    m_previewBridge->setTextScale(textScale);
     emit textScaleChanged();
+}
+
+void Backend::setPreviewAvailable(bool available) {
+    if (m_previewAvailable == available)
+        return;
+
+    m_previewAvailable = available;
+    emit previewAvailableChanged();
+}
+
+void Backend::setPreviewVisible(bool visible) {
+    if (m_previewVisible == visible)
+        return;
+
+    m_previewVisible = visible;
+    QSettings().setValue(previewVisibleSetting, visible);
+    emit previewVisibleChanged();
+}
+
+// Only stored for now; the docked placement arrives in M3.
+void Backend::setPreviewPlacement(const QString &placement) {
+    if (placement != windowPlacement && placement != dockedPlacement)
+        return;
+    if (m_previewPlacement == placement)
+        return;
+
+    m_previewPlacement = placement;
+    QSettings().setValue(previewPlacementSetting, placement);
+    emit previewPlacementChanged();
 }
 
 void Backend::attachDocument(QObject *textDocument) {
@@ -355,6 +402,7 @@ bool Backend::editorTextChanged() {
     }
 
     scheduleWordCount();
+    m_previewBridge->scheduleMarkdown(text);
     setModified(true);
     setStatus(QStringLiteral("Unsaved"));
     scheduleRecovery();
@@ -395,10 +443,14 @@ void Backend::setSearchHighlight(const QString &query, int currentMatchStart) {
         m_highlighter->setSearch(query, currentMatchStart);
 }
 
-void Backend::openExternalUrl(const QUrl &url) {
+bool Backend::isExternalUrlAllowed(const QUrl &url) {
     const QString scheme = url.scheme().toLower();
-    if (scheme == QStringLiteral("http") || scheme == QStringLiteral("https")
-            || scheme == QStringLiteral("mailto"))
+    return scheme == QStringLiteral("http") || scheme == QStringLiteral("https")
+        || scheme == QStringLiteral("mailto");
+}
+
+void Backend::openExternalUrl(const QUrl &url) {
+    if (isExternalUrlAllowed(url))
         QDesktopServices::openUrl(url);
 }
 
@@ -432,6 +484,7 @@ void Backend::loadDocumentText(const QString &text) {
     m_document->setPlainText(text);
     m_lastDocumentText = text;
     m_loading = false;
+    m_previewBridge->setMarkdown(text);
 
     applyDocumentTypography();
     m_wordCountTimer.stop();
@@ -443,6 +496,7 @@ void Backend::setFileUrl(const QUrl &url) {
         return;
 
     m_fileUrl = url;
+    m_previewBridge->setDocumentUrl(url);
     emit fileUrlChanged();
     watchCurrentFile();
 }
@@ -642,6 +696,11 @@ void Backend::loadOmarchyTheme() {
     }
 
     emit themeColorsChanged();
+}
+
+void Backend::updatePreviewTheme() {
+    m_previewBridge->setTheme(m_themeBackground, m_themeForeground, m_themeAccent,
+                              m_themeSelection, m_darkMode);
 }
 
 void Backend::watchOmarchyTheme() {

@@ -10,6 +10,8 @@
 #include <QVariantList>
 #include <memory>
 
+#include "previewbridge.h"
+
 class MarkdownHighlighter;
 class QTextDocument;
 class QWindow;
@@ -28,6 +30,10 @@ class Backend : public QObject {
     Q_PROPERTY(QString themeForeground READ themeForeground NOTIFY themeColorsChanged)
     Q_PROPERTY(QString themeAccent READ themeAccent NOTIFY themeColorsChanged)
     Q_PROPERTY(QString themeSelection READ themeSelection NOTIFY themeColorsChanged)
+    Q_PROPERTY(PreviewBridge *previewBridge READ previewBridge CONSTANT)
+    Q_PROPERTY(bool previewAvailable READ previewAvailable NOTIFY previewAvailableChanged)
+    Q_PROPERTY(bool previewVisible READ previewVisible WRITE setPreviewVisible NOTIFY previewVisibleChanged)
+    Q_PROPERTY(QString previewPlacement READ previewPlacement WRITE setPreviewPlacement NOTIFY previewPlacementChanged)
 
 public:
     explicit Backend(QObject *parent = nullptr);
@@ -49,6 +55,14 @@ public:
     QString themeForeground() const { return m_themeForeground; }
     QString themeAccent() const { return m_themeAccent; }
     QString themeSelection() const { return m_themeSelection; }
+    PreviewBridge *previewBridge() const { return m_previewBridge; }
+    bool previewAvailable() const { return m_previewAvailable; }
+    void setPreviewAvailable(bool available);
+    bool previewVisible() const { return m_previewVisible; }
+    void setPreviewVisible(bool visible);
+    QString previewPlacement() const { return m_previewPlacement; }
+    void setPreviewPlacement(const QString &placement);
+    static bool isExternalUrlAllowed(const QUrl &url);
     static int countWords(const QString &text);
     static QString normalizedLinkUrl(const QString &clipboardText);
     static QString suggestedFileName(const QString &text);
@@ -83,6 +97,9 @@ signals:
     void darkModeChanged();
     void textScaleChanged();
     void themeColorsChanged();
+    void previewAvailableChanged();
+    void previewVisibleChanged();
+    void previewPlacementChanged();
     void closeAfterSave();
     void openDialogRequested();
     void saveDialogRequested(const QUrl &suggestedUrl);
@@ -110,6 +127,7 @@ private:
     void watchCurrentFile();
     void loadOmarchyTheme();
     void watchOmarchyTheme();
+    void updatePreviewTheme();
 
     QUrl m_fileUrl;
     bool m_modified = false;
@@ -140,4 +158,9 @@ private:
     QString m_themeAccent;
     QString m_themeSelection;
     QFileSystemWatcher m_themeWatcher;
+
+    PreviewBridge *m_previewBridge = nullptr;
+    bool m_previewAvailable = false;
+    bool m_previewVisible = true;
+    QString m_previewPlacement;
 };

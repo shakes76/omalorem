@@ -7,6 +7,7 @@
 
 #include "backend.h"
 #include "markdownhighlighter.h"
+#include "previewbridge.h"
 
 class OmaviewTest : public QObject {
     Q_OBJECT
@@ -244,6 +245,190 @@ private slots:
         fallbackDocument.saveAsDialog();
         const QUrl fallbackUrl = fallbackDialogSpy.takeFirst().constFirst().toUrl();
         QCOMPARE(QFileInfo(fallbackUrl.toLocalFile()).absolutePath(), QDir::homePath());
+    }
+
+    void debouncesPreviewMarkdown() {
+        PreviewBridge bridge;
+        QSignalSpy markdownSpy(&bridge, &PreviewBridge::markdownChanged);
+
+        bridge.scheduleMarkdown(QStringLiteral("a"));
+        bridge.scheduleMarkdown(QStringLiteral("ab"));
+        bridge.scheduleMarkdown(QStringLiteral("abc"));
+        QCOMPARE(markdownSpy.count(), 0);
+        QTRY_COMPARE(markdownSpy.count(), 1);
+        QCOMPARE(bridge.markdown(), QStringLiteral("abc"));
+
+        // Opening a file renders at once and drops any keystrokes still pending.
+        bridge.scheduleMarkdown(QStringLiteral("typed"));
+        bridge.setMarkdown(QStringLiteral("opened"));
+        QCOMPARE(markdownSpy.count(), 2);
+        QTest::qWait(PreviewBridge::debounceInterval * 2);
+        QCOMPARE(markdownSpy.count(), 2);
+        QCOMPARE(bridge.markdown(), QStringLiteral("opened"));
+    }
+
+    void feedsEditorTextToPreview() {
+        QQmlEngine engine;
+        QQmlComponent component(&engine);
+        component.setData("import QtQuick\nTextEdit {}", QUrl());
+        QScopedPointer<QObject> editor(component.create());
+        QVERIFY2(editor, qPrintable(component.errorString()));
+
+        Backend backend;
+        backend.attachDocument(editor->property("textDocument").value<QObject *>());
+        PreviewBridge *bridge = backend.previewBridge();
+        QVERIFY(bridge);
+        QSignalSpy markdownSpy(bridge, &PreviewBridge::markdownChanged);
+
+        editor->setProperty("text", QStringLiteral("$x^2$"));
+        QVERIFY(backend.editorTextChanged());
+        editor->setProperty("text", QStringLiteral("$x^3$"));
+        QVERIFY(backend.editorTextChanged());
+        QCOMPARE(markdownSpy.count(), 0);
+        QTRY_COMPARE(markdownSpy.count(), 1);
+        QCOMPARE(bridge->markdown(), QStringLiteral("$x^3$"));
+
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("opened.md"));
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write("# Opened\n");
+        file.close();
+        backend.open(QUrl::fromLocalFile(path));
+        QCOMPARE(markdownSpy.count(), 2);
+        QCOMPARE(bridge->markdown(), QStringLiteral("# Opened\n"));
+    }
+
+    void updatesPreviewThemeFromOmarchy() {
+        QTemporaryDir homeDirectory;
+        QVERIFY(homeDirectory.isValid());
+
+        const QByteArray originalHome = qgetenv("HOME");
+        struct HomeRestorer {
+            QByteArray value;
+            ~HomeRestorer() { qputenv("HOME", value); }
+        } restoreHome{originalHome};
+        QVERIFY(qputenv("HOME", homeDirectory.path().toUtf8()));
+
+        const QString themeDirectory = homeDirectory.path()
+            + QStringLiteral("/.local/state/omarchy/current/theme");
+        QVERIFY(QDir().mkpath(themeDirectory));
+        const auto writeColors = [&](const QByteArray &palette) {
+            QFile colorsFile(themeDirectory + QStringLiteral("/colors.toml"));
+            QVERIFY(colorsFile.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            QCOMPARE(colorsFile.write(palette), qint64(palette.size()));
+        };
+        writeColors("mode = \"dark\"\n"
+                    "accent = \"#abcdef\"\n"
+                    "selection = \"#123456\"\n"
+                    "background = \"#0a0b0c\"\n"
+                    "foreground = \"#f0f1f2\"\n");
+
+        Backend backend;
+        const QVariantMap dark = backend.previewBridge()->theme();
+        QCOMPARE(dark.value(QStringLiteral("bg")).toString(), QStringLiteral("#0a0b0c"));
+        QCOMPARE(dark.value(QStringLiteral("fg")).toString(), QStringLiteral("#f0f1f2"));
+        QCOMPARE(dark.value(QStringLiteral("accent")).toString(), QStringLiteral("#abcdef"));
+        QCOMPARE(dark.value(QStringLiteral("selection")).toString(), QStringLiteral("#123456"));
+        QCOMPARE(dark.value(QStringLiteral("muted")).toString(), QStringLiteral("#909191"));
+        QCOMPARE(dark.value(QStringLiteral("dark")).toBool(), true);
+
+        QSignalSpy themeSpy(backend.previewBridge(), &PreviewBridge::themeChanged);
+        writeColors("mode = \"light\"\n"
+                    "accent = \"#112233\"\n"
+                    "selection = \"#445566\"\n"
+                    "background = \"#fefefe\"\n"
+                    "foreground = \"#101010\"\n");
+        QTRY_VERIFY(backend.previewBridge()->theme().value(QStringLiteral("bg"))
+                    == QStringLiteral("#fefefe"));
+        QVERIFY(themeSpy.count() >= 1);
+        const QVariantMap light = backend.previewBridge()->theme();
+        QCOMPARE(light.value(QStringLiteral("accent")).toString(), QStringLiteral("#112233"));
+        QCOMPARE(light.value(QStringLiteral("muted")).toString(), QStringLiteral("#aeb1b5"));
+        QCOMPARE(light.value(QStringLiteral("dark")).toBool(), false);
+
+        backend.setTextScale(1.5);
+        QCOMPARE(backend.previewBridge()->textScale(), 1.5);
+    }
+
+    void pointsPreviewAtDocumentFolder() {
+        PreviewBridge bridge;
+        QCOMPARE(bridge.baseUrl(), QString());
+
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("saved.md"));
+        Backend backend;
+        QCOMPARE(backend.previewBridge()->baseUrl(), QString());
+        backend.saveAs(QUrl::fromLocalFile(path));
+        const QString baseUrl = backend.previewBridge()->baseUrl();
+        QVERIFY(baseUrl.startsWith(QStringLiteral("file:///")));
+        QVERIFY(baseUrl.endsWith(QLatin1Char('/')));
+        QCOMPARE(QUrl(baseUrl).toLocalFile(),
+                 QDir(directory.path()).absolutePath() + QLatin1Char('/'));
+
+        bridge.setDocumentUrl(QUrl::fromLocalFile(QStringLiteral("/tmp/a b/c.md")));
+        QCOMPARE(bridge.baseUrl(), QStringLiteral("file:///tmp/a b/"));
+        bridge.setDocumentUrl(QUrl());
+        QCOMPARE(bridge.baseUrl(), QString());
+    }
+
+    void filtersPreviewLinks() {
+        PreviewBridge bridge;
+        QSignalSpy linkSpy(&bridge, &PreviewBridge::externalLinkRequested);
+
+        bridge.openLink(QStringLiteral("javascript:alert(1)"));
+        bridge.openLink(QStringLiteral("JavaScript:alert(1)"));
+        bridge.openLink(QStringLiteral("file:///etc/passwd"));
+        bridge.openLink(QStringLiteral("qrc:/preview/index.html"));
+        bridge.openLink(QStringLiteral("data:text/html,<b>x</b>"));
+        bridge.openLink(QStringLiteral("relative/page.md"));
+        QCOMPARE(linkSpy.count(), 0);
+
+        bridge.openLink(QStringLiteral("https://example.com/a"));
+        bridge.openLink(QStringLiteral("http://example.com"));
+        bridge.openLink(QStringLiteral("mailto:writer@example.com"));
+        QCOMPARE(linkSpy.count(), 3);
+        QCOMPARE(linkSpy.at(0).constFirst().toUrl(), QUrl(QStringLiteral("https://example.com/a")));
+    }
+
+    void storesPreviewSettings() {
+        QSettings settings;
+        settings.remove(QStringLiteral("preview"));
+
+        {
+            Backend backend;
+            QCOMPARE(backend.previewVisible(), true);
+            QCOMPARE(backend.previewPlacement(), QStringLiteral("window"));
+            QCOMPARE(backend.previewAvailable(), false);
+            QVERIFY(!settings.contains(QStringLiteral("preview/visible")));
+
+            QSignalSpy visibleSpy(&backend, &Backend::previewVisibleChanged);
+            backend.setPreviewVisible(false);
+            backend.setPreviewVisible(false);
+            QCOMPARE(visibleSpy.count(), 1);
+            backend.setPreviewPlacement(QStringLiteral("docked"));
+            backend.setPreviewPlacement(QStringLiteral("sideways"));
+            QCOMPARE(backend.previewPlacement(), QStringLiteral("docked"));
+        }
+
+        settings.sync();
+        QCOMPARE(settings.value(QStringLiteral("preview/visible")).toBool(), false);
+        QCOMPARE(settings.value(QStringLiteral("preview/placement")).toString(),
+                 QStringLiteral("docked"));
+        {
+            Backend backend;
+            QCOMPARE(backend.previewVisible(), false);
+            QCOMPARE(backend.previewPlacement(), QStringLiteral("docked"));
+        }
+
+        settings.setValue(QStringLiteral("preview/placement"), QStringLiteral("bogus"));
+        {
+            Backend backend;
+            QCOMPARE(backend.previewPlacement(), QStringLiteral("window"));
+        }
+        settings.remove(QStringLiteral("preview"));
     }
 
 private:
