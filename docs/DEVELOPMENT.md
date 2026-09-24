@@ -21,7 +21,7 @@ the gap should be fixed or raised.
 | M3 Docked placement | Deferred | Moved to SPEC §11, future features. Omalorem targets Omarchy and tiling window managers only |
 | M4 Editor math support | Done | Commits `71ce263`, `e0ab290`. See §8 |
 | M5 PDF export and print | Done | Commits `c04b2a4`…`59b2344`. Print goes through the desktop's print portal. See §8 |
-| M6 Packaging and Omarchy docs | **Next**, started | The PKGBUILD installs the preview plugin and depends on qt6-webengine and qt6-webchannel (SPEC §6). `docs/omarchy.md` and an icon variant are still to do |
+| M6 Packaging and Omarchy docs | Done, bar the release | Branch `m6-packaging`: `docs/omarchy.md`, the icon, keywords, `pkgver` 0.2.0. Left: `bin/install` end to end, and the `omalorem-v0.2.0` tag |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -48,7 +48,7 @@ Tests: `bin/test` passes both targets. `tst_omalorem` has 30 passed. `tst_previe
 
 These come from the spec and from decisions made with the project owner. Don't break them without a spec change.
 
-1. **Additive-only upstream diff (SPEC §2, principle 1).** Files that came from upstream Omawrite may only gain lines. No existing upstream line is modified or deleted. The exceptions are the `Ctrl+?` reference text in `src/Main.qml` and the lines that carry the project's name (renamed at the fork, and again from Omaview to Omalorem). Preview behaviour lives in the preview's own files and reaches the editor through additive hooks: new properties, functions, blocks and signals. The reason is to keep upstream rebases clean and keep the preview portable to another editor. `README.md` counts as the fork's own file, like `docs/`: it describes Omalorem, so it is rewritten as needed. It still keeps upstream's shortcut and requirement lines word for word, to keep rebases small. Check with the audit in §5.
+1. **Additive-only upstream diff (SPEC §2, principle 1).** Files that came from upstream Omawrite may only gain lines. `README.md` and `pkgbuild/` are the fork's own, like `docs/`: they carry Omalorem's identity, so they are rewritten as needed and left out of the audit. No existing upstream line is modified or deleted. The exceptions are the `Ctrl+?` reference text in `src/Main.qml` and the lines that carry the project's name (renamed at the fork, and again from Omaview to Omalorem). Preview behaviour lives in the preview's own files and reaches the editor through additive hooks: new properties, functions, blocks and signals. The reason is to keep upstream rebases clean and keep the preview portable to another editor. The README still keeps upstream's shortcut and requirement lines word for word, to keep rebases small. Check with the audit in §5.
 2. **Nothing costs anything until it's used.** WebEngine code belongs only in the `Omalorem.Preview` plugin (`src/previewplugin/`), never in the executable. Don't call `QtWebEngineQuick::initialize()` from `main.cpp`: that links WebEngine and cost +26% cold start in M1.
 3. **Offline and sandboxed.** All web assets are vendored in `third_party/` (fonts in `fonts/`) and compiled in through qrc. Follow the update procedure in `third_party/VERSIONS`, and never commit `node_modules` or `package.json`. The request interceptor allows only `qrc:` and `omalorem-doc:` inside the document's folder; `file:` is always refused.
 4. **Match the code style.** Use `QStringLiteral`, `Q_PROPERTY` with NOTIFY, the `m_` prefix, 4-space indents and C++17. In QML, sizes go through `win.scaledSize()` and colours come from `backend.theme*`. Comments explain *why*.
@@ -140,7 +140,7 @@ ldd build/omalorem | grep -iE 'webengine|webchannel'          # expect no output
 # files (omaview.pro, tst_omaview.cpp, pkgbuild/omaview.*): the .pro and the
 # test file have more than doubled since the fork, so git's default 50% misses
 # them. Lines carrying the old name belong to the rename and are filtered out.
-git diff -M20% eb6bd1a HEAD -- . ':!docs' ':!third_party' ':!README.md' \
+git diff -M20% eb6bd1a HEAD -- . ':!docs' ':!third_party' ':!README.md' ':!pkgbuild' \
   | grep -E '^-[^-]' | grep -vi omaview                       # expect only the old Ctrl+? text line
 # To confirm the filtered lines changed only the name: swap omaview for
 # omalorem (all three cases) in each one; each must then appear as an added
@@ -184,13 +184,11 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: M6, packaging and Omarchy docs
+## 7. Next: the 0.2.0 release, then whatever users ask for
 
-The PKGBUILD already installs the preview plugin and its dependencies. What's left, from SPEC §6 and §8:
-- `docs/omarchy.md`: optional Hyprland snippets (no initial focus for the preview window, and where it opens), and a launcher entry. Write them in the current Hyprland syntax, and never apply them automatically.
-- An icon variant for Omalorem, and a desktop file review. `desktop-file-validate` passes; it suggests adding `Utility` to the categories.
-- `pkgver` and a release: tag `omalorem-v…` once M6 is in, because upstream's `v*` tags are in this repository.
-- Check that `bin/install` works end to end on a clean system.
+M6 is done bar the release itself:
+- Run `bin/install` end to end (it needs a password for pacman), then tag `omalorem-v0.2.0` and push the tag.
+- After that there is no milestone left. SPEC §11 holds the future features (docked placement, wide formulas in print, page options), and §10 the open questions. §6 lists what still wants checking by hand on Hyprland.
 
 ## 8. History
 
@@ -308,3 +306,17 @@ Findings:
 
 ### Merged and pushed
 - M4 (`71ce263`, `e0ab290`), the black-preview fix (`c625da3`), and M5 with portal print (`c04b2a4`, `273dc75`, `59b2344`) are on `main` and pushed. The owner confirmed the black-preview fix and portal printing on Hyprland.
+
+### M6: Packaging and Omarchy docs
+| Part | What |
+|---|---|
+| `docs/omarchy.md` | What works without configuration, optional Lua snippets for Hyprland 0.56 on Omarchy 4, launcher entry and keybinding, themes and text size, and troubleshooting |
+| `pkgbuild/omalorem.svg` | A new icon: the same page as Omawrite's, with a square root in the accent blue. Checked at 256, 64 and 32 px |
+| `pkgbuild/omalorem.desktop` | Keywords gained latex, math, katex and preview |
+| `pkgbuild/PKGBUILD` | `pkgver` 0.2.0, the first release under the new name |
+
+Findings:
+- Omarchy 4 configures Hyprland in **Lua** (`~/.config/hypr/*.lua`), not `.conf`, and wraps window rules in `o.window(match, rules)`. The rule names come from Hyprland 0.56's Lua API (`/usr/share/hypr/stubs/hl.meta.lua`) and Omarchy's own examples in `/usr/share/omarchy/default/hypr/`; `no_initial_focus` is the one for "don't take focus when it opens".
+- Two things Omalorem relies on are already Omarchy defaults: portal windows float and centre (`xdg-desktop-portal-gtk`), and `misc.focus_on_activate = true` lets the editor keep the keyboard when the preview appears.
+- `desktop-file-validate` hints that `TextEditor` could be paired with `Utility`, but adding `Utility` makes it warn about two main categories, and the app could then appear twice in menus. Upstream's categories were kept.
+- The packaging files carry the app's identity and can't stay additive-only against Omawrite's, so `pkgbuild/` joined `README.md` as the fork's own (SPEC §9).

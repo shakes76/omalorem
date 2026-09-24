@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: Draft v1.0 · 2026-09-21
+Status: Draft v1.1 · 2026-09-25
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -444,12 +444,19 @@ As built in M4:
   always starts with `Preview — `.
 - Out of the box nothing is configured: Hyprland tiles the preview next to the editor,
   and it keeps Omarchy's gaps, borders and opacity.
-- `docs/omarchy.md` documents optional snippets for `~/.config/hypr/`. They are written
-  in the syntax of the current Hyprland release (check it with the `omarchy` skill),
-  never applied automatically:
-  - no initial focus for the preview window;
-  - opening the preview on the same workspace to the right;
-  - an Omarchy-style launcher entry.
+- `docs/omarchy.md` documents optional snippets for `~/.config/hypr/`, never applied
+  automatically. As written in M6, for Omarchy 4 and Hyprland 0.56:
+  - Omarchy configures Hyprland in **Lua**, so the snippets use its `o.window(match,
+    rules)` helper rather than `windowrule` lines.
+  - The snippets cover `no_initial_focus` for the preview, floating it at a fixed size,
+    keeping it out of screen shares, and floating portal dialogs for non-Omarchy
+    desktops.
+  - Two things need no configuration on Omarchy: it already floats and centres
+    `xdg-desktop-portal-gtk` windows (so the print and save dialogs behave), and its
+    `misc.focus_on_activate = true` is what lets the editor keep the keyboard when the
+    preview opens.
+  - It also covers the launcher entry, a keybinding, themes and text size, and what to
+    do if the preview misbehaves.
 - Test with Omarchy's default dwindle layout and with master layout.
 
 ## 7. Testing
@@ -496,7 +503,7 @@ As built in M4:
 | M3 | ~~Docked placement~~ *(deferred)* | Moved to the future features in §11. Omalorem targets Omarchy and tiling window managers only. The milestone numbers after it are kept. |
 | M4 | Editor math support *(done)* | Highlighter rule, `Ctrl+M` / `Ctrl+Shift+M`, and `$$`-aware smart return, each with tests. Working in `no_preview` builds too |
 | M5 | PDF export and print *(done)* | `Ctrl+Shift+P` and `Ctrl+P` produce output with the math rendered |
-| M6 | Packaging and Omarchy docs | PKGBUILD dependencies, desktop file, icon variant, README, `docs/omarchy.md`, `bin/install` works |
+| M6 | Packaging and Omarchy docs *(done, bar the release)* | PKGBUILD dependencies, desktop file, icon variant, README, `docs/omarchy.md`, `bin/install` works |
 
 ## 9. Decisions log
 
@@ -520,6 +527,8 @@ As built in M4:
 | 2026-09-21 | M2: `sourceLine` is fractional, and the preview follows the editor until the reader scrolls the preview. |
 | 2026-09-21 | M4: the editor math features work in every build, `no_preview` included. Emphasis markers inside math are neither hidden nor skipped by the caret. `Ctrl+M` and `Ctrl+Shift+M` are one undo step each. |
 | 2026-09-21 | M5: `Ctrl+P` reaches the preview through lines added to `Backend::printDocument()`. With the preview hidden, output comes from the hidden preview window, never a second pane. Page margins come from cloned body padding, because Qt's `printToPdf` has none. Wide formulas are scaled to fit for now (§11.2). Output stays simple: no headers, page numbers or link URLs (§11.3). |
+| 2026-09-25 | M6: `pkgbuild/` counts as the fork's own directory, like `README.md` and `docs/`. A renamed fork's packaging carries its own identity (icon, desktop entry, package name), so it can't stay additive-only against Omawrite's. |
+| 2026-09-25 | M6: the first release under the new name is 0.2.0, tagged `omalorem-v0.2.0`. Upstream's `v*` tags are in this repository, so Omalorem's carry the name. |
 | 2026-09-21 | M5: print goes through xdg-desktop-portal's Print interface when it's there. Its dialog opens at once, and it prints the PDF as vector output. Qt's `QPrintDialog` is the fallback, because it waited about 10 s on CUPS printer discovery. |
 | 2026-09-21 | Omalorem is for Omarchy and other tiling window managers only. The docked placement (old M3) moves to the future features (§11), for other users who may want it, because supporting non-tiling desktops adds complexity the project shouldn't carry. `Ctrl+Shift+E` stays unassigned. |
 

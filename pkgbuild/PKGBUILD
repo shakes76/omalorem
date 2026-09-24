@@ -2,7 +2,7 @@
 # Forked from omawrite by David Heinemeier Hansson <david@hey.com>
 
 pkgname=omalorem
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc='Distraction-free Markdown writer with a live KaTeX math preview, built with Qt Quick'
 arch=('x86_64')

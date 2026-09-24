@@ -87,6 +87,9 @@ entry, icon and settings.
 
 `bin/build-no-preview` builds the plain editor without the preview or QtWebEngine.
 
+On Omarchy, [`docs/omarchy.md`](docs/omarchy.md) covers what works out of the box, and
+optional Hyprland snippets for the preview window, the launcher and keybindings.
+
 ## Shortcuts
 
 - `Ctrl+S` saves. Unsaved documents use the XDG desktop portal file picker.

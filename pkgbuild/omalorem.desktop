@@ -8,5 +8,5 @@ Icon=omalorem
 Terminal=false
 Categories=Office;WordProcessor;TextEditor;
 MimeType=text/markdown;text/x-markdown;text/plain;
-Keywords=markdown;write;notes;text;editor;
+Keywords=markdown;write;notes;text;editor;latex;math;katex;preview;
 StartupWMClass=omalorem
