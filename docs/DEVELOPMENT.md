@@ -1,6 +1,6 @@
 # Omalorem — Development status
 
-Last updated: 2026-09-21 · Branch: `main` at `59b2344`, pushed to `origin` (github.com/shakes76/omalorem). Upstream Omawrite is the `upstream` remote. Release: `omaview-v0.1.0`, the last commit under the old name; the next release tag will be `omalorem-v…` (M6)
+Last updated: 2026-09-25 · Branch: `main` at `332ad1f`, pushed to `origin` (github.com/shakes76/omalorem). Upstream Omawrite is the `upstream` remote. Releases: `omalorem-v0.2.0` (current, at `332ad1f`) and `omaview-v0.1.0` (the last commit under the old name). Release tags carry the name, because upstream's `v…` tags are in this repository
 
 This is the working log for developers and coding agents. It records where the project
 stands, how the code is laid out, the rules every change must follow, and what was done
@@ -21,7 +21,8 @@ the gap should be fixed or raised.
 | M3 Docked placement | Deferred | Moved to SPEC §11, future features. Omalorem targets Omarchy and tiling window managers only |
 | M4 Editor math support | Done | Commits `71ce263`, `e0ab290`. See §8 |
 | M5 PDF export and print | Done | Commits `c04b2a4`…`59b2344`. Print goes through the desktop's print portal. See §8 |
-| M6 Packaging and Omarchy docs | Done, bar the release | Branch `m6-packaging`: `docs/omarchy.md`, the icon, keywords, `pkgver` 0.2.0. Left: `bin/install` end to end, and the `omalorem-v0.2.0` tag |
+| M6 Packaging and Omarchy docs | Done | Commit `332ad1f`: `docs/omarchy.md`, the icon, keywords, `pkgver` 0.2.0. See §8 |
+| Release 0.2.0 | Done | Tag `omalorem-v0.2.0` at `332ad1f`, pushed. `bin/install` confirmed working by the owner |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -176,7 +177,7 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
 - **Black preview after a workspace switch: fixed, and confirmed by the owner on Hyprland.** The view stayed black until the page painted again, for example on a scroll. The fix asks the page for a fresh frame: a two-frame opacity of 0.9999, which can't be seen. It does this when the preview window is exposed again (`PreviewExposeWatcher`) and whenever either window becomes active, retrying once after 150 ms. If it ever comes back, run with `QT_LOGGING_RULES="omalorem.preview.expose.debug=true"` to see which window events arrive.
 - **The portal print dialog has no parent window.** Qt has no portable way to name a Wayland parent to the portal, so the GTK dialog is its own window. Whether Hyprland tiles or floats it may want a window rule in `docs/omarchy.md` (M6).
 - **Omawrite's own `Ctrl+P` is still slow in `no_preview` builds.** It uses Qt's `QPrintDialog`, which waited about 10 s on CUPS printer discovery on the owner's machine. The portal path only applies with the preview.
-- **Confirmed by the owner on Hyprland:** the preview in everyday use; editor math; the black-preview fix; `Ctrl+P` through the portal, with its dialog opening at once.
+- **Confirmed by the owner on Hyprland:** the preview in everyday use; editor math; the black-preview fix; `Ctrl+P` through the portal, with its dialog opening at once; `bin/install` end to end, with the 0.2.0 package.
 - **Not yet checked by a human on Hyprland:**
   - fractional scaling at 1.25 and 1.5
   - the checklist in SPEC §7, repeated after each UI milestone
@@ -184,11 +185,14 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: the 0.2.0 release, then whatever users ask for
+## 7. Next: no milestone left
 
-M6 is done bar the release itself:
-- Run `bin/install` end to end (it needs a password for pacman), then tag `omalorem-v0.2.0` and push the tag.
-- After that there is no milestone left. SPEC §11 holds the future features (docked placement, wide formulas in print, page options), and §10 the open questions. §6 lists what still wants checking by hand on Hyprland.
+0.2.0 is released and every milestone is done (M3 aside, which moved to SPEC §11). What is open, in the order it is worth doing:
+- **Small checks on Hyprland** (§6): the first-render time with a GPU against the 600 ms target in SPEC §10 Q3; fractional scaling at 1.25 and 1.5; whether a replaced image file shows without reopening the document; and whether dragging the preview's scrollbar stops it following the editor.
+- **Future features, only if users ask** (SPEC §11): the docked placement, proper handling of wide formulas in print, and page options such as page numbers and link targets.
+- **Keeping up with upstream:** rebase onto Omawrite when it moves. The audit in §5 is what keeps that cheap.
+
+For a next release, bump `pkgver` in `pkgbuild/PKGBUILD`, then tag `omalorem-v<version>` and push the tag.
 
 ## 8. History
 
@@ -320,3 +324,7 @@ Findings:
 - Two things Omalorem relies on are already Omarchy defaults: portal windows float and centre (`xdg-desktop-portal-gtk`), and `misc.focus_on_activate = true` lets the editor keep the keyboard when the preview appears.
 - `desktop-file-validate` hints that `TextEditor` could be paired with `Utility`, but adding `Utility` makes it warn about two main categories, and the app could then appear twice in menus. Upstream's categories were kept.
 - The packaging files carry the app's identity and can't stay additive-only against Omawrite's, so `pkgbuild/` joined `README.md` as the fork's own (SPEC §9).
+
+### Release 0.2.0
+- `omalorem-v0.2.0` is an annotated tag on `332ad1f`, pushed. Its message is the release note: the rename, the packaged preview plugin, editor math, PDF export and printing through the print portal, the black-preview fix, the narrowed scope, and the Omarchy notes and icon.
+- The owner confirmed `bin/install` end to end with the 0.2.0 package.

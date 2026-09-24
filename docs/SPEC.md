@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: Draft v1.1 · 2026-09-25
+Status: v1.1 · 2026-09-25 · Everything in scope for v1 is released as 0.2.0
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -422,8 +422,9 @@ As built in M4:
   An extra make target builds the plugin (`src/previewplugin/previewplugin.pro`), which
   is where `webenginequick webchannel` live, plus `pdf` in M5. The plugin's qrc holds the
   web assets, and the Quattro fonts from M2.
-- `PKGBUILD` (M6):
-  - add `qt6-webengine` and `qt6-webchannel` to `depends`;
+- `PKGBUILD`, as built in M6:
+  - `qt6-webengine` and `qt6-webchannel` are appended to `depends` with `+=`, so
+    upstream's lines stay untouched;
   - in `package()`, also run `make -C build/preview-plugin install INSTALL_ROOT="$pkgdir"`.
     That installs `/usr/lib/omalorem/qml/Omalorem/Preview/{libomalorempreviewplugin.so,qmldir}`;
     qmake's `PREVIEW_INSTALL_DIR` overrides the path;
@@ -434,7 +435,14 @@ As built in M4:
   `bin/build-no-preview` is new, and builds the `no_preview` variant into
   `build-no-preview/`.
 - The binary, desktop file, icon, `QSettings` app name and recovery directory are all
-  named `omalorem`. Omalorem and Omawrite can be installed together without clashing.
+  named `omalorem`. Omalorem and Omawrite can be installed together without clashing:
+  the package holds only `usr/bin/omalorem`, `usr/lib/omalorem/qml/…`, the desktop entry,
+  the icon and the licences.
+- The icon is Omalorem's own from M6: Omawrite's page with a square root in the accent
+  blue. `pkgbuild/` counts as the fork's own directory (§9), because packaging carries
+  the app's identity.
+- Releases are tagged `omalorem-v<version>`, because upstream's `v…` tags are in this
+  repository. 0.2.0 is the first under the new name.
 - A qmake scope (`no_preview { … }`, enabled with `qmake6 CONFIG+=no_preview`) builds
   the editor without WebEngine or the plugin, for debugging and for rebasing on upstream.
 
@@ -494,6 +502,8 @@ As built in M4:
 
 ## 8. Milestones
 
+All of these are done, except M3, which moved to §11. Released as `omalorem-v0.2.0`.
+
 | # | Deliverable | Acceptance |
 |---|---|---|
 | M0 | Fork and rename *(done)* | Built as `omaview`, 12/12 tests pass, upstream remote kept. Renamed to `omalorem` after the 0.1.0 release |
@@ -503,7 +513,7 @@ As built in M4:
 | M3 | ~~Docked placement~~ *(deferred)* | Moved to the future features in §11. Omalorem targets Omarchy and tiling window managers only. The milestone numbers after it are kept. |
 | M4 | Editor math support *(done)* | Highlighter rule, `Ctrl+M` / `Ctrl+Shift+M`, and `$$`-aware smart return, each with tests. Working in `no_preview` builds too |
 | M5 | PDF export and print *(done)* | `Ctrl+Shift+P` and `Ctrl+P` produce output with the math rendered |
-| M6 | Packaging and Omarchy docs *(done, bar the release)* | PKGBUILD dependencies, desktop file, icon variant, README, `docs/omarchy.md`, `bin/install` works |
+| M6 | Packaging and Omarchy docs *(done)* | PKGBUILD dependencies, desktop file, icon variant, README, `docs/omarchy.md`, `bin/install` works |
 
 ## 9. Decisions log
 

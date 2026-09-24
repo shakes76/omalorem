@@ -61,12 +61,14 @@ u(x, t) = \frac{1}{\sqrt{4\pi\alpha t}} \int_{-\infty}^{\infty} e^{-\frac{(x-y)^
 $$
 ```
 
-> **Status:** 0.1.0. The preview window, the editor's math support, and PDF export and
-> printing are done. Still to come: packaging polish and Omarchy notes. Omalorem is made for
-> Omarchy and other tiling window managers; a docked single-window layout is only a
-> possible future feature. See [`docs/SPEC.md`](docs/SPEC.md) for the specification and
-> milestones, and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the development status,
-> code layout and project rules. Upstream Omawrite is tracked as the `upstream` remote.
+> **Status:** 0.2.0, the first release under the Omalorem name, and everything planned for
+> it is in: the preview window, math in the editor, PDF export and printing. Omalorem is
+> made for Omarchy and other tiling window managers; a docked single-window layout is only
+> a possible future feature. See [`docs/SPEC.md`](docs/SPEC.md) for the specification, its
+> future features and open questions, and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for
+> the development status, code layout and project rules. Upstream Omawrite is tracked as
+> the `upstream` remote, and releases are tagged `omalorem-v…`, since upstream's own `v…`
+> tags live in this repository too.
 
 The screenshots below show Omawrite's editor, which Omalorem keeps unchanged:
 
@@ -122,7 +124,10 @@ Omalorem at the size it is designed around; larger and smaller sizes scale from 
 ## Requirements
 
 - Qt 6: `qt6-base`, `qt6-declarative`, `qt6-quickcontrols2`
-- For the preview: `qt6-webengine` and `qt6-webchannel`
+- On Arch, Quick Controls ships inside `qt6-declarative`, so there is no separate
+  `qt6-quickcontrols2` package to install.
+- For the preview: `qt6-webengine` and `qt6-webchannel`, which also bring Qt PDF for
+  printing
 - `xdg-desktop-portal` and a portal backend
 
 ## Licences and credits
