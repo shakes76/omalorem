@@ -69,6 +69,9 @@ public:
     // page resolves nothing itself; this applies the rule and either asks the
     // editor to open the document or says why it won't.
     Q_INVOKABLE void openDocument(const QString &href);
+    // Scrolls the page to a heading, for notes.md#results. Called once the
+    // new document has rendered, so the heading exists.
+    Q_INVOKABLE void scrollTo(const QString &fragment);
     // The mouse's side buttons over the preview.
     Q_INVOKABLE void navigateBack();
     Q_INVOKABLE void navigateForward();
@@ -90,6 +93,7 @@ signals:
     void documentLinkRefused(const QString &reason);
     // -1 for back, +1 for forward.
     void historyNavigationRequested(int delta);
+    void scrollToRequested(const QString &fragment);
 
 private:
     QString m_markdown;

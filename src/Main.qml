@@ -332,7 +332,7 @@ ApplicationWindow {
         standardButtons: Dialog.Close
         anchors.centerIn: parent
         contentItem: Label {
-            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+M  Inline Math\nCtrl+Shift+M  Display Math\nCtrl+P  Print\nCtrl+Shift+P  Export PDF\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
+            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+M  Inline Math\nCtrl+Shift+M  Display Math\nCtrl+P  Print\nCtrl+Shift+P  Export PDF\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nAlt+Left / Alt+Right  Back / Forward\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
             lineHeight: 1.5
         }
     }
@@ -1016,6 +1016,56 @@ ApplicationWindow {
         }
     }
 
+    // --- Omalorem document history (docs/SPEC.md §4.5) -----------------------
+    // The documents visited in this window. Backend keeps the list; this block
+    // says when a document has opened, where the caret was before leaving one,
+    // and puts it back on the way back.
+    Item {
+        id: documentHistory
+        objectName: "documentHistory"
+
+        function go(delta) {
+            var target = backend.previewHistoryGo(delta, editor.cursorPosition);
+            if (String(target).length === 0) {
+                backend.previewReportStatus(delta < 0 ? "Nowhere to go back to."
+                                                      : "Nowhere to go forward to.");
+                return;
+            }
+            win.requestOpen(target);
+        }
+
+        Shortcut {
+            sequence: "Alt+Left"
+            context: Qt.ApplicationShortcut
+            onActivated: documentHistory.go(-1)
+        }
+
+        Shortcut {
+            sequence: "Alt+Right"
+            context: Qt.ApplicationShortcut
+            onActivated: documentHistory.go(1)
+        }
+
+        Connections {
+            target: backend
+
+            // A document has finished opening, whatever asked for it.
+            function onFileUrlChanged() {
+                backend.previewHistoryVisited();
+            }
+
+            // Ctrl+O and the footer button leave this document too.
+            function onOpenDialogRequested() {
+                backend.previewHistoryPrepare(editor.cursorPosition);
+            }
+
+            function onPreviewHistoryRestored(caret) {
+                editor.cursorPosition = Math.min(caret, editor.text.length);
+                editorFlick.ensureCursorVisible();
+            }
+        }
+    }
+
     // --- Omalorem editor math ------------------------------------------------
     // Ctrl+M and Ctrl+Shift+M (docs/SPEC.md §4.2). Editing shortcuts, like
     // Ctrl+B: they act in the editor window only, in every build, with or
@@ -1105,6 +1155,41 @@ ApplicationWindow {
             pendingOutput = request;
             previewWindowLoader.forced = true;
             previewWindowLoader.load();
+        }
+
+        // A link to another document in this folder (docs/SPEC.md §4.5).
+        // The fragment of notes.md#results is applied once that document has
+        // rendered, which the bridge's render revision announces.
+        property string pendingFragment: ""
+
+        Connections {
+            target: backend.previewAvailable ? backend.previewBridge : null
+
+            function onDocumentLinkRequested(url, fragment) {
+                if (url === backend.fileUrl) {
+                    backend.previewBridge.scrollTo(fragment);
+                    return;
+                }
+                backend.previewHistoryPrepare(editor.cursorPosition);
+                previewIntegration.pendingFragment = fragment;
+                win.requestOpen(url);
+            }
+
+            function onDocumentLinkRefused(reason) {
+                backend.previewReportStatus(reason);
+            }
+
+            function onHistoryNavigationRequested(delta) {
+                documentHistory.go(delta);
+            }
+
+            // The new document is on the page now.
+            function onRenderedRevisionChanged() {
+                if (previewIntegration.pendingFragment === "")
+                    return;
+                backend.previewBridge.scrollTo(previewIntegration.pendingFragment);
+                previewIntegration.pendingFragment = "";
+            }
         }
 
         Shortcut {

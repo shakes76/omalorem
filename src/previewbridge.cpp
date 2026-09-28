@@ -157,6 +157,11 @@ void PreviewBridge::openDocument(const QString &href) {
         QStringLiteral("Only Markdown files in this document's folder open here."));
 }
 
+void PreviewBridge::scrollTo(const QString &fragment) {
+    if (!fragment.isEmpty())
+        emit scrollToRequested(fragment);
+}
+
 void PreviewBridge::navigateBack() {
     emit historyNavigationRequested(-1);
 }

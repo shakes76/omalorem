@@ -1037,6 +1037,63 @@ private slots:
         QCOMPARE(steps, 19);
     }
 
+    // Alt+Left and Alt+Right walk the documents, in every build: this target
+    // has no preview at all.
+    void walksDocumentHistoryFromTheKeyboard() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto document = [&](const QString &name, const QByteArray &text) {
+            const QString path = directory.filePath(name);
+            QFile file(path);
+            file.open(QIODevice::WriteOnly);
+            file.write(text);
+            file.close();
+            return QUrl::fromLocalFile(path);
+        };
+        const QUrl first = document(QStringLiteral("first.md"), "# First\n\nSome prose here.\n");
+        const QUrl second = document(QStringLiteral("second.md"), "# Second\n");
+
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> root(component.create());
+        auto *window = qobject_cast<QQuickWindow *>(root.data());
+        QVERIFY(window);
+        window->requestActivate();
+        QVERIFY(QTest::qWaitForWindowActive(window));
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+
+        backend.open(first);
+        QCOMPARE(backend.fileUrl(), first);
+        QVERIFY(!backend.previewCanGoBack());
+        // Nowhere to go yet.
+        QTest::keyClick(window, Qt::Key_Left, Qt::AltModifier);
+        QCOMPARE(backend.status(), QStringLiteral("Nowhere to go back to."));
+        QCOMPARE(backend.fileUrl(), first);
+
+        // Leaving first.md with the caret in the prose.
+        editor->setProperty("cursorPosition", 12);
+        backend.previewHistoryPrepare(12);
+        backend.open(second);
+        QVERIFY(backend.previewCanGoBack());
+
+        QTest::keyClick(window, Qt::Key_Left, Qt::AltModifier);
+        QCOMPARE(backend.fileUrl(), first);
+        QCOMPARE(editor->property("cursorPosition").toInt(), 12);
+        QVERIFY(backend.previewCanGoForward());
+
+        QTest::keyClick(window, Qt::Key_Right, Qt::AltModifier);
+        QCOMPARE(backend.fileUrl(), second);
+        QVERIFY(!backend.previewCanGoForward());
+        QTest::keyClick(window, Qt::Key_Right, Qt::AltModifier);
+        QCOMPARE(backend.status(), QStringLiteral("Nowhere to go forward to."));
+    }
+
 private:
     QTemporaryDir m_settingsDirectory;
 };

@@ -507,6 +507,14 @@
             render();
             bridge.markdownChanged.connect(render);
             bridge.sourceLineChanged.connect(followEditor);
+            bridge.scrollToRequested.connect(function (fragment) {
+                const target = document.getElementById(decodeURIComponent(fragment));
+                if (!target)
+                    return;
+                // As with an anchor click: the reader asked for this spot.
+                stopFollowing();
+                target.scrollIntoView();
+            });
             bridge.baseUrlChanged.connect(render);
             bridge.themeChanged.connect(applyTheme);
             bridge.textScaleChanged.connect(applyTextScale);

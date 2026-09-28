@@ -46,6 +46,10 @@ Omalorem was first released as Omaview 0.1.0 (tag `omaview-v0.1.0`).
   text.
 - **Offline and sandboxed.** Everything the preview uses is compiled into the app. It
   never touches the network, raw HTML is shown as text, and links open in your browser.
+- **Links between your notes.** A link to another Markdown file in the document's folder
+  opens that file in the editor, and `notes.md#results` scrolls to that heading. Those
+  links carry a dotted underline, so they read differently from links that open your
+  browser. `Alt+Left` goes back.
 - **Math in the editor too.** Formulas are highlighted in the accent colour, and
   `Ctrl+M` and `Ctrl+Shift+M` insert inline and display math. These work even in the
   build without the preview.
@@ -109,6 +113,7 @@ optional Hyprland snippets for the preview window, the launcher and keybindings.
 - `Ctrl+H` opens find and replace.
 - `Ctrl+B`, `Ctrl+I`, and `Ctrl+K` insert bold, italic, and link Markdown.
 - `Ctrl+M` wraps the selection in inline math `$…$`, or inserts `$$` with the cursor between. `Ctrl+Shift+M` inserts a display math block on its own lines. Return inside an open `$$` block adds a plain newline.
+- `Alt+Left` and `Alt+Right` go back and forward through the documents you have opened in this window, putting the cursor back where you left it. The mouse's side buttons do the same over the preview.
 - `Ctrl+?` shows the keyboard shortcut reference.
 
 Every shortcut except the editing ones also works while the preview window has focus. Find

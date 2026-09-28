@@ -968,6 +968,68 @@ private slots:
         QCOMPARE(portal->printCalls.load(), 2);
     }
 
+    // The whole path: a link in the preview opens that document in the
+    // editor, with the unsaved-changes dialog when there is work to lose, and
+    // the fragment applied once the new document has rendered.
+    void opensLinkedDocumentsInTheEditor() {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto document = [&](const QString &name, const QByteArray &text) {
+            const QString path = directory.filePath(name);
+            QFile file(path);
+            file.open(QIODevice::WriteOnly);
+            file.write(text);
+            file.close();
+            return QUrl::fromLocalFile(path);
+        };
+        const QUrl first = document(QStringLiteral("first.md"),
+                                    "# First\n\nSee [second](second.md).\n");
+        const QUrl second = document(QStringLiteral("second.md"),
+                                     "# Second\n\nprose\n\n## Part two\n\nmore\n");
+
+        auto editor = createEditor();
+        const auto cleanup = qScopeGuard([&] {
+            closeEditor(editor);
+            QSettings().remove(QStringLiteral("preview"));
+        });
+        QVERIFY(editor.window);
+        editor.backend->open(first);
+        QTRY_VERIFY(previewWindow());
+        PreviewBridge *bridge = editor.backend->previewBridge();
+        QTRY_VERIFY_WITH_TIMEOUT(bridge->pageReady(), 20000);
+
+        // Following the link opens the document and records the visit.
+        auto *text = editor.window->findChild<QQuickItem *>(QStringLiteral("sourceEditor"));
+        QVERIFY(text);
+        text->setProperty("cursorPosition", 9);
+        bridge->openDocument(QStringLiteral("second.md"));
+        QTRY_COMPARE(editor.backend->fileUrl(), second);
+        QVERIFY(editor.backend->previewCanGoBack());
+        QTRY_VERIFY(bridge->markdown().contains(QStringLiteral("Part two")));
+
+        // Back restores the document and the caret it was left at.
+        QTest::keyClick(editor.window, Qt::Key_Left, Qt::AltModifier);
+        QTRY_COMPARE(editor.backend->fileUrl(), first);
+        QCOMPARE(text->property("cursorPosition").toInt(), 9);
+
+        // A fragment is applied once the linked document has rendered.
+        QSignalSpy scrolls(bridge, &PreviewBridge::scrollToRequested);
+        bridge->openDocument(QStringLiteral("second.md#part-two"));
+        QTRY_COMPARE(editor.backend->fileUrl(), second);
+        QTRY_COMPARE(scrolls.count(), 1);
+        QCOMPARE(scrolls.at(0).constFirst().toString(), QStringLiteral("part-two"));
+
+        // With unsaved work, the dialog comes first and nothing moves until
+        // it is answered.
+        text->setProperty("text", text->property("text").toString() + QStringLiteral("\nedited"));
+        QVERIFY(editor.backend->modified());
+        bridge->openDocument(QStringLiteral("first.md"));
+        QTest::qWait(200);
+        QCOMPARE(editor.backend->fileUrl(), second);
+        QCOMPARE(editor.window->property("pendingAction").toString(), QStringLiteral("open"));
+        QVERIFY(!editor.backend->previewCanGoForward());
+    }
+
     void handsFindToEditorAndKeepsF11InPreview() {
         auto editor = createEditor();
         QVERIFY(editor.window);

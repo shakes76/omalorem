@@ -23,7 +23,7 @@ the gap should be fixed or raised.
 | M5 PDF export and print | Done | Commits `c04b2a4`…`59b2344`. Print goes through the desktop's print portal. See §8 |
 | M6 Packaging and Omarchy docs | Done | Commit `332ad1f`: `docs/omarchy.md`, the icon, keywords, `pkgver` 0.2.0. See §8 |
 | Release 0.2.0 | Done | Tag `omalorem-v0.2.0` at `332ad1f`, pushed. `bin/install` confirmed working by the owner |
-| M7 Document links and history | **In progress** | Branch `m7-document-links`, for 0.3.0. See §7 and SPEC §4.5, §5.7 |
+| M7 Document links and history | Done | Branch `m7-document-links`, for 0.3.0: commits `855a3e7`, `540f6c9` and the wiring. See §8 and SPEC §4.5, §5.7 |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -36,6 +36,7 @@ What works today:
 - Scroll sync from the editor to the preview uses a fractional `sourceLine`. The preview follows the editor until the reader scrolls the preview.
 - Local images in the document's folder and its subfolders load through `omalorem-doc:`. Remote, out-of-folder and unsaved-document images show a placeholder with the alt text.
 - Headings have GitHub-style ids, so `#anchor` links scroll within the preview.
+- A link to a Markdown file in the document's folder opens it in the editor, with a dotted underline to mark it and the unsaved-changes dialog when needed; `notes.md#heading` scrolls there. `Alt+Left` / `Alt+Right` and the mouse's side buttons walk the last 20 documents, restoring the caret. The history works in `no_preview` builds too, where only `Ctrl+O` fills it.
 - `Ctrl+Shift+P` exports a PDF, and `Ctrl+P` prints, both through the preview, so the math is rendered. The output uses the light palette and 20 mm margins. Export uses A4 or Letter by locale. Print opens the desktop's GTK print dialog through xdg-desktop-portal at once, renders on the paper chosen there, and sends a vector PDF; Qt's dialog is the fallback. Both work with the preview hidden: the preview window loads and stays hidden.
 - Returning to the preview's workspace repaints it, instead of leaving it black.
 - The editor highlights `$…$`, `$$…$$`, `\(…\)` and `\[…\]`, but not inside fenced code. Emphasis characters inside math (`x_1`) stay visible and the caret doesn't skip them. `Ctrl+M` and `Ctrl+Shift+M` insert inline and display math, each as one undo step. Return inside an open display block adds a plain newline. All of this works in `no_preview` builds too.
@@ -44,7 +45,7 @@ What works today:
 - With the preview hidden, the `omalorem` binary never loads QtWebEngine: `ldd` shows no WebEngine library, and none is mapped at runtime.
 - `no_preview` builds are plain Omawrite with the Omalorem name.
 
-Tests: `bin/test` passes both targets. `tst_omalorem` has 30 passed. `tst_preview` has 33 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
+Tests: `bin/test` passes both targets. `tst_omalorem` has 34 passed. `tst_preview` has 35 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
 
 ## 2. Rules for every change
 
@@ -186,17 +187,11 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: M7, document links and history
+## 7. Next: the 0.3.0 release
 
-Scope in SPEC §4.5 and §5.7; the owner chose shortcuts over a footer icon, the document's folder as the limit, and a dotted underline for followable links. Three commits:
+M7 is in; nothing else is scheduled. To release it: bump `pkgver` in `pkgbuild/PKGBUILD` to 0.3.0, run `bin/install`, then tag `omalorem-v0.3.0` and push the tag.
 
-1. **Policy, bridge and history, no UI.** The link rule beside the image rule in `src/previewpolicy.h` (in-folder, exists, regular file, `.md`/`.markdown`, symlinks resolved). `PreviewBridge::openDocument(href)` resolving against `baseUrl`, emitting `documentLinkRequested(url, fragment)`, plus `navigateBack/Forward`. Backend history: visits recorded when a document finishes opening, caret position kept, 20 deep, forward dropped on a new visit. Tests for the rule and the history, including going back after a manual `Ctrl+O`.
-2. **The page.** Resolve link targets against `baseUrl`, mark followable links for the dotted underline, route their clicks to `openDocument`, and send the mouse's side buttons to back and forward. Tests: a sibling `.md` reaches the bridge, one outside the folder doesn't, web links are unchanged, and the marked links carry the class.
-3. **The editor side.** Connect `documentLinkRequested` to `win.requestOpen()`, add `Alt+Left` / `Alt+Right`, restore the caret on back and forward, scroll to the fragment after the new document renders, and update the `Ctrl+?` text, README and these notes. Tests: following a link opens the document and re-renders the preview; with unsaved changes the dialog appears and cancelling leaves the document and history alone.
-
-Watch for: recording history only after a document really loads (a cancelled dialog must not move it), and keeping every upstream file additive — `requestOpen()` already exists, so nothing upstream needs changing.
-
-### After M7
+### After the release
 
 0.2.0 is released and M0–M6 are done (M3 aside, which moved to SPEC §11). What is open after M7, in the order it is worth doing:
 - **Small checks on Hyprland** (§6): the first-render time with a GPU against the 600 ms target in SPEC §10 Q3; fractional scaling at 1.25 and 1.5; whether a replaced image file shows without reopening the document; and whether dragging the preview's scrollbar stops it following the editor.
@@ -339,3 +334,19 @@ Findings:
 ### Release 0.2.0
 - `omalorem-v0.2.0` is an annotated tag on `332ad1f`, pushed. Its message is the release note: the rename, the packaged preview plugin, editor math, PDF export and printing through the print portal, the black-preview fix, the narrowed scope, and the Omarchy notes and icon.
 - The owner confirmed `bin/install` end to end with the 0.2.0 package.
+
+### M7: Document links and history
+| Part | What |
+|---|---|
+| `src/previewpolicy.h` | `previewFolderFilePath` (the containment rule, shared with the images), `isPreviewMarkdownPath`, and `previewLinkedDocumentPath`: exists, is a file, `.md`/`.markdown`, symlinks resolved |
+| `PreviewBridge` | `openDocument(href)` resolves against `baseUrl` and emits `documentLinkRequested(url, fragment)` or `documentLinkRefused(reason)`; `navigateBack/Forward`; `scrollTo(fragment)` for the page |
+| `Backend` | The visited documents: `previewHistoryPrepare/Visited/Go`, `previewCanGoBack/Forward`, `previewHistoryRestored(caret)`. 20 deep, forward dropped on a new visit, nothing recorded for a document that never opens |
+| `preview.js` / `preview.css` | Marks followable links with a `document-link` class as they render, draws them with a dotted underline, routes their clicks to `openDocument`, and sends the mouse's side buttons to the history |
+| `Main.qml` | A "document history" block (in every build): the two shortcuts, recording visits on `fileUrlChanged`, the caret before `Ctrl+O`, and restoring it. The preview block connects the bridge's link signals to `win.requestOpen()` and applies the fragment once the new document has rendered |
+| Tests | `followsOnlyMarkdownLinksInFolder`, `resolvesDocumentLinks`, `keepsDocumentHistory`, `walksDocumentHistoryFromTheKeyboard` (no preview), `marksAndFollowsDocumentLinks` (the page), `opensLinkedDocumentsInTheEditor` (the whole path, including the unsaved-changes dialog and the fragment) |
+
+Findings:
+- Nothing upstream needed changing: `win.requestOpen()` already handles unsaved changes, and `Backend::open()` already re-points the preview, rewatches the file and clears recovery.
+- The page can't know whether a file exists, so it marks anything in-folder that ends in `.md`. C++ decides, and a missing neighbour gets its own message. A link with a dotted underline is therefore a promise about the rule, not about the file.
+- Recording a visit on `fileUrlChanged` covers every way a document opens, including `Ctrl+O` and the footer button. The caret to remember comes from the block, which hears `openDialogRequested` in time.
+- The fragment needs the new document to be on the page first; M5's render revision already says when that is.
