@@ -256,6 +256,10 @@ opens it in the editor, and back returns to where you were.
   - the history holds the last 20 documents, and going back and then somewhere new drops
     what was ahead, as a browser does;
   - at either end, the status line says there is nowhere to go.
+- **The preview's context menu is its own:** Copy, Select all, Back and Forward, with
+  Back and Forward following the same history. Chromium's menu is suppressed, because its
+  Back, Forward, Reload and Save page mean nothing in a view that loads one page and
+  never navigates, and they show as permanently greyed out.
 - **Not in scope here:** following links in the editor's own text, opening a second
   window for the target, and previewing a document without opening it in the editor.
 
@@ -492,6 +496,9 @@ Backend history: visit / back / forward  ◀── Backend::open succeeds (fileU
   `openDocument`, and sends `auxclick` buttons 3 and 4 to back and forward.
 - **Why not have the preview open the file itself:** the editor owns the document, its
   unsaved-changes flow, recovery and file watching. The preview only asks.
+- **The context menu** is a `Menu` in `PreviewWindow`, styled from the theme.
+  `PreviewPane` accepts Chromium's `contextMenuRequested` and reports the position and
+  whether anything is selected; the window shows the menu there.
 
 ## 6. Build, packaging and desktop integration
 

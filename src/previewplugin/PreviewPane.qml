@@ -9,6 +9,11 @@ Item {
 
     // The PreviewBridge the page renders.
     required property QtObject bridge
+
+    // Chromium's own context menu offers Back, Forward, Reload and Save page,
+    // none of which mean anything here: the view loads one page and never
+    // navigates. The window puts up its own menu instead (docs/SPEC.md §4.5).
+    signal contextMenuRequested(point position, bool hasSelection)
     readonly property url pageUrl: "qrc:/preview/index.html"
     readonly property alias view: viewLoader.item
     // How many times the window asked for a fresh frame (for the tests).
@@ -78,6 +83,12 @@ Item {
                 request.reject();
                 if (request.navigationType === WebEngineNavigationRequest.LinkClickedNavigation)
                     pane.bridge.openLink(request.url.toString());
+            }
+
+            onContextMenuRequested: function(request) {
+                request.accepted = true;
+                pane.contextMenuRequested(Qt.point(request.position.x, request.position.y),
+                                          request.selectedText.length > 0);
             }
 
             onNewWindowRequested: function(request) {

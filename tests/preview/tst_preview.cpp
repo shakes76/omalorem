@@ -1030,6 +1030,73 @@ private slots:
         QVERIFY(!editor.backend->previewCanGoForward());
     }
 
+    // The preview puts up its own context menu: Chromium's offers Back,
+    // Forward and Reload, which mean nothing in a view that never navigates.
+    void showsItsOwnContextMenu() {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto document = [&](const QString &name, const QByteArray &text) {
+            const QString path = directory.filePath(name);
+            QFile file(path);
+            file.open(QIODevice::WriteOnly);
+            file.write(text);
+            file.close();
+            return QUrl::fromLocalFile(path);
+        };
+        const QUrl first = document(QStringLiteral("one.md"), "# One\n\n[two](two.md)\n");
+        const QUrl second = document(QStringLiteral("two.md"), "# Two\n");
+
+        auto editor = createEditor();
+        const auto cleanup = qScopeGuard([&] {
+            closeEditor(editor);
+            QSettings().remove(QStringLiteral("preview"));
+        });
+        QVERIFY(editor.window);
+        editor.backend->open(first);
+        QTRY_VERIFY(previewWindow());
+        QQuickWindow *preview = previewWindow();
+        QTRY_VERIFY_WITH_TIMEOUT(editor.backend->previewBridge()->pageReady(), 20000);
+
+        QObject *pane = preview->findChild<QObject *>(QStringLiteral("previewPane"));
+        QObject *menu = preview->findChild<QObject *>(QStringLiteral("previewContextMenu"));
+        QVERIFY(pane && menu);
+        const auto item = [&](const char *name) {
+            return preview->findChild<QObject *>(QString::fromLatin1(name));
+        };
+        QVERIFY(item("contextCopy") && item("contextSelectAll") && item("contextBack")
+                && item("contextForward"));
+
+        // A real right-click on the page reaches our menu, which means
+        // Chromium's own menu was suppressed.
+        preview->requestActivate();
+        QTest::mouseClick(preview, Qt::RightButton, {},
+                          QPoint(preview->width() / 2, preview->height() / 3));
+        QTRY_VERIFY_WITH_TIMEOUT(menu->property("visible").toBool(), 5000);
+        QVERIFY(QMetaObject::invokeMethod(menu, "close"));
+
+        // With one document open there is nowhere to go, and no selection.
+        QVERIFY(QMetaObject::invokeMethod(pane, "contextMenuRequested",
+                                          Q_ARG(QPointF, QPointF(20, 20)), Q_ARG(bool, false)));
+        QTRY_VERIFY(menu->property("visible").toBool());
+        QCOMPARE(item("contextCopy")->property("enabled").toBool(), false);
+        QCOMPARE(item("contextSelectAll")->property("enabled").toBool(), true);
+        QCOMPARE(item("contextBack")->property("enabled").toBool(), false);
+        QCOMPARE(item("contextForward")->property("enabled").toBool(), false);
+        QVERIFY(QMetaObject::invokeMethod(menu, "close"));
+
+        // After following a link, Back is live and works from the menu.
+        editor.backend->previewBridge()->openDocument(QStringLiteral("two.md"));
+        QTRY_COMPARE(editor.backend->fileUrl(), second);
+        QVERIFY(QMetaObject::invokeMethod(pane, "contextMenuRequested",
+                                          Q_ARG(QPointF, QPointF(20, 20)), Q_ARG(bool, true)));
+        QTRY_VERIFY(menu->property("visible").toBool());
+        QCOMPARE(item("contextCopy")->property("enabled").toBool(), true);
+        QCOMPARE(item("contextBack")->property("enabled").toBool(), true);
+        QVERIFY(QMetaObject::invokeMethod(item("contextBack"), "triggered"));
+        QTRY_COMPARE(editor.backend->fileUrl(), first);
+        QTRY_VERIFY(item("contextForward")->property("enabled").toBool());
+    }
+
     void handsFindToEditorAndKeepsF11InPreview() {
         auto editor = createEditor();
         QVERIFY(editor.window);

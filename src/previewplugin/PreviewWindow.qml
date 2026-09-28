@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Window
 import QtWebEngine
 
@@ -274,6 +275,78 @@ Window {
             objectName: "previewPane"
             anchors.fill: parent
             bridge: backend.previewBridge
+
+            onContextMenuRequested: function(position, hasSelection) {
+                previewMenu.hasSelection = hasSelection;
+                previewMenu.popup(position.x, position.y);
+            }
+        }
+
+        // Only what means something in a preview: the text, and the documents
+        // visited. Styled from the theme, like the rest of the window.
+        Menu {
+            id: previewMenu
+            objectName: "previewContextMenu"
+
+            property bool hasSelection: false
+            readonly property color textColor: backend.themeForeground
+            readonly property color mutedColor: backend.darkMode ? "#909191" : "#aeb1b5"
+
+            background: Rectangle {
+                implicitWidth: 180
+                color: backend.themeBackground
+                border.color: previewMenu.mutedColor
+                border.width: 1
+            }
+
+            delegate: MenuItem {
+                id: menuItem
+                implicitHeight: 32
+                contentItem: Text {
+                    text: menuItem.text
+                    color: menuItem.enabled ? previewMenu.textColor : previewMenu.mutedColor
+                    font.family: "iA Writer Mono S"
+                    font.pixelSize: 14
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: menuItem.highlighted ? backend.themeSelection : "transparent"
+                }
+            }
+
+            MenuItem {
+                objectName: "contextCopy"
+                text: "Copy"
+                enabled: previewMenu.hasSelection
+                onTriggered: pane.view.triggerWebAction(WebEngineView.Copy)
+            }
+
+            MenuItem {
+                objectName: "contextSelectAll"
+                text: "Select all"
+                onTriggered: pane.view.triggerWebAction(WebEngineView.SelectAll)
+            }
+
+            MenuSeparator {
+                contentItem: Rectangle {
+                    implicitHeight: 1
+                    color: previewMenu.mutedColor
+                }
+            }
+
+            MenuItem {
+                objectName: "contextBack"
+                text: "Back"
+                enabled: backend.previewCanGoBack
+                onTriggered: backend.previewBridge.navigateBack()
+            }
+
+            MenuItem {
+                objectName: "contextForward"
+                text: "Forward"
+                enabled: backend.previewCanGoForward
+                onTriggered: backend.previewBridge.navigateForward()
+            }
         }
     }
 }

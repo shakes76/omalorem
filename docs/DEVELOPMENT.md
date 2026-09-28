@@ -36,6 +36,7 @@ What works today:
 - Scroll sync from the editor to the preview uses a fractional `sourceLine`. The preview follows the editor until the reader scrolls the preview.
 - Local images in the document's folder and its subfolders load through `omalorem-doc:`. Remote, out-of-folder and unsaved-document images show a placeholder with the alt text.
 - Headings have GitHub-style ids, so `#anchor` links scroll within the preview.
+- Right-clicking the preview shows its own menu: Copy, Select all, Back, Forward.
 - A link to a Markdown file in the document's folder opens it in the editor, with a dotted underline to mark it and the unsaved-changes dialog when needed; `notes.md#heading` scrolls there. `Alt+Left` / `Alt+Right` and the mouse's side buttons walk the last 20 documents, restoring the caret. The history works in `no_preview` builds too, where only `Ctrl+O` fills it.
 - `Ctrl+Shift+P` exports a PDF, and `Ctrl+P` prints, both through the preview, so the math is rendered. The output uses the light palette and 20 mm margins. Export uses A4 or Letter by locale. Print opens the desktop's GTK print dialog through xdg-desktop-portal at once, renders on the paper chosen there, and sends a vector PDF; Qt's dialog is the fallback. Both work with the preview hidden: the preview window loads and stays hidden.
 - Returning to the preview's workspace repaints it, instead of leaving it black.
@@ -45,7 +46,7 @@ What works today:
 - With the preview hidden, the `omalorem` binary never loads QtWebEngine: `ldd` shows no WebEngine library, and none is mapped at runtime.
 - `no_preview` builds are plain Omawrite with the Omalorem name.
 
-Tests: `bin/test` passes both targets. `tst_omalorem` has 34 passed. `tst_preview` has 35 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
+Tests: `bin/test` passes both targets. `tst_omalorem` has 34 passed. `tst_preview` has 36 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
 
 ## 2. Rules for every change
 
@@ -342,6 +343,7 @@ Findings:
 | `PreviewBridge` | `openDocument(href)` resolves against `baseUrl` and emits `documentLinkRequested(url, fragment)` or `documentLinkRefused(reason)`; `navigateBack/Forward`; `scrollTo(fragment)` for the page |
 | `Backend` | The visited documents: `previewHistoryPrepare/Visited/Go`, `previewCanGoBack/Forward`, `previewHistoryRestored(caret)`. 20 deep, forward dropped on a new visit, nothing recorded for a document that never opens |
 | `preview.js` / `preview.css` | Marks followable links with a `document-link` class as they render, draws them with a dotted underline, routes their clicks to `openDocument`, and sends the mouse's side buttons to the history |
+| `PreviewPane` / `PreviewWindow` | The preview's own context menu: Copy, Select all, Back, Forward. Chromium's is suppressed by accepting `contextMenuRequested` |
 | `Main.qml` | A "document history" block (in every build): the two shortcuts, recording visits on `fileUrlChanged`, the caret before `Ctrl+O`, and restoring it. The preview block connects the bridge's link signals to `win.requestOpen()` and applies the fragment once the new document has rendered |
 | Tests | `followsOnlyMarkdownLinksInFolder`, `resolvesDocumentLinks`, `keepsDocumentHistory`, `walksDocumentHistoryFromTheKeyboard` (no preview), `marksAndFollowsDocumentLinks` (the page), `opensLinkedDocumentsInTheEditor` (the whole path, including the unsaved-changes dialog and the fragment) |
 
@@ -350,3 +352,4 @@ Findings:
 - The page can't know whether a file exists, so it marks anything in-folder that ends in `.md`. C++ decides, and a missing neighbour gets its own message. A link with a dotted underline is therefore a promise about the rule, not about the file.
 - Recording a visit on `fileUrlChanged` covers every way a document opens, including `Ctrl+O` and the footer button. The caret to remember comes from the block, which hears `openDialogRequested` in time.
 - The fragment needs the new document to be on the page first; M5's render revision already says when that is.
+- Chromium's context menu offers Back, Forward, Reload and Save page, all permanently greyed out here, since the view loads one page and blocks navigation. The owner spotted them; the preview now shows its own menu, and its Back and Forward drive the document history. A real right-click in the test proves Chromium's menu is gone.
