@@ -35,6 +35,8 @@ class Backend : public QObject {
     Q_PROPERTY(bool previewVisible READ previewVisible WRITE setPreviewVisible NOTIFY previewVisibleChanged)
     Q_PROPERTY(QString previewPlacement READ previewPlacement WRITE setPreviewPlacement NOTIFY previewPlacementChanged)
     Q_PROPERTY(QString previewFont READ previewFont WRITE setPreviewFont NOTIFY previewFontChanged)
+    Q_PROPERTY(bool previewCanGoBack READ previewCanGoBack NOTIFY previewHistoryChanged)
+    Q_PROPERTY(bool previewCanGoForward READ previewCanGoForward NOTIFY previewHistoryChanged)
 
 public:
     explicit Backend(QObject *parent = nullptr);
@@ -76,6 +78,16 @@ public:
     Q_INVOKABLE bool replaceTextAsOneEdit(int start, int end, const QString &text);
     // Omalorem PDF export and print: Ctrl+Shift+P asks for a file name; the
     // preview then flushes the text, renders and reports back.
+    // The documents visited in this window (docs/SPEC.md §4.5). Main.qml
+    // remembers where the caret was before leaving a document, and says when
+    // one has finished opening; nothing is recorded for a document that never
+    // loads, such as after a cancelled unsaved-changes dialog.
+    bool previewCanGoBack() const;
+    bool previewCanGoForward() const;
+    Q_INVOKABLE void previewHistoryPrepare(int caret);
+    Q_INVOKABLE void previewHistoryVisited();
+    // The document to open for back (-1) or forward (+1), or an empty URL.
+    Q_INVOKABLE QUrl previewHistoryGo(int delta, int caret);
     Q_INVOKABLE void previewExportPdfDialog();
     Q_INVOKABLE void previewFlushMarkdown();
     Q_INVOKABLE void previewReportStatus(const QString &status);
@@ -116,6 +128,10 @@ signals:
     void previewAvailableChanged();
     void previewVisibleChanged();
     void previewPlacementChanged();
+    void previewHistoryChanged();
+    // Emitted when back or forward has reopened a document, with the caret
+    // position it was left at.
+    void previewHistoryRestored(int caret);
     void previewPrintRequested();
     void previewPdfDialogRequested(const QUrl &suggestedUrl);
     void previewFontChanged();
@@ -187,4 +203,14 @@ private:
     mutable bool m_previewVisible = true;
     mutable QString m_previewPlacement;
     mutable QString m_previewFont;
+
+    struct PreviewVisit {
+        QUrl url;
+        int caret = 0;
+    };
+    static constexpr int previewHistoryLimit = 20;
+    QList<PreviewVisit> m_previewHistory;
+    int m_previewHistoryIndex = -1;
+    int m_previewPreparedCaret = 0;
+    int m_previewPendingHistoryIndex = -1;
 };

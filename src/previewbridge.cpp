@@ -129,6 +129,42 @@ void PreviewBridge::openLink(const QString &url) {
         emit externalLinkRequested(target);
 }
 
+// --- Document links (docs/SPEC.md §4.5) -------------------------------------
+
+void PreviewBridge::openDocument(const QString &href) {
+    if (m_baseUrl.isEmpty()) {
+        emit documentLinkRefused(QStringLiteral("Save this document before following links."));
+        return;
+    }
+
+    const QUrl target = QUrl(m_baseUrl).resolved(QUrl(href));
+    const QUrl file = target.adjusted(QUrl::RemoveFragment);
+    const QString path = previewLinkedDocumentPath(file, m_baseUrl);
+    if (!path.isEmpty()) {
+        emit documentLinkRequested(QUrl::fromLocalFile(path), target.fragment());
+        return;
+    }
+
+    // Say which rule it fell foul of: a missing neighbour is a typo, anything
+    // else is outside what the preview will follow.
+    const QString inFolder = previewFolderFilePath(file, m_baseUrl);
+    if (!inFolder.isEmpty() && isPreviewMarkdownPath(inFolder)) {
+        emit documentLinkRefused(
+            QStringLiteral("Could not find %1.").arg(QFileInfo(inFolder).fileName()));
+        return;
+    }
+    emit documentLinkRefused(
+        QStringLiteral("Only Markdown files in this document's folder open here."));
+}
+
+void PreviewBridge::navigateBack() {
+    emit historyNavigationRequested(-1);
+}
+
+void PreviewBridge::navigateForward() {
+    emit historyNavigationRequested(1);
+}
+
 void PreviewBridge::rendered(int revision) {
     if (m_renderedRevision == revision)
         return;

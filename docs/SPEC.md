@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: v1.1 · 2026-09-25 · Everything in scope for v1 is released as 0.2.0
+Status: v1.2 · 2026-09-28 · v1 is released as 0.2.0; M7 (document links) is planned for 0.3.0
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -34,7 +34,10 @@ future features (§11), in case other users want it.
    `Ctrl+?` reference text (§4.2), and the lines that carry the project's name, which
    were renamed at the fork (Omawrite → Omaview) and again at the rename (Omaview →
    Omalorem). Preview behaviour lives in the preview's own files and
-   reaches the editor through the hooks those additive blocks expose.
+   reaches the editor through the hooks those additive blocks expose. From M7 the
+   preview may also ask the editor to **open another document** (§4.5). It does that
+   through the editor's own `requestOpen()`, so unsaved changes, recovery and file
+   watching behave exactly as they do for `Ctrl+O`.
 2. **Lightweight at rest.** Chromium (QtWebEngine) loads only the first time the preview
    is shown. If you never open the preview, startup time and memory stay the same as
    Omawrite's.
@@ -63,6 +66,8 @@ future features (§11), in case other users want it.
 - Local images, resolved relative to the document's folder.
 - Math insertion shortcuts, and math spans highlighted in the editor.
 - Export to PDF with the math rendered, and printing through the preview.
+- **Following links to other Markdown files** in the document's folder, with back and
+  forward through the documents visited (M7, §4.5).
 
 ### Out of scope (v1)
 - **Raw HTML.** It is always escaped and shown as text. There is no sanitiser and no
@@ -150,8 +155,14 @@ the preview. The word count stays at the bottom right of the editor window.
 | `Ctrl+Shift+M` | Insert a display math block `$$\n…\n$$` on its own lines |
 | `Ctrl+Shift+P` | Export to PDF (portal save dialog, suggests `<name>.pdf`) |
 | `Ctrl+P` | Print. Uses the rendered preview, so the math appears |
+| `Alt+Left` | Back, to the document visited before this one (M7) |
+| `Alt+Right` | Forward again (M7) |
 
 All of these are added to the `Ctrl+?` reference dialog and to the README.
+
+The footer keeps its single extra icon, the preview toggle (principle 5), so back and
+forward are shortcuts only. Over the preview, the mouse's back and forward buttons do
+the same.
 
 ### 4.3 Preview typography
 - **The font matches the editor by default.** Prose uses **iA Writer Mono S**, the font
@@ -193,8 +204,9 @@ All of these are added to the `Ctrl+?` reference dialog and to the README.
     sync; otherwise the scroll position stays where the reader put it.
 - **Links:** clicking a link calls `backend.openExternalUrl` (http, https and mailto
   only). `#anchor` links scroll within the preview: headings get GitHub-style ids (text
-  lower-cased, punctuation dropped, spaces as hyphens, `-1`, `-2` on repeats). The
-  preview itself never navigates away.
+  lower-cased, punctuation dropped, spaces as hyphens, `-1`, `-2` on repeats). A link to
+  another Markdown file in the document's folder opens that document instead (§4.5). The
+  preview itself never navigates away: the page stays, and the editor changes document.
 - **Images (kept simple):**
   - A relative or `file:` `src` inside the document's folder or its subfolders is shown.
   - Anything else shows a small inline placeholder with the alt text. That includes
@@ -214,6 +226,38 @@ All of these are added to the `Ctrl+?` reference dialog and to the README.
   as literal text.
 - **Math errors:** KaTeX runs with `throwOnError: false`, so a bad expression is shown as
   source text in `--accent` with the error message as a tooltip.
+
+### 4.5 Following links between documents (M7)
+
+A set of notes is usually more than one file. Clicking a link to another Markdown file
+opens it in the editor, and back returns to where you were.
+
+- **Which links are followed.** A link whose target is a `.md` or `.markdown` file that
+  exists inside the document's folder or a subfolder, with symlinks resolved. This is the
+  rule the images already use (§4.4), for the same reason: what the document's folder
+  holds is the document's business, and nothing else is.
+  - Everything else behaves as it does now: `http`, `https` and `mailto` open in the
+    browser, `#anchor` scrolls, and anything else does nothing.
+  - An unsaved document has no folder, so no link can be followed. The status line says
+    so.
+  - A missing file is not followed; the status line names it.
+- **Followable links look different:** a dotted underline instead of a solid one, in the
+  same accent colour, so a link that stays inside the notes can be told from one that
+  opens the browser.
+- **Opening** goes through the editor's own `requestOpen()`, so unsaved changes raise the
+  usual dialog. Cancelling changes nothing, history included.
+- **Fragments work:** `notes.md#results` opens the document and scrolls the preview to
+  that heading once it has rendered.
+- **Back and forward** (`Alt+Left`, `Alt+Right`, or the mouse's side buttons over the
+  preview) walk the documents visited in this window:
+  - opening a document any way (a link, `Ctrl+O`, the footer button) adds to the history;
+  - going back restores the caret where it was left in that document, and the preview
+    follows as usual;
+  - the history holds the last 20 documents, and going back and then somewhere new drops
+    what was ahead, as a browser does;
+  - at either end, the status line says there is nowhere to go.
+- **Not in scope here:** following links in the editor's own text, opening a second
+  window for the target, and previewing a document without opening it in the editor.
 
 ## 5. Architecture
 
@@ -415,6 +459,40 @@ As built in M4:
   - Indented (four-space) code blocks are not excluded, only fences.
   - `Ctrl+Shift+M` on a whitespace-only line replaces that line's indentation.
 
+### 5.7 Document links and history (M7)
+
+```
+page: click on a link ─▶ bridge.openDocument(href)
+        │ (only in-folder .md, checked again in C++)
+        ▼
+PreviewBridge.documentLinkRequested(url, fragment) ──▶ Main.qml preview block
+        │                                                    │
+        │                                          win.requestOpen(url)   (unsaved dialog if needed)
+        ▼                                                    ▼
+Backend history: visit / back / forward  ◀── Backend::open succeeds (fileUrlChanged)
+```
+
+- **The rule lives with the image rule**, in `src/previewpolicy.h`, as a second header-only
+  function beside `previewDocumentPath()`: the target must resolve inside the document's
+  folder, exist, be a regular file and end in `.md` or `.markdown`. The page checks a
+  cheap version of it to decide how to draw the link; C++ checks it again before acting.
+- **`PreviewBridge`** gains `Q_INVOKABLE openDocument(href)`, which resolves the link
+  against `baseUrl`, applies the rule and emits `documentLinkRequested(QUrl, QString
+  fragment)`; plus `navigateBack()` and `navigateForward()` for the mouse buttons.
+- **`Backend`** owns the history, because it outlives the preview and works in
+  `no_preview` builds: `previewHistoryBack()`, `previewHistoryForward()`,
+  `previewCanGoBack/Forward` properties, and a visit recorded whenever a document
+  finishes opening. Each entry holds the file URL and the caret position left behind. The
+  last 20 are kept; going somewhere new after going back drops what was ahead.
+- **`Main.qml`'s preview block** connects `documentLinkRequested` to `win.requestOpen()`,
+  adds the two shortcuts, restores the caret after a back or forward, and hands the
+  fragment to the bridge so the page scrolls once the new document has rendered.
+- **The page** resolves link targets against `baseUrl` (as it already does for images),
+  marks followable ones with a class for the dotted underline, sends their clicks to
+  `openDocument`, and sends `auxclick` buttons 3 and 4 to back and forward.
+- **Why not have the preview open the file itself:** the editor owns the document, its
+  unsaved-changes flow, recovery and file watching. The preview only asks.
+
 ## 6. Build, packaging and desktop integration
 
 - `omalorem.pro`: the executable does **not** add WebEngine to `QT` (§5.3). New sources
@@ -502,7 +580,8 @@ As built in M4:
 
 ## 8. Milestones
 
-All of these are done, except M3, which moved to §11. Released as `omalorem-v0.2.0`.
+M0 to M6 are done, except M3, which moved to §11. Released as `omalorem-v0.2.0`. M7 is
+in progress, for 0.3.0.
 
 | # | Deliverable | Acceptance |
 |---|---|---|
@@ -514,6 +593,7 @@ All of these are done, except M3, which moved to §11. Released as `omalorem-v0.
 | M4 | Editor math support *(done)* | Highlighter rule, `Ctrl+M` / `Ctrl+Shift+M`, and `$$`-aware smart return, each with tests. Working in `no_preview` builds too |
 | M5 | PDF export and print *(done)* | `Ctrl+Shift+P` and `Ctrl+P` produce output with the math rendered |
 | M6 | Packaging and Omarchy docs *(done)* | PKGBUILD dependencies, desktop file, icon variant, README, `docs/omarchy.md`, `bin/install` works |
+| M7 | Document links and history | Clicking a link to a Markdown file in the document's folder opens it, with the unsaved-changes dialog when needed; followable links carry a dotted underline; `notes.md#heading` scrolls there; `Alt+Left` / `Alt+Right` and the mouse's side buttons walk the last 20 documents, restoring the caret; links outside the folder, missing files and unsaved documents are refused with a status message. Tests at each layer (§4.5, §5.7) |
 
 ## 9. Decisions log
 
@@ -537,6 +617,9 @@ All of these are done, except M3, which moved to §11. Released as `omalorem-v0.
 | 2026-09-21 | M2: `sourceLine` is fractional, and the preview follows the editor until the reader scrolls the preview. |
 | 2026-09-21 | M4: the editor math features work in every build, `no_preview` included. Emphasis markers inside math are neither hidden nor skipped by the caret. `Ctrl+M` and `Ctrl+Shift+M` are one undo step each. |
 | 2026-09-21 | M5: `Ctrl+P` reaches the preview through lines added to `Backend::printDocument()`. With the preview hidden, output comes from the hidden preview window, never a second pane. Page margins come from cloned body padding, because Qt's `printToPdf` has none. Wide formulas are scaled to fit for now (§11.2). Output stays simple: no headers, page numbers or link URLs (§11.3). |
+| 2026-09-28 | M7: a link to a Markdown file inside the document's folder opens that document in the editor. The folder rule is the images' rule, for the same reason. Links outside it, and links in unsaved documents, are refused with a status message. |
+| 2026-09-28 | M7: back and forward are `Alt+Left` / `Alt+Right` and the mouse's side buttons over the preview, not a second footer icon: principle 5 leaves the footer one extra icon, and it is the preview toggle. |
+| 2026-09-28 | M7: followable links get a dotted underline, so a link that stays in the notes reads differently from one that opens the browser. |
 | 2026-09-25 | M6: `pkgbuild/` counts as the fork's own directory, like `README.md` and `docs/`. A renamed fork's packaging carries its own identity (icon, desktop entry, package name), so it can't stay additive-only against Omawrite's. |
 | 2026-09-25 | M6: the first release under the new name is 0.2.0, tagged `omalorem-v0.2.0`. Upstream's `v*` tags are in this repository, so Omalorem's carry the name. |
 | 2026-09-21 | M5: print goes through xdg-desktop-portal's Print interface when it's there. Its dialog opens at once, and it prints the PDF as vector output. Qt's `QPrintDialog` is the fallback, because it waited about 10 s on CUPS printer discovery. |

@@ -961,6 +961,67 @@ bool Backend::replaceTextAsOneEdit(int start, int end, const QString &text) {
 
 // --- Omalorem PDF export and print (docs/SPEC.md §5.5) ------------------------
 
+// --- Document history (docs/SPEC.md §4.5) -----------------------------------
+
+bool Backend::previewCanGoBack() const {
+    return m_previewHistoryIndex > 0;
+}
+
+bool Backend::previewCanGoForward() const {
+    return m_previewHistoryIndex >= 0 && m_previewHistoryIndex + 1 < m_previewHistory.size();
+}
+
+// Where the caret is in the document about to be left.
+void Backend::previewHistoryPrepare(int caret) {
+    m_previewPreparedCaret = qMax(0, caret);
+}
+
+void Backend::previewHistoryVisited() {
+    // A document with no file of its own is never a place to come back to.
+    if (!m_fileUrl.isLocalFile())
+        return;
+
+    const int pending = m_previewPendingHistoryIndex;
+    m_previewPendingHistoryIndex = -1;
+    if (pending >= 0 && pending < m_previewHistory.size()
+        && m_previewHistory.at(pending).url == m_fileUrl) {
+        m_previewHistoryIndex = pending;
+        emit previewHistoryChanged();
+        emit previewHistoryRestored(m_previewHistory.at(pending).caret);
+        return;
+    }
+
+    if (m_previewHistoryIndex >= 0 && m_previewHistoryIndex < m_previewHistory.size()) {
+        // Reloading the same document doesn't move the history.
+        if (m_previewHistory.at(m_previewHistoryIndex).url == m_fileUrl)
+            return;
+        m_previewHistory[m_previewHistoryIndex].caret = m_previewPreparedCaret;
+        // Going somewhere new drops what was ahead, as a browser does.
+        m_previewHistory.remove(m_previewHistoryIndex + 1,
+                                m_previewHistory.size() - m_previewHistoryIndex - 1);
+    }
+    PreviewVisit visit;
+    visit.url = m_fileUrl;
+    m_previewHistory.append(visit);
+    if (m_previewHistory.size() > previewHistoryLimit)
+        m_previewHistory.removeFirst();
+    m_previewHistoryIndex = int(m_previewHistory.size()) - 1;
+    m_previewPreparedCaret = 0;
+    emit previewHistoryChanged();
+}
+
+QUrl Backend::previewHistoryGo(int delta, int caret) {
+    const int target = m_previewHistoryIndex + delta;
+    if (target < 0 || target >= m_previewHistory.size())
+        return {};
+
+    if (m_previewHistoryIndex >= 0)
+        m_previewHistory[m_previewHistoryIndex].caret = qMax(0, caret);
+    // Taken up by previewHistoryVisited() if that document really opens.
+    m_previewPendingHistoryIndex = target;
+    return m_previewHistory.at(target).url;
+}
+
 void Backend::previewExportPdfDialog() {
     if (!m_previewAvailable)
         return;

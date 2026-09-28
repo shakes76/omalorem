@@ -23,6 +23,7 @@ the gap should be fixed or raised.
 | M5 PDF export and print | Done | Commits `c04b2a4`…`59b2344`. Print goes through the desktop's print portal. See §8 |
 | M6 Packaging and Omarchy docs | Done | Commit `332ad1f`: `docs/omarchy.md`, the icon, keywords, `pkgver` 0.2.0. See §8 |
 | Release 0.2.0 | Done | Tag `omalorem-v0.2.0` at `332ad1f`, pushed. `bin/install` confirmed working by the owner |
+| M7 Document links and history | **In progress** | Branch `m7-document-links`, for 0.3.0. See §7 and SPEC §4.5, §5.7 |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -185,9 +186,19 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: no milestone left
+## 7. Next: M7, document links and history
 
-0.2.0 is released and every milestone is done (M3 aside, which moved to SPEC §11). What is open, in the order it is worth doing:
+Scope in SPEC §4.5 and §5.7; the owner chose shortcuts over a footer icon, the document's folder as the limit, and a dotted underline for followable links. Three commits:
+
+1. **Policy, bridge and history, no UI.** The link rule beside the image rule in `src/previewpolicy.h` (in-folder, exists, regular file, `.md`/`.markdown`, symlinks resolved). `PreviewBridge::openDocument(href)` resolving against `baseUrl`, emitting `documentLinkRequested(url, fragment)`, plus `navigateBack/Forward`. Backend history: visits recorded when a document finishes opening, caret position kept, 20 deep, forward dropped on a new visit. Tests for the rule and the history, including going back after a manual `Ctrl+O`.
+2. **The page.** Resolve link targets against `baseUrl`, mark followable links for the dotted underline, route their clicks to `openDocument`, and send the mouse's side buttons to back and forward. Tests: a sibling `.md` reaches the bridge, one outside the folder doesn't, web links are unchanged, and the marked links carry the class.
+3. **The editor side.** Connect `documentLinkRequested` to `win.requestOpen()`, add `Alt+Left` / `Alt+Right`, restore the caret on back and forward, scroll to the fragment after the new document renders, and update the `Ctrl+?` text, README and these notes. Tests: following a link opens the document and re-renders the preview; with unsaved changes the dialog appears and cancelling leaves the document and history alone.
+
+Watch for: recording history only after a document really loads (a cancelled dialog must not move it), and keeping every upstream file additive — `requestOpen()` already exists, so nothing upstream needs changing.
+
+### After M7
+
+0.2.0 is released and M0–M6 are done (M3 aside, which moved to SPEC §11). What is open after M7, in the order it is worth doing:
 - **Small checks on Hyprland** (§6): the first-render time with a GPU against the 600 ms target in SPEC §10 Q3; fractional scaling at 1.25 and 1.5; whether a replaced image file shows without reopening the document; and whether dragging the preview's scrollbar stops it following the editor.
 - **Future features, only if users ask** (SPEC §11): the docked placement, proper handling of wide formulas in print, and page options such as page numbers and link targets.
 - **Keeping up with upstream:** rebase onto Omawrite when it moves. The audit in §5 is what keeps that cheap.

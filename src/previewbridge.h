@@ -65,6 +65,14 @@ public:
     // Called by the page once a render has settled.
     Q_INVOKABLE void rendered(int revision);
 
+    // A link to another Markdown file in the document's folder (§4.5). The
+    // page resolves nothing itself; this applies the rule and either asks the
+    // editor to open the document or says why it won't.
+    Q_INVOKABLE void openDocument(const QString &href);
+    // The mouse's side buttons over the preview.
+    Q_INVOKABLE void navigateBack();
+    Q_INVOKABLE void navigateForward();
+
 signals:
     void markdownChanged();
     void baseUrlChanged();
@@ -76,6 +84,12 @@ signals:
     void renderedRevisionChanged();
     // Only emitted for URLs that pass Backend's external-link filter.
     void externalLinkRequested(const QUrl &url);
+    // A document link that passed the rule; fragment may be empty.
+    void documentLinkRequested(const QUrl &url, const QString &fragment);
+    // Why a document link was not followed, for the status line.
+    void documentLinkRefused(const QString &reason);
+    // -1 for back, +1 for forward.
+    void historyNavigationRequested(int delta);
 
 private:
     QString m_markdown;

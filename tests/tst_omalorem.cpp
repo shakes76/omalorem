@@ -856,6 +856,187 @@ private slots:
                  directory.filePath(QStringLiteral("heat.notes.pdf")));
     }
 
+    // --- Omalorem document links and history (M7) ----------------------------
+
+    void followsOnlyMarkdownLinksInFolder() {
+        QTemporaryDir root;
+        QVERIFY(root.isValid());
+        const QDir dir(root.path());
+        QVERIFY(dir.mkpath(QStringLiteral("notes/sub")) && dir.mkpath(QStringLiteral("outside")));
+        for (const QString &name : {QStringLiteral("notes/a.md"), QStringLiteral("notes/sub/b.md"),
+                                    QStringLiteral("notes/upper.MD"), QStringLiteral("notes/plain.txt"),
+                                    QStringLiteral("outside/other.md")}) {
+            QFile file(dir.filePath(name));
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("# heading\n");
+        }
+        QVERIFY(QFile::link(dir.filePath(QStringLiteral("outside/other.md")),
+                            dir.filePath(QStringLiteral("notes/escape.md"))));
+        const QString folder = dir.filePath(QStringLiteral("notes"));
+        const QString base = QUrl::fromLocalFile(folder + QLatin1Char('/')).toString();
+        const auto linked = [&](const QString &relative) {
+            return previewLinkedDocumentPath(QUrl(base).resolved(QUrl(relative)), base);
+        };
+
+        QCOMPARE(linked(QStringLiteral("a.md")), folder + QStringLiteral("/a.md"));
+        QCOMPARE(linked(QStringLiteral("sub/b.md")), folder + QStringLiteral("/sub/b.md"));
+        QCOMPARE(linked(QStringLiteral("./sub/../a.md")), folder + QStringLiteral("/a.md"));
+        QCOMPARE(linked(QStringLiteral("upper.MD")), folder + QStringLiteral("/upper.MD"));
+        // Not Markdown, not there, not in the folder, and a symlink out of it.
+        QCOMPARE(linked(QStringLiteral("plain.txt")), QString());
+        QCOMPARE(linked(QStringLiteral("missing.md")), QString());
+        QCOMPARE(linked(QStringLiteral("../outside/other.md")), QString());
+        QCOMPARE(linked(QStringLiteral("escape.md")), QString());
+        QCOMPARE(linked(QStringLiteral("")), QString());
+        QCOMPARE(previewLinkedDocumentPath(QUrl(QStringLiteral("https://example.com/a.md")), base),
+                 QString());
+        // With no folder, nothing is followable.
+        QCOMPARE(previewLinkedDocumentPath(QUrl::fromLocalFile(folder + QStringLiteral("/a.md")),
+                                           QString()), QString());
+    }
+
+    void resolvesDocumentLinks() {
+        QTemporaryDir root;
+        QVERIFY(root.isValid());
+        const QDir dir(root.path());
+        QVERIFY(dir.mkpath(QStringLiteral("sub")));
+        for (const QString &name : {QStringLiteral("here.md"), QStringLiteral("there.md"),
+                                    QStringLiteral("sub/deep.md"), QStringLiteral("notes.txt")}) {
+            QFile file(dir.filePath(name));
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("x\n");
+        }
+
+        PreviewBridge bridge;
+        QSignalSpy requested(&bridge, &PreviewBridge::documentLinkRequested);
+        QSignalSpy refused(&bridge, &PreviewBridge::documentLinkRefused);
+
+        // An unsaved document has no folder.
+        bridge.openDocument(QStringLiteral("there.md"));
+        QCOMPARE(requested.count(), 0);
+        QCOMPARE(refused.count(), 1);
+        QVERIFY(refused.takeFirst().constFirst().toString().contains(QStringLiteral("Save this")));
+
+        bridge.setDocumentUrl(QUrl::fromLocalFile(dir.filePath(QStringLiteral("here.md"))));
+        bridge.openDocument(QStringLiteral("there.md"));
+        QCOMPARE(requested.count(), 1);
+        QCOMPARE(requested.at(0).at(0).toUrl(),
+                 QUrl::fromLocalFile(dir.filePath(QStringLiteral("there.md"))));
+        QCOMPARE(requested.at(0).at(1).toString(), QString());
+
+        bridge.openDocument(QStringLiteral("sub/deep.md#results"));
+        QCOMPARE(requested.count(), 2);
+        QCOMPARE(requested.at(1).at(0).toUrl(),
+                 QUrl::fromLocalFile(dir.filePath(QStringLiteral("sub/deep.md"))));
+        QCOMPARE(requested.at(1).at(1).toString(), QStringLiteral("results"));
+
+        // A neighbour that isn't there is named; everything else gets the rule.
+        bridge.openDocument(QStringLiteral("gone.md"));
+        QCOMPARE(requested.count(), 2);
+        QCOMPARE(refused.count(), 1);
+        QCOMPARE(refused.takeFirst().constFirst().toString(),
+                 QStringLiteral("Could not find gone.md."));
+        for (const QString &href : {QStringLiteral("notes.txt"), QStringLiteral("../elsewhere.md"),
+                                    QStringLiteral("https://example.com/a.md"),
+                                    QStringLiteral("mailto:writer@example.com")}) {
+            bridge.openDocument(href);
+            QCOMPARE(requested.count(), 2);
+            QCOMPARE(refused.count(), 1);
+            QVERIFY(refused.takeFirst().constFirst().toString().contains(QStringLiteral("folder")));
+        }
+
+        QSignalSpy navigation(&bridge, &PreviewBridge::historyNavigationRequested);
+        bridge.navigateBack();
+        bridge.navigateForward();
+        QCOMPARE(navigation.count(), 2);
+        QCOMPARE(navigation.at(0).constFirst().toInt(), -1);
+        QCOMPARE(navigation.at(1).constFirst().toInt(), 1);
+    }
+
+    void keepsDocumentHistory() {
+        QTemporaryDir root;
+        QVERIFY(root.isValid());
+        const QDir dir(root.path());
+        const auto document = [&](const QString &name) {
+            const QString path = dir.filePath(name);
+            QFile file(path);
+            file.open(QIODevice::WriteOnly);
+            file.write("# note\n");
+            file.close();
+            return QUrl::fromLocalFile(path);
+        };
+        const QUrl a = document(QStringLiteral("a.md"));
+        const QUrl b = document(QStringLiteral("b.md"));
+        const QUrl c = document(QStringLiteral("c.md"));
+
+        Backend backend;
+        QSignalSpy restored(&backend, &Backend::previewHistoryRestored);
+        // Opening a document records it; the first one has nowhere to go back to.
+        backend.open(a);
+        backend.previewHistoryVisited();
+        QVERIFY(!backend.previewCanGoBack());
+        QVERIFY(!backend.previewCanGoForward());
+        QCOMPARE(backend.previewHistoryGo(-1, 0), QUrl());
+
+        // Leaving a at caret 5 for b.
+        backend.previewHistoryPrepare(5);
+        backend.open(b);
+        backend.previewHistoryVisited();
+        QVERIFY(backend.previewCanGoBack());
+        QVERIFY(!backend.previewCanGoForward());
+
+        // Back to a, at the caret it was left at.
+        const QUrl backTarget = backend.previewHistoryGo(-1, 12);
+        QCOMPARE(backTarget, a);
+        backend.open(backTarget);
+        backend.previewHistoryVisited();
+        QCOMPARE(restored.count(), 1);
+        QCOMPARE(restored.takeFirst().constFirst().toInt(), 5);
+        QVERIFY(backend.previewCanGoForward());
+        QVERIFY(!backend.previewCanGoBack());
+
+        // Forward to b, at its own caret.
+        QCOMPARE(backend.previewHistoryGo(1, 0), b);
+        backend.open(b);
+        backend.previewHistoryVisited();
+        QCOMPARE(restored.takeFirst().constFirst().toInt(), 12);
+        QVERIFY(!backend.previewCanGoForward());
+
+        // Going somewhere new after going back drops what was ahead.
+        backend.open(backend.previewHistoryGo(-1, 0));
+        backend.previewHistoryVisited();
+        QVERIFY(backend.previewCanGoForward());
+        backend.open(c);
+        backend.previewHistoryVisited();
+        QVERIFY(!backend.previewCanGoForward());
+        QCOMPARE(backend.previewHistoryGo(-1, 0), a);
+
+        // Reopening the same document doesn't add a step.
+        Backend fresh;
+        fresh.open(a);
+        fresh.previewHistoryVisited();
+        fresh.open(a);
+        fresh.previewHistoryVisited();
+        QVERIFY(!fresh.previewCanGoBack());
+
+        // The history keeps the last 20 documents.
+        Backend deep;
+        for (int i = 0; i < 25; ++i) {
+            deep.open(document(QStringLiteral("deep%1.md").arg(i)));
+            deep.previewHistoryVisited();
+        }
+        int steps = 0;
+        for (; steps < 30; ++steps) {
+            const QUrl target = deep.previewHistoryGo(-1, 0);
+            if (target.isEmpty())
+                break;
+            deep.open(target);
+            deep.previewHistoryVisited();
+        }
+        // 20 kept, so 19 steps back from the newest.
+        QCOMPARE(steps, 19);
+    }
+
 private:
     QTemporaryDir m_settingsDirectory;
 };
