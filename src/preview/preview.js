@@ -132,6 +132,37 @@
     const validateLink = md.validateLink;
     md.validateLink = (url) => /^file:/i.test(url.trim()) || validateLink(url);
 
+    // A link to a Markdown file in the document's folder opens that document
+    // (spec 4.5). The page only marks the ones that look followable, for the
+    // dotted underline and the click; C++ checks the rule again, and it is
+    // what knows whether the file is really there.
+    function isDocumentLink(href, baseUrl) {
+        if (!baseUrl || !href || href.startsWith("#"))
+            return false;
+        let url;
+        try {
+            url = new URL(href, baseUrl);
+        } catch (error) {
+            return false;
+        }
+        if (url.protocol !== "file:" || url.host !== "")
+            return false;
+        const folder = new URL(baseUrl).pathname;
+        return url.pathname.startsWith(folder)
+            && /\.(md|markdown)$/i.test(decodeURIComponent(url.pathname));
+    }
+
+    const renderLink = md.renderer.rules.link_open
+        || function (tokens, index, options, env, self) {
+            return self.renderToken(tokens, index, options);
+        };
+    md.renderer.rules.link_open = function (tokens, index, options, env, self) {
+        const token = tokens[index];
+        if (isDocumentLink(token.attrGet("href"), env.baseUrl))
+            token.attrJoin("class", "document-link");
+        return renderLink(tokens, index, options, env, self);
+    };
+
     // Anything else is a small placeholder with the alt text (spec 4.4).
     const renderImage = md.renderer.rules.image;
     md.renderer.rules.image = function (tokens, index, options, env, self) {
@@ -424,8 +455,9 @@
         document.documentElement.dataset.font = bridge.fontFamily || "mono";
     }
 
-    // The page never navigates: in-page anchors scroll, everything else is
-    // handed to the bridge, which opens only http(s) and mailto externally.
+    // The page never navigates: in-page anchors scroll, links into the
+    // document's folder ask the editor to open that document, and everything
+    // else is handed to the bridge, which opens only http(s) and mailto.
     function handleLinkClick(event) {
         const link = event.target.closest && event.target.closest("a[href]");
         if (!link)
@@ -441,12 +473,30 @@
             }
             return;
         }
-        if (event.type === "click" && bridge)
+        if (!bridge)
+            return;
+        if (link.classList.contains("document-link")) {
+            // The href as written; the bridge resolves it against the folder.
+            bridge.openDocument(href);
+            return;
+        }
+        if (event.type === "click")
             bridge.openLink(link.href);
     }
 
     document.addEventListener("click", handleLinkClick);
     document.addEventListener("auxclick", handleLinkClick);
+
+    // The mouse's back and forward buttons walk the documents visited.
+    document.addEventListener("auxclick", function (event) {
+        if (!bridge || (event.button !== 3 && event.button !== 4))
+            return;
+        event.preventDefault();
+        if (event.button === 3)
+            bridge.navigateBack();
+        else
+            bridge.navigateForward();
+    });
 
     function connect() {
         new QWebChannel(qt.webChannelTransport, function (channel) {

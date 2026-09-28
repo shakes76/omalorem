@@ -128,6 +128,14 @@ a {
     text-underline-offset: 0.15em;
 }
 
+/* A link that opens another document in this folder, rather than the
+   browser (spec 4.5). */
+a.document-link {
+    text-decoration-style: dotted;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 0.2em;
+}
+
 blockquote {
     border-left: 3px solid var(--accent);
     padding-left: 1em;

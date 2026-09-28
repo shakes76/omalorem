@@ -524,6 +524,61 @@ private slots:
         QCOMPARE(js("document.getElementById('content') !== null").toBool(), true);
     }
 
+    // Links to Markdown files in the document's folder are marked for the
+    // dotted underline and ask the editor to open them; everything else keeps
+    // behaving as it did.
+    void marksAndFollowsDocumentLinks() {
+        m_bridge->setDocumentUrl(fixtureUrl(QStringLiteral("links.md")));
+        QVERIFY(renderFixture(QStringLiteral("links.md")));
+        QCOMPARE(js("[...document.querySelectorAll('#content a.document-link')]"
+                    ".map(a => a.getAttribute('href')).join(',')").toString(),
+                 QStringLiteral("sample.md,nowhere.md"));
+        QCOMPARE(js("getComputedStyle(document.querySelector('a.document-link'))"
+                    ".textDecorationStyle").toString(), QStringLiteral("dotted"));
+        QCOMPARE(js("getComputedStyle(document.querySelector('a:not(.document-link)'))"
+                    ".textDecorationStyle").toString(), QStringLiteral("solid"));
+
+        QSignalSpy documents(m_bridge, &PreviewBridge::documentLinkRequested);
+        QSignalSpy refusals(m_bridge, &PreviewBridge::documentLinkRefused);
+        QSignalSpy external(m_bridge, &PreviewBridge::externalLinkRequested);
+
+        js("document.querySelector('a[href=\"sample.md\"]').click(); true");
+        QTRY_COMPARE(documents.count(), 1);
+        QCOMPARE(documents.at(0).at(0).toUrl(), fixtureUrl(QStringLiteral("sample.md")));
+        QCOMPARE(external.count(), 0);
+
+        js("document.querySelector('a[href=\"nowhere.md\"]').click(); true");
+        QTRY_COMPARE(refusals.count(), 1);
+        QCOMPARE(refusals.at(0).constFirst().toString(),
+                 QStringLiteral("Could not find nowhere.md."));
+        QCOMPARE(documents.count(), 1);
+
+        // Outside the folder: not marked, and not followed or opened.
+        js("document.querySelector('a[href=\"../../README.md\"]').click(); true");
+        QTest::qWait(200);
+        QCOMPARE(documents.count(), 1);
+        QCOMPARE(external.count(), 0);
+
+        // Web and mail links still go to the browser.
+        js("document.querySelector('a[href^=\"https\"]').click(); true");
+        QTRY_COMPARE(external.count(), 1);
+        QCOMPARE(external.at(0).constFirst().toUrl(),
+                 QUrl(QStringLiteral("https://example.com/page")));
+        QCOMPARE(documents.count(), 1);
+
+        // The mouse's side buttons ask for back and forward.
+        QSignalSpy navigation(m_bridge, &PreviewBridge::historyNavigationRequested);
+        js("document.body.dispatchEvent(new MouseEvent('auxclick',"
+           " {button: 3, bubbles: true})); true");
+        js("document.body.dispatchEvent(new MouseEvent('auxclick',"
+           " {button: 4, bubbles: true})); true");
+        QTRY_COMPARE(navigation.count(), 2);
+        QCOMPARE(navigation.at(0).constFirst().toInt(), -1);
+        QCOMPARE(navigation.at(1).constFirst().toInt(), 1);
+
+        m_bridge->setDocumentUrl(QUrl());
+    }
+
     void scrollsToHeadingAnchors() {
         QString markdown = QStringLiteral("# Top\n\n[down](#second-part-x) [again](#notes-1)\n\n");
         for (int i = 0; i < 60; ++i)
