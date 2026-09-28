@@ -1,6 +1,6 @@
 # Omalorem — Development status
 
-Last updated: 2026-09-25 · Branch: `main` at `332ad1f`, pushed to `origin` (github.com/shakes76/omalorem). Upstream Omawrite is the `upstream` remote. Releases: `omalorem-v0.2.0` (current, at `332ad1f`) and `omaview-v0.1.0` (the last commit under the old name). Release tags carry the name, because upstream's `v…` tags are in this repository
+Last updated: 2026-09-29 · Branch: `main`, pushed to `origin` (github.com/shakes76/omalorem). Upstream Omawrite is the `upstream` remote. Releases: `omalorem-v0.3.0` (current), `omalorem-v0.2.0` and `omaview-v0.1.0` (the last commit under the old name). Release tags carry the name, because upstream's `v…` tags are in this repository
 
 This is the working log for developers and coding agents. It records where the project
 stands, how the code is laid out, the rules every change must follow, and what was done
@@ -23,7 +23,8 @@ the gap should be fixed or raised.
 | M5 PDF export and print | Done | Commits `c04b2a4`…`59b2344`. Print goes through the desktop's print portal. See §8 |
 | M6 Packaging and Omarchy docs | Done | Commit `332ad1f`: `docs/omarchy.md`, the icon, keywords, `pkgver` 0.2.0. See §8 |
 | Release 0.2.0 | Done | Tag `omalorem-v0.2.0` at `332ad1f`, pushed. `bin/install` confirmed working by the owner |
-| M7 Document links and history | Done | Branch `m7-document-links`, for 0.3.0: commits `855a3e7`, `540f6c9` and the wiring. See §8 and SPEC §4.5, §5.7 |
+| M7 Document links and history | Done | Commits `855a3e7`…`dd66240`, merged. See §8 and SPEC §4.5, §5.7 |
+| Release 0.3.0 | Ready to tag | `pkgver` 0.3.0; tag `omalorem-v0.3.0` |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -188,9 +189,16 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: the 0.3.0 release
+## 7. Next: nothing scheduled
 
-M7 is in; nothing else is scheduled. To release it: bump `pkgver` in `pkgbuild/PKGBUILD` to 0.3.0, run `bin/install`, then tag `omalorem-v0.3.0` and push the tag.
+M7 is in and 0.3.0 is ready to tag. Nothing else is planned.
+
+**How a release is made**, for the next one:
+1. Check the tree: `bin/test` green, `bin/build-no-preview` builds, `ldd build/omalorem` shows no WebEngine, and the additive audit in §5 is clean.
+2. Bump `pkgver` in `pkgbuild/PKGBUILD`, and update the version in the README's status line, SPEC's header and these notes.
+3. Commit that as the release commit, and push `main`.
+4. `bin/install`, and use it for a moment.
+5. `git tag -a omalorem-v<version>` with the release note as the message, then `git push origin omalorem-v<version>`. The tags carry the name, because upstream's `v…` tags live in this repository too.
 
 ### After the release
 

@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: v1.2 · 2026-09-28 · v1 is released as 0.2.0; M7 (document links) is planned for 0.3.0
+Status: v1.2 · 2026-09-29 · v1 released as 0.2.0; M7 (document links) released as 0.3.0
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -587,8 +587,8 @@ Backend history: visit / back / forward  ◀── Backend::open succeeds (fileU
 
 ## 8. Milestones
 
-M0 to M6 are done, except M3, which moved to §11. Released as `omalorem-v0.2.0`. M7 is
-in progress, for 0.3.0.
+M0 to M6 are done, except M3, which moved to §11, and released as `omalorem-v0.2.0`.
+M7 is done and released as `omalorem-v0.3.0`.
 
 | # | Deliverable | Acceptance |
 |---|---|---|
@@ -600,7 +600,7 @@ in progress, for 0.3.0.
 | M4 | Editor math support *(done)* | Highlighter rule, `Ctrl+M` / `Ctrl+Shift+M`, and `$$`-aware smart return, each with tests. Working in `no_preview` builds too |
 | M5 | PDF export and print *(done)* | `Ctrl+Shift+P` and `Ctrl+P` produce output with the math rendered |
 | M6 | Packaging and Omarchy docs *(done)* | PKGBUILD dependencies, desktop file, icon variant, README, `docs/omarchy.md`, `bin/install` works |
-| M7 | Document links and history | Clicking a link to a Markdown file in the document's folder opens it, with the unsaved-changes dialog when needed; followable links carry a dotted underline; `notes.md#heading` scrolls there; `Alt+Left` / `Alt+Right` and the mouse's side buttons walk the last 20 documents, restoring the caret; links outside the folder, missing files and unsaved documents are refused with a status message. Tests at each layer (§4.5, §5.7) |
+| M7 | Document links and history *(done)* | Clicking a link to a Markdown file in the document's folder opens it, with the unsaved-changes dialog when needed; followable links carry a dotted underline; `notes.md#heading` scrolls there; `Alt+Left` / `Alt+Right` and the mouse's side buttons walk the last 20 documents, restoring the caret; links outside the folder, missing files and unsaved documents are refused with a status message. Tests at each layer (§4.5, §5.7) |
 
 ## 9. Decisions log
 
