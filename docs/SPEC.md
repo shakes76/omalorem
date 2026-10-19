@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: v1.2 · 2026-09-29 · v1 released as 0.2.0; M7 (document links) released as 0.3.0
+Status: v1.3 · 2026-10-20 · 0.3.0 released; M8 (the preview leading the editor) is in progress
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -189,9 +189,10 @@ the same.
 - **Live update:** the preview re-renders 120 ms after the last keystroke, the same
   interval as the word-count timer. Opening a file or reloading renders immediately.
 - **Scroll position** stays put across re-renders. The page is never swapped out.
-- **Scroll sync (editor → preview):** the block at the top of the editor viewport lines
-  up with the matching block in the preview, using `data-source-line`. Preview → editor
-  sync is v1.1.
+- **Scroll sync, both ways:** the block at the top of one window lines up with the
+  matching block in the other, using `data-source-line`. **Whichever window you last
+  scrolled leads**, so reading down the preview brings the editor along, and the passage
+  you have just read is the one ready to edit; touching the editor hands the lead back.
   - The editor publishes a fractional `sourceLine`: the line at the top of its view, plus
     the fraction of that line's height scrolled past. It probes at the view's top, which
     is the editor's top margin above where the text begins; the page puts the matching
@@ -202,6 +203,12 @@ the same.
     keys, pointer) or follows an `#anchor`, and follows again as soon as the editor
     scrolls. While following, renders, resizes and late-loading fonts re-apply the
     sync; otherwise the scroll position stays where the reader put it.
+  - **Preview → editor (M8):** while the preview is *not* following, it publishes the
+    line at its own top, by the same measure, and the editor scrolls there. The editor
+    doesn't publish that move back, so the two never chase each other, and `sourceLine`
+    keeps meaning "where the editor is".
+  - The editor jumps rather than animating: the reader is already scrolling in the other
+    window, and a second animation would lag behind it.
 - **Links:** clicking a link calls `backend.openExternalUrl` (http, https and mailto
   only). `#anchor` links scroll within the preview: headings get GitHub-style ids (text
   lower-cased, punctuation dropped, spaces as hyphens, `-1`, `-2` on repeats). A link to
@@ -496,6 +503,12 @@ Backend history: visit / back / forward  ◀── Backend::open succeeds (fileU
   `openDocument`, and sends `auxclick` buttons 3 and 4 to back and forward.
 - **Why not have the preview open the file itself:** the editor owns the document, its
   unsaved-changes flow, recovery and file watching. The preview only asks.
+- **Preview → editor (M8):** `preview.js`'s `lineAtTop()` is the inverse of
+  `positionOfLine()`, measured at the same point (the content's top padding below the
+  view's top). It is published at most once a frame through `PreviewBridge::scrolledTo`,
+  and only while the page isn't following the editor. `Main.qml` turns the line back into
+  a position with `Backend::previewLineBounds(line)` and scrolls the editor there, with
+  `applyingPreviewLine` set so `updateSourceLine()` doesn't publish that move back.
 - **The context menu** is a `Menu` in `PreviewWindow`, styled from the theme.
   `PreviewPane` accepts Chromium's `contextMenuRequested` and reports the position and
   whether anything is selected; the window shows the menu there.
@@ -600,6 +613,7 @@ M7 is done and released as `omalorem-v0.3.0`.
 | M4 | Editor math support *(done)* | Highlighter rule, `Ctrl+M` / `Ctrl+Shift+M`, and `$$`-aware smart return, each with tests. Working in `no_preview` builds too |
 | M5 | PDF export and print *(done)* | `Ctrl+Shift+P` and `Ctrl+P` produce output with the math rendered |
 | M6 | Packaging and Omarchy docs *(done)* | PKGBUILD dependencies, desktop file, icon variant, README, `docs/omarchy.md`, `bin/install` works |
+| M8 | Preview → editor scroll sync | Scrolling the preview scrolls the editor to the same place, by the same measure as the other direction; whichever window was last scrolled leads; neither publishes the other's moves back. Tests at the page, the bridge and the whole path |
 | M7 | Document links and history *(done)* | Clicking a link to a Markdown file in the document's folder opens it, with the unsaved-changes dialog when needed; followable links carry a dotted underline; `notes.md#heading` scrolls there; `Alt+Left` / `Alt+Right` and the mouse's side buttons walk the last 20 documents, restoring the caret; links outside the folder, missing files and unsaved documents are refused with a status message. Tests at each layer (§4.5, §5.7) |
 
 ## 9. Decisions log
@@ -624,6 +638,7 @@ M7 is done and released as `omalorem-v0.3.0`.
 | 2026-09-21 | M2: `sourceLine` is fractional, and the preview follows the editor until the reader scrolls the preview. |
 | 2026-09-21 | M4: the editor math features work in every build, `no_preview` included. Emphasis markers inside math are neither hidden nor skipped by the caret. `Ctrl+M` and `Ctrl+Shift+M` are one undo step each. |
 | 2026-09-21 | M5: `Ctrl+P` reaches the preview through lines added to `Backend::printDocument()`. With the preview hidden, output comes from the hidden preview window, never a second pane. Page margins come from cloned body padding, because Qt's `printToPdf` has none. Wide formulas are scaled to fit for now (§11.2). Output stays simple: no headers, page numbers or link URLs (§11.3). |
+| 2026-10-20 | M8: scroll sync works both ways, and the window you last scrolled leads. The preview publishes its top line only while it isn't following the editor, and the editor doesn't publish a move the preview asked for; that is what keeps the two from chasing each other. |
 | 2026-09-28 | M7: a link to a Markdown file inside the document's folder opens that document in the editor. The folder rule is the images' rule, for the same reason. Links outside it, and links in unsaved documents, are refused with a status message. |
 | 2026-09-28 | M7: back and forward are `Alt+Left` / `Alt+Right` and the mouse's side buttons over the preview, not a second footer icon: principle 5 leaves the footer one extra icon, and it is the preview toggle. |
 | 2026-09-28 | M7: followable links get a dotted underline, so a link that stays in the notes reads differently from one that opens the browser. |

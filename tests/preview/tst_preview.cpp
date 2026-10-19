@@ -716,6 +716,104 @@ private slots:
 
     // Main.qml publishes the line at the top of the editor's view, with the
     // fraction scrolled past, as the editor scrolls.
+    // Preview → editor: while the reader scrolls the preview, the page
+    // reports the source line at its top, measured the same way the editor
+    // measures its own.
+    void reportsItsTopLineWhileTheReaderScrolls() {
+        QVERIFY(renderMarkdown(longDocument(), QStringLiteral("report")));
+        // The editor leads again, so nothing is reported while it does. A
+        // line it isn't already on, or the bridge drops the change.
+        m_bridge->setSourceLine(5);
+        QTest::qWait(50);
+        QSignalSpy reports(m_bridge, &PreviewBridge::previewScrolled);
+        js("document.scrollingElement.scrollTop = 1200; true");
+        QTest::qWait(200);
+        QCOMPARE(reports.count(), 0);
+
+        // The reader takes over: scrolling now reports, and section 30's
+        // heading at the top of the view is its own source line, 600.
+        const QString toHeading = QStringLiteral(
+            "(() => { const node = document.querySelector('#content [data-source-line=\"600\"]');"
+            " const margin = parseFloat(getComputedStyle(document.getElementById('content')).paddingTop);"
+            " const top = document.scrollingElement.scrollTop + node.getBoundingClientRect().top;"
+            " document.dispatchEvent(new WheelEvent('wheel'));"
+            " document.scrollingElement.scrollTop = top - margin;"
+            " return document.scrollingElement.scrollTop; })()");
+        QVERIFY(js(toHeading).toDouble() > 0);
+        QTRY_VERIFY(reports.count() > 0);
+        QCOMPARE(qRound(reports.last().constFirst().toDouble()), 600);
+
+        // Part way into the section's prose, between its lines.
+        js("document.scrollingElement.scrollTop += 40; true");
+        QTRY_VERIFY(reports.count() > 1);
+        const double line = reports.last().constFirst().toDouble();
+        QVERIFY2(line > 600 && line < 620, qPrintable(QString::number(line)));
+
+        // The editor scrolling takes the lead back, and silences the page.
+        m_bridge->setSourceLine(100);
+        QTest::qWait(50);
+        const int before = reports.count();
+        js("document.scrollingElement.scrollTop += 200; true");
+        QTest::qWait(200);
+        QCOMPARE(reports.count(), before);
+    }
+
+    // The editor really moves, and doesn't answer back.
+    void scrollsTheEditorWithThePreview() {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("long.md"));
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(longDocument().toUtf8());
+        file.close();
+
+        auto editor = createEditor();
+        const auto cleanup = qScopeGuard([&] {
+            closeEditor(editor);
+            QSettings().remove(QStringLiteral("preview"));
+        });
+        QVERIFY(editor.window);
+        editor.backend->open(QUrl::fromLocalFile(path));
+        QTRY_VERIFY(previewWindow());
+        auto *text = editor.window->findChild<QQuickItem *>(QStringLiteral("sourceEditor"));
+        QVERIFY(text);
+        QQuickItem *flick = text->parentItem()->parentItem();
+        QVERIFY(flick && flick->property("contentY").isValid());
+        PreviewBridge *bridge = editor.backend->previewBridge();
+
+        // The page says its top is line 600; the editor goes there, and its
+        // own probe then agrees about which line is at the top.
+        QSignalSpy published(bridge, &PreviewBridge::sourceLineChanged);
+        flick->setProperty("contentY", 0);
+        published.clear();
+        bridge->scrolledTo(600);
+        QTRY_VERIFY(flick->property("contentY").toDouble() > 0);
+        int position = 0;
+        QVERIFY(QMetaObject::invokeMethod(text, "positionAt", Q_RETURN_ARG(int, position),
+                                          Q_ARG(qreal, 0.0),
+                                          Q_ARG(qreal, flick->property("contentY").toDouble())));
+        QCOMPARE(editor.backend->previewLineAt(position)
+                     .value(QStringLiteral("line")).toInt(), 600);
+        // Following the preview must not be published back as an editor
+        // scroll, or the two would chase each other.
+        QTest::qWait(100);
+        QCOMPARE(published.count(), 0);
+
+        // Half a line down lands between the two lines' positions.
+        const double at600 = flick->property("contentY").toDouble();
+        bridge->scrolledTo(601);
+        QTRY_VERIFY(flick->property("contentY").toDouble() > at600);
+        const double at601 = flick->property("contentY").toDouble();
+        bridge->scrolledTo(600.5);
+        QTRY_VERIFY(flick->property("contentY").toDouble() < at601);
+        QVERIFY(flick->property("contentY").toDouble() > at600);
+
+        // Scrolling the editor afterwards publishes as it always did.
+        flick->setProperty("contentY", at600 / 2);
+        QTRY_VERIFY(published.count() > 0);
+    }
+
     void publishesEditorSourceLine() {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());

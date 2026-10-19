@@ -340,6 +340,49 @@
         return offset + box.bottom + Math.min(1, gap) * (nextTop - box.bottom);
     }
 
+    // The inverse of positionOfLine: the fractional source line at the top of
+    // the view, measured at the same point the editor probes (its own top
+    // margin below the view's top), so the two agree about what "the top" is.
+    function lineAtTop() {
+        const nodes = content().children;
+        if (!nodes.length)
+            return 0;
+        const offset = document.scrollingElement.scrollTop;
+        const margin = parseFloat(getComputedStyle(content()).paddingTop) || 0;
+        const target = offset + margin;
+        const pageTop = (node) => offset + node.getBoundingClientRect().top;
+
+        // The last block that starts at or above the target.
+        let low = 0;
+        let high = nodes.length - 1;
+        while (low < high) {
+            const middle = (low + high + 1) >> 1;
+            if (pageTop(nodes[middle]) <= target)
+                low = middle;
+            else
+                high = middle - 1;
+        }
+        const node = nodes[low];
+        const box = node.getBoundingClientRect();
+        const top = offset + box.top;
+        const bottom = offset + box.bottom;
+        const start = Number(node.dataset.sourceLine);
+        const end = Number(node.dataset.sourceLineEnd);
+        if (target <= top)
+            return start;
+        if (target < bottom && box.height > 0)
+            return start + (target - top) / box.height * Math.max(1, end - start);
+
+        // Past this block: in the blank lines before the next one.
+        const next = nodes[low + 1];
+        if (!next)
+            return end;
+        const gap = pageTop(next) - bottom;
+        const nextStart = Number(next.dataset.sourceLine);
+        const fraction = gap > 0 ? Math.min(1, (target - bottom) / gap) : 1;
+        return end + fraction * Math.max(0, nextStart - end);
+    }
+
     // The preview follows the editor until the reader scrolls the preview
     // themselves, and again as soon as the editor scrolls. While following,
     // anything that moves the layout (a render, a resize, fonts arriving)
@@ -373,6 +416,23 @@
     });
     window.addEventListener("resize", resync);
     document.fonts.addEventListener("loadingdone", resync);
+
+    // While the reader is scrolling the preview, the editor follows it
+    // (spec 4.4). One report per frame is enough; the editor moves in whole
+    // pixels anyway, and this crosses the channel.
+    let reportPending = false;
+    window.addEventListener("scroll", function () {
+        if (following || !bridge || reportPending)
+            return;
+        reportPending = true;
+        requestAnimationFrame(function () {
+            reportPending = false;
+            // `following` can have gone back to true in the meantime, if the
+            // editor scrolled; then it leads again and this report is stale.
+            if (!following && bridge)
+                bridge.scrolledTo(lineAtTop());
+        });
+    }, { passive: true });
 
     function render() {
         const started = performance.now();

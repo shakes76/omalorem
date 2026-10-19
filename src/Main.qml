@@ -1183,6 +1183,10 @@ ApplicationWindow {
                 documentHistory.go(delta);
             }
 
+            function onPreviewScrolled(line) {
+                previewIntegration.applyPreviewLine(line);
+            }
+
             // The new document is on the page now.
             function onRenderedRevisionChanged() {
                 if (previewIntegration.pendingFragment === "")
@@ -1229,8 +1233,12 @@ ApplicationWindow {
         // probe sits the editor's top margin below the view's top, which is
         // where the preview puts the matching block, so both line up with
         // their margins at the start of the document.
+        // Set while the editor is being scrolled to follow the preview, so
+        // that move isn't published straight back as an editor scroll.
+        property bool applyingPreviewLine: false
+
         function updateSourceLine() {
-            if (!previewWindowLoader.wanted)
+            if (!previewWindowLoader.wanted || applyingPreviewLine)
                 return;
             var y = editorFlick.contentY;
             var line = backend.previewLineAt(editor.positionAt(0, y));
@@ -1241,6 +1249,27 @@ ApplicationWindow {
             var bottom = endRect.y + endRect.height;
             var fraction = bottom > top ? Math.min(1, Math.max(0, (y - top) / (bottom - top))) : 0;
             backend.previewBridge.sourceLine = line.line + fraction;
+        }
+
+        // Preview → editor: the editor follows while the reader scrolls the
+        // preview, so the passage being read is the one ready to edit. The
+        // preview leads until the editor is scrolled or typed in, which puts
+        // the preview back to following (preview.js).
+        function applyPreviewLine(line) {
+            if (!previewWindowLoader.wanted)
+                return;
+            var bounds = backend.previewLineBounds(Math.floor(line));
+            if (bounds.start === undefined)
+                return;
+            var top = editor.positionToRectangle(bounds.start).y;
+            var endRect = editor.positionToRectangle(bounds.end);
+            var bottom = endRect.y + endRect.height;
+            var y = top + (line - Math.floor(line)) * Math.max(0, bottom - top);
+            // contentYChanged is delivered while the assignment runs, so the
+            // guard can be dropped as soon as scrollTo() returns.
+            applyingPreviewLine = true;
+            editorFlick.scrollTo(editorFlick.clampContentY(y));
+            applyingPreviewLine = false;
         }
 
         Connections {

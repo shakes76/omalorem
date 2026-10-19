@@ -157,6 +157,13 @@ void PreviewBridge::openDocument(const QString &href) {
         QStringLiteral("Only Markdown files in this document's folder open here."));
 }
 
+// The editor follows this; sourceLine stays as the editor last set it, so
+// the two directions never overwrite each other's idea of the top line.
+void PreviewBridge::scrolledTo(qreal line) {
+    if (line >= 0)
+        emit previewScrolled(line);
+}
+
 void PreviewBridge::scrollTo(const QString &fragment) {
     if (!fragment.isEmpty())
         emit scrollToRequested(fragment);

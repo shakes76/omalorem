@@ -856,6 +856,37 @@ private slots:
                  directory.filePath(QStringLiteral("heat.notes.pdf")));
     }
 
+    // Preview → editor sync asks where a source line sits in the document.
+    void mapsSourceLinesToDocumentPositions() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> window(component.create());
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+        const auto bounds = [&](int line) {
+            const QVariantMap map = backend.previewLineBounds(line);
+            return QPair<int, int>(map.value(QStringLiteral("start")).toInt(),
+                                   map.value(QStringLiteral("end")).toInt());
+        };
+        // An empty document is still one empty line.
+        QCOMPARE(bounds(0), (QPair<int, int>(0, 0)));
+
+        editor->setProperty("text", QStringLiteral("alpha\nbeta\ngamma"));
+        QCOMPARE(bounds(0), (QPair<int, int>(0, 5)));
+        QCOMPARE(bounds(1), (QPair<int, int>(6, 10)));
+        QCOMPARE(bounds(2), (QPair<int, int>(11, 16)));
+        // Out of range clamps to the ends, and round-trips with previewLineAt.
+        QCOMPARE(bounds(-5), bounds(0));
+        QCOMPARE(bounds(99), bounds(2));
+        QCOMPARE(backend.previewLineAt(bounds(1).first)
+                     .value(QStringLiteral("line")).toInt(), 1);
+    }
+
     // --- Omalorem document links and history (M7) ----------------------------
 
     void followsOnlyMarkdownLinksInFolder() {

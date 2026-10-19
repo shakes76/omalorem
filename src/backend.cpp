@@ -959,6 +959,19 @@ bool Backend::replaceTextAsOneEdit(int start, int end, const QString &text) {
     return true;
 }
 
+QVariantMap Backend::previewLineBounds(int line) const {
+    if (!m_document || m_document->blockCount() == 0)
+        return {};
+
+    const QTextBlock block =
+        m_document->findBlockByNumber(qBound(0, line, m_document->blockCount() - 1));
+    if (!block.isValid())
+        return {};
+
+    return {{QStringLiteral("start"), block.position()},
+            {QStringLiteral("end"), block.position() + qMax(0, block.length() - 1)}};
+}
+
 // --- Omalorem PDF export and print (docs/SPEC.md §5.5) ------------------------
 
 // --- Document history (docs/SPEC.md §4.5) -----------------------------------

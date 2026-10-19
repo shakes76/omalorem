@@ -24,7 +24,8 @@ the gap should be fixed or raised.
 | M6 Packaging and Omarchy docs | Done | Commit `332ad1f`: `docs/omarchy.md`, the icon, keywords, `pkgver` 0.2.0. See §8 |
 | Release 0.2.0 | Done | Tag `omalorem-v0.2.0` at `332ad1f`, pushed. `bin/install` confirmed working by the owner |
 | M7 Document links and history | Done | Commits `855a3e7`…`dd66240`, merged. See §8 and SPEC §4.5, §5.7 |
-| Release 0.3.0 | Ready to tag | `pkgver` 0.3.0; tag `omalorem-v0.3.0` |
+| Release 0.3.0 | Done | Tag `omalorem-v0.3.0` at `87f1a22`, pushed |
+| M8 Preview → editor scroll sync | **In progress** | Branch `m8-preview-scroll-sync`. See §8 and SPEC §4.4, §5.7 |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -34,7 +35,7 @@ What works today:
 - `Ctrl+Shift+T` switches the preview's prose between iA Writer Mono S and Quattro S, saved in `preview/font`. Code stays in Mono, and the column width doesn't change.
 - The preview re-renders 120 ms after the last keystroke. Open, reload and recovery render at once.
 - Rendering is block-keyed: unchanged blocks keep their DOM nodes and typeset math, and KaTeX output is cached. An update of the 2,000-line, 200-equation document takes a median 9.5 ms offscreen.
-- Scroll sync from the editor to the preview uses a fractional `sourceLine`. The preview follows the editor until the reader scrolls the preview.
+- Scroll sync runs both ways, on a fractional source line: the window you last scrolled leads. The preview follows the editor until the reader scrolls the preview, and then the editor follows the preview until the editor is scrolled or typed in again.
 - Local images in the document's folder and its subfolders load through `omalorem-doc:`. Remote, out-of-folder and unsaved-document images show a placeholder with the alt text.
 - Headings have GitHub-style ids, so `#anchor` links scroll within the preview.
 - Right-clicking the preview shows its own menu: Copy, Select all, Back, Forward.
@@ -47,7 +48,7 @@ What works today:
 - With the preview hidden, the `omalorem` binary never loads QtWebEngine: `ldd` shows no WebEngine library, and none is mapped at runtime.
 - `no_preview` builds are plain Omawrite with the Omalorem name.
 
-Tests: `bin/test` passes both targets. `tst_omalorem` has 34 passed. `tst_preview` has 36 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
+Tests: `bin/test` passes both targets. `tst_omalorem` has 35 passed. `tst_preview` has 38 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
 
 ## 2. Rules for every change
 
@@ -118,7 +119,7 @@ requestOutput() ──▶ loads PreviewWindow if needed (hidden stays hidden) �
 - Find from the preview: `PreviewWindow` watches the editor's `searchOpen` and calls `editorWindow.requestActivate()`.
 - F11 in the preview: a focus wrapper accepts F11's `ShortcutOverride`, which bubbles up even out of Chromium, and toggles fullscreen in that same handler. The key press itself never comes back out of the web view.
 - **Rendering** (`preview.js`): `md.parse`, then the tokens are split into top-level blocks and each is rendered to HTML. That HTML is the block's key, and unchanged blocks keep their nodes. `data-source-line` and `data-source-line-end` are set on the nodes afterwards, outside the key. `window.omaloremPreview.lastRender` holds `{blocks, created, ms}` for the tests.
-- **Scroll sync:** Main.qml probes the editor at `contentY` and publishes line plus fraction. The page maps it through `positionOfLine()` and puts it `paddingTop` below the view's top. A `following` flag decides whether renders re-apply the sync. The channel's `propertyUpdateInterval` is 16 ms, down from the default 50 ms.
+- **Scroll sync:** Main.qml probes the editor at `contentY` and publishes line plus fraction. The page maps it through `positionOfLine()` and puts it `paddingTop` below the view's top. A `following` flag decides whether renders re-apply the sync. The channel's `propertyUpdateInterval` is 16 ms, down from the default 50 ms. The other way (M8), the page publishes `lineAtTop()` through `scrolledTo()` while it isn't following, and Main.qml's `applyPreviewLine()` scrolls the editor with `applyingPreviewLine` set, so the move isn't published back.
 - **Images:** the plugin registers `omalorem-doc:` in `registerTypes()`, which is before any profile exists and so is not too late. The scheme is not `LocalScheme`, because Chromium doesn't count `qrc:` as local and refuses the load with "Not allowed to load local resource". markdown-it's `validateLink` is widened to let `file:` through, so in-folder `file:` images work; the bridge still refuses `file:` links.
 - **Output** (M5): the page acknowledges each markdown revision once fonts and images have loaded (`PreviewBridge::rendered`), and output waits for it. Margins come from cloned body padding in `@media print`, because Qt's `printToPdf` passes zero margins and Chromium then ignores `@page`.
 - Debug logging: `QT_LOGGING_RULES="omalorem.preview.info=true"` logs the first render. `omalorem.preview.sandbox.debug=true` logs blocked requests and print-portal availability. `omalorem.preview.expose.debug=true` logs the preview window's expose events.
@@ -141,11 +142,13 @@ bin/test                          # tst_omalorem, then tst_preview (offscreen)
 # The executable must not link WebEngine
 ldd build/omalorem | grep -iE 'webengine|webchannel'          # expect no output
 
-# Additive-only audit against the fork commit. -M20% follows the renamed
-# files (omaview.pro, tst_omaview.cpp, pkgbuild/omaview.*): the .pro and the
-# test file have more than doubled since the fork, so git's default 50% misses
-# them. Lines carrying the old name belong to the rename and are filtered out.
-git diff -M20% eb6bd1a HEAD -- . ':!docs' ':!third_party' ':!README.md' ':!pkgbuild' \
+# Additive-only audit against the fork commit. -M5% follows the renamed files
+# (omaview.pro, tst_omaview.cpp, pkgbuild/omaview.*): they have grown several
+# times over since the fork, so git's default 50% misses them, and the
+# threshold has to drop as they grow further — if the audit suddenly reports a
+# whole file as removed, that is what happened, not a deleted line. Lines
+# carrying the old name belong to the rename and are filtered out.
+git diff -M5% eb6bd1a HEAD -- . ':!docs' ':!third_party' ':!README.md' ':!pkgbuild' \
   | grep -E '^-[^-]' | grep -vi omaview                       # expect only the old Ctrl+? text line
 # To confirm the filtered lines changed only the name: swap omaview for
 # omalorem (all three cases) in each one; each must then appear as an added
@@ -189,9 +192,11 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: nothing scheduled
+## 7. Next: M8, the preview leading the editor
 
-M7 is in and 0.3.0 is ready to tag. Nothing else is planned.
+Scroll sync in the other direction, so reading down the preview brings the editor along and the passage just read is ready to edit. Scope in SPEC §4.4 and §5.7. Built on the `following` flag the preview already keeps: when the reader has taken the preview off the editor's lead, the page publishes its own top line instead.
+
+After it: nothing is planned, and 0.4.0 would be the release.
 
 **How a release is made**, for the next one:
 1. Check the tree: `bin/test` green, `bin/build-no-preview` builds, `ldd build/omalorem` shows no WebEngine, and the additive audit in §5 is clean.
@@ -361,3 +366,16 @@ Findings:
 - Recording a visit on `fileUrlChanged` covers every way a document opens, including `Ctrl+O` and the footer button. The caret to remember comes from the block, which hears `openDialogRequested` in time.
 - The fragment needs the new document to be on the page first; M5's render revision already says when that is.
 - Chromium's context menu offers Back, Forward, Reload and Save page, all permanently greyed out here, since the view loads one page and blocks navigation. The owner spotted them; the preview now shows its own menu, and its Back and Forward drive the document history. A real right-click in the test proves Chromium's menu is gone.
+
+### M8: Preview → editor scroll sync
+| Part | What |
+|---|---|
+| `preview.js` | `lineAtTop()`, the inverse of `positionOfLine()`, and a scroll listener that publishes it at most once a frame while the page isn't following the editor |
+| `PreviewBridge` | `scrolledTo(line)` → `previewScrolled(line)`. It deliberately does not touch `sourceLine`, which stays the editor's own |
+| `Backend` | `previewLineBounds(line)`: where a source line starts and ends, the inverse of `previewLineAt` |
+| `Main.qml` | `applyPreviewLine()` scrolls the editor to that line, guarded by `applyingPreviewLine` so `updateSourceLine()` doesn't publish the move back |
+| Tests | `mapsSourceLinesToDocumentPositions`, `reportsItsTopLineWhileTheReaderScrolls` (silent while following, reports when the reader leads, silent again once the editor scrolls), `scrollsTheEditorWithThePreview` (the editor's own probe agrees about the top line, and nothing is published back) |
+
+Findings:
+- The two directions are kept apart by one rule: the page publishes only while it isn't following, and the editor suppresses publishing only while applying. Everything else is the existing M2 machinery, inverted.
+- `Qt.callLater(function() { ... })` did not clear the guard: with a throwaway closure the reset never ran, and the editor stayed silent for good. The property change is delivered while `scrollTo()` runs, so the guard is cleared on the next line instead. Worth remembering for any other "suppress while applying" flag in QML.

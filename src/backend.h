@@ -72,6 +72,9 @@ public:
     // The source line holding a document position, with the positions where
     // that line starts and ends; Main.qml's scroll sync measures it.
     Q_INVOKABLE QVariantMap previewLineAt(int position) const;
+    // The other way about, for preview → editor sync: where a source line
+    // starts and ends in the document.
+    Q_INVOKABLE QVariantMap previewLineBounds(int line) const;
     // Omalorem editor math: whether a display formula is open at a position.
     Q_INVOKABLE bool displayMathOpenAt(int position) const;
     // Replaces a range as one undo step (Ctrl+M, Ctrl+Shift+M).

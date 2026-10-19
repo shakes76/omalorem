@@ -64,6 +64,9 @@ public:
     Q_INVOKABLE void openLink(const QString &url);
     // Called by the page once a render has settled.
     Q_INVOKABLE void rendered(int revision);
+    // The source line at the top of the preview, published by the page while
+    // the reader is scrolling it (preview → editor sync).
+    Q_INVOKABLE void scrolledTo(qreal line);
 
     // A link to another Markdown file in the document's folder (§4.5). The
     // page resolves nothing itself; this applies the rule and either asks the
@@ -94,6 +97,7 @@ signals:
     // -1 for back, +1 for forward.
     void historyNavigationRequested(int delta);
     void scrollToRequested(const QString &fragment);
+    void previewScrolled(qreal line);
 
 private:
     QString m_markdown;
