@@ -856,6 +856,113 @@ private slots:
                  directory.filePath(QStringLiteral("heat.notes.pdf")));
     }
 
+    // --- Omalorem text size (M9) ---------------------------------------------
+
+    void stepsItsOwnTextScale() {
+        QSettings settings;
+        settings.remove(QStringLiteral("view"));
+        {
+            Backend backend;
+            QSignalSpy scaleSpy(&backend, &Backend::viewScaleChanged);
+            // At rest it is the desktop's own size, whatever that is.
+            QCOMPARE(backend.viewScale(), 1.0);
+            QCOMPARE(backend.applyViewScale(1.25), 1.25);
+
+            backend.stepViewScale(-1);
+            QCOMPARE(backend.viewScale(), 0.9);
+            QCOMPARE(scaleSpy.count(), 1);
+            // The desktop's setting still counts: this is a factor on it.
+            QCOMPARE(backend.applyViewScale(1.5), 1.35);
+            QCOMPARE(backend.applyViewScale(0), 0.9);
+
+            backend.stepViewScale(2);
+            QCOMPARE(backend.viewScale(), 1.1);
+
+            // Clamped at both ends, with no signal once it stops moving.
+            for (int i = 0; i < 12; ++i)
+                backend.stepViewScale(-1);
+            QCOMPARE(backend.viewScale(), 0.6);
+            scaleSpy.clear();
+            backend.stepViewScale(-1);
+            QCOMPARE(scaleSpy.count(), 0);
+            for (int i = 0; i < 20; ++i)
+                backend.stepViewScale(1);
+            QCOMPARE(backend.viewScale(), 1.5);
+
+            backend.resetViewScale();
+            QCOMPARE(backend.viewScale(), 1.0);
+        }
+        // Reset leaves nothing behind; a step is remembered.
+        settings.sync();
+        QVERIFY(!settings.contains(QStringLiteral("view/textScale")));
+        {
+            Backend backend;
+            backend.stepViewScale(-2);
+            QCOMPARE(backend.viewScale(), 0.8);
+        }
+        settings.sync();
+        {
+            Backend backend;
+            QCOMPARE(backend.viewScale(), 0.8);
+        }
+        // A nonsense setting is ignored, and an odd one is rounded.
+        settings.setValue(QStringLiteral("view/textScale"), -3);
+        {
+            Backend backend;
+            QCOMPARE(backend.viewScale(), 1.0);
+        }
+        settings.setValue(QStringLiteral("view/textScale"), 0.8321);
+        {
+            Backend backend;
+            QCOMPARE(backend.viewScale(), 0.8);
+        }
+        settings.remove(QStringLiteral("view"));
+    }
+
+    void changesTextSizeFromTheKeyboard() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+        QSettings().remove(QStringLiteral("view"));
+
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> root(component.create());
+        auto *window = qobject_cast<QQuickWindow *>(root.data());
+        QVERIFY(window);
+        window->requestActivate();
+        QVERIFY(QTest::qWaitForWindowActive(window));
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+
+        // main.cpp wires the scale into the text size; do the same here, so
+        // the editor really resizes.
+        const qreal desktopScale = 1.0;
+        QObject::connect(&backend, &Backend::viewScaleChanged, &backend, [&] {
+            backend.setTextScale(backend.applyViewScale(desktopScale));
+        });
+        QCOMPARE(editor->property("font").value<QFont>().pixelSize(), 20);
+
+        QTest::keyClick(window, Qt::Key_Minus, Qt::ControlModifier);
+        QCOMPARE(backend.viewScale(), 0.9);
+        QCOMPARE(editor->property("font").value<QFont>().pixelSize(), 18);
+        QCOMPARE(backend.status(), QStringLiteral("Text size 90%"));
+
+        QTest::keyClick(window, Qt::Key_Equal, Qt::ControlModifier);
+        QTest::keyClick(window, Qt::Key_Equal, Qt::ControlModifier);
+        QCOMPARE(backend.viewScale(), 1.1);
+        QCOMPARE(editor->property("font").value<QFont>().pixelSize(), 22);
+        QCOMPARE(backend.status(), QStringLiteral("Text size 110%"));
+
+        QTest::keyClick(window, Qt::Key_0, Qt::ControlModifier);
+        QCOMPARE(backend.viewScale(), 1.0);
+        QCOMPARE(editor->property("font").value<QFont>().pixelSize(), 20);
+        QCOMPARE(backend.status(), QStringLiteral("Text size follows the desktop"));
+        QSettings().remove(QStringLiteral("view"));
+    }
+
     // Preview → editor sync asks where a source line sits in the document.
     void mapsSourceLinesToDocumentPositions() {
         const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");

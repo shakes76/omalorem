@@ -67,6 +67,23 @@ int main(int argc, char *argv[]) {
         backend.setTextScale(textScale);
     });
 
+    // --- Omalorem view scale (docs/SPEC.md §4.3) --------------------------
+    // Omalorem's own text size, applied on top of the desktop's to the same
+    // two places the lines above use, so Omawrite's own files stay untouched.
+    // Both windows and the chrome follow it; the preview gets it through the
+    // bridge, which Backend feeds.
+    const auto applyOmaloremScale = [&backend, &systemTheme, applyInterfaceFont]() {
+        const qreal scale = backend.applyViewScale(systemTheme.textScale());
+        applyInterfaceFont(scale);
+        backend.setTextScale(scale);
+    };
+    applyOmaloremScale();
+    // Connected after the handler above, so this one has the last word when
+    // the desktop's size changes.
+    QObject::connect(&systemTheme, &SystemTheme::textScaleChanged, &app,
+                     [applyOmaloremScale](qreal) { applyOmaloremScale(); });
+    QObject::connect(&backend, &Backend::viewScaleChanged, &app, applyOmaloremScale);
+
     QQmlApplicationEngine engine;
     QObject::connect(&engine, &QQmlApplicationEngine::warnings, &app,
                      [](const QList<QQmlError> &warnings) {

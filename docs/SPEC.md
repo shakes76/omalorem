@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: v1.3 · 2026-10-20 · 0.3.0 released; M8 (the preview leading the editor) is in progress
+Status: v1.4 · 2026-10-20 · 0.3.0 released; M8 (sync both ways) and M9 (Omalorem's own text size) are in, for 0.4.0
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -155,6 +155,8 @@ the preview. The word count stays at the bottom right of the editor window.
 | `Ctrl+Shift+M` | Insert a display math block `$$\n…\n$$` on its own lines |
 | `Ctrl+Shift+P` | Export to PDF (portal save dialog, suggests `<name>.pdf`) |
 | `Ctrl+P` | Print. Uses the rendered preview, so the math appears |
+| `Ctrl+-` / `Ctrl+=` | Omalorem's own text size, 10% a step (M9) |
+| `Ctrl+0` | Back to the desktop's text size (M9) |
 | `Alt+Left` | Back, to the document visited before this one (M7) |
 | `Alt+Right` | Forward again (M7) |
 
@@ -182,6 +184,18 @@ the same.
   `--accent` (links, blockquote rule), `--selection`, and `--muted`.
 - The base font size is `20px × textScale`, matching `editorFontPixelSize`. It changes
   live on `textScaleChanged`.
+- **Omalorem's own text size (M9).** The desktop's text size is the right place for a
+  whole-desktop change, but two windows side by side want less than one window does, and
+  that is Omalorem's business alone. `Ctrl+-` and `Ctrl+=` step a factor **on top of**
+  the desktop's setting, 10% a step, from 60% to 150%; `Ctrl+0` returns to the desktop's
+  size. It is saved as `view/textScale`, and at 1.0 both windows are sized exactly as
+  Omawrite is.
+  - Both windows and the chrome follow it, because it is applied to the two things the
+    desktop's scale already feeds: the application font and `Backend::textScale`. The
+    preview gets it through the bridge.
+  - It is a factor, not an absolute size, so changing the desktop's setting still moves
+    Omalorem with everything else.
+  - Printing ignores it: the print stylesheet pins its own size (§5.5).
 - KaTeX uses its own bundled fonts and inherits `--fg`. Display math that is too wide
   scrolls horizontally inside its own block, so the page never scrolls sideways.
 
@@ -470,6 +484,16 @@ As built in M4:
   - Indented (four-space) code blocks are not excluded, only fences.
   - `Ctrl+Shift+M` on a whitespace-only line replaces that line's indentation.
 
+### 5.6.1 Omalorem's own text size (M9)
+
+`Backend` owns the policy: `viewScale` (saved as `view/textScale`, clamped and rounded to
+tenths), `stepViewScale(steps)`, `resetViewScale()`, and `applyViewScale(desktopScale)`,
+which is simply the product. `main.cpp` adds lines after upstream's text-scale block that
+call `applyInterfaceFont()` and `Backend::setTextScale()` with that product — the same two
+calls upstream makes, with the same lambda, so nothing of Omawrite's is edited. They are
+connected after upstream's handler, so on a desktop change they have the last word. The
+`Ctrl+-`, `Ctrl+=` and `Ctrl+0` shortcuts live in the fork's own block in `Main.qml`.
+
 ### 5.7 Document links and history (M7)
 
 ```
@@ -613,6 +637,7 @@ M7 is done and released as `omalorem-v0.3.0`.
 | M4 | Editor math support *(done)* | Highlighter rule, `Ctrl+M` / `Ctrl+Shift+M`, and `$$`-aware smart return, each with tests. Working in `no_preview` builds too |
 | M5 | PDF export and print *(done)* | `Ctrl+Shift+P` and `Ctrl+P` produce output with the math rendered |
 | M6 | Packaging and Omarchy docs *(done)* | PKGBUILD dependencies, desktop file, icon variant, README, `docs/omarchy.md`, `bin/install` works |
+| M9 | Omalorem's own text size *(done)* | `Ctrl+-`, `Ctrl+=` and `Ctrl+0` step and reset a factor on the desktop's text size, saved as `view/textScale`, applied to both windows and the chrome without touching Omawrite's own files. Tests for the steps, the clamps, what is saved, and the editor really resizing |
 | M8 | Preview → editor scroll sync | Scrolling the preview scrolls the editor to the same place, by the same measure as the other direction; whichever window was last scrolled leads; neither publishes the other's moves back. Tests at the page, the bridge and the whole path |
 | M7 | Document links and history *(done)* | Clicking a link to a Markdown file in the document's folder opens it, with the unsaved-changes dialog when needed; followable links carry a dotted underline; `notes.md#heading` scrolls there; `Alt+Left` / `Alt+Right` and the mouse's side buttons walk the last 20 documents, restoring the caret; links outside the folder, missing files and unsaved documents are refused with a status message. Tests at each layer (§4.5, §5.7) |
 
@@ -638,6 +663,7 @@ M7 is done and released as `omalorem-v0.3.0`.
 | 2026-09-21 | M2: `sourceLine` is fractional, and the preview follows the editor until the reader scrolls the preview. |
 | 2026-09-21 | M4: the editor math features work in every build, `no_preview` included. Emphasis markers inside math are neither hidden nor skipped by the caret. `Ctrl+M` and `Ctrl+Shift+M` are one undo step each. |
 | 2026-09-21 | M5: `Ctrl+P` reaches the preview through lines added to `Backend::printDocument()`. With the preview hidden, output comes from the hidden preview window, never a second pane. Page margins come from cloned body padding, because Qt's `printToPdf` has none. Wide formulas are scaled to fit for now (§11.2). Output stays simple: no headers, page numbers or link URLs (§11.3). |
+| 2026-10-20 | M9: Omalorem gets a text size of its own, as a factor on the desktop's, because two windows side by side need less than one does. It is applied in `main.cpp`'s added lines, to the same two places the desktop's scale feeds, so no Omawrite file changes. `Ctrl+0` returns to the desktop's size rather than to 1.0 in the abstract — at 1.0 they are the same thing. |
 | 2026-10-20 | M8: scroll sync works both ways, and the window you last scrolled leads. The preview publishes its top line only while it isn't following the editor, and the editor doesn't publish a move the preview asked for; that is what keeps the two from chasing each other. |
 | 2026-09-28 | M7: a link to a Markdown file inside the document's folder opens that document in the editor. The folder rule is the images' rule, for the same reason. Links outside it, and links in unsaved documents, are refused with a status message. |
 | 2026-09-28 | M7: back and forward are `Alt+Left` / `Alt+Right` and the mouse's side buttons over the preview, not a second footer icon: principle 5 leaves the footer one extra icon, and it is the preview toggle. |

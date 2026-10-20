@@ -787,6 +787,7 @@ const QString previewVisibleSetting = QStringLiteral("preview/visible");
 const QString previewPlacementSetting = QStringLiteral("preview/placement");
 const QString windowPlacement = QStringLiteral("window");
 const QString dockedPlacement = QStringLiteral("docked");
+const QString viewScaleSetting = QStringLiteral("view/textScale");
 const QString previewFontSetting = QStringLiteral("preview/font");
 const QString monoFont = QStringLiteral("mono");
 const QString quattroFont = QStringLiteral("quattro");
@@ -973,6 +974,53 @@ QVariantMap Backend::previewLineBounds(int line) const {
 }
 
 // --- Omalorem PDF export and print (docs/SPEC.md §5.5) ------------------------
+
+// --- View scale (docs/SPEC.md §4.3) -----------------------------------------
+// Omalorem's own text size, kept as a factor on the desktop's rather than an
+// absolute size, so the desktop's setting still means something: at 1.0 the
+// two windows are sized exactly as Omawrite is.
+
+namespace {
+// Steps land on clean tenths however the saved value got there.
+qreal roundedViewScale(qreal scale) {
+    return qRound(scale * 10.0) / 10.0;
+}
+}
+
+qreal Backend::viewScale() const {
+    if (!m_viewScaleLoaded) {
+        m_viewScaleLoaded = true;
+        const qreal saved = QSettings().value(viewScaleSetting, 1.0).toReal();
+        m_viewScale = saved > 0 ? qBound(viewScaleMinimum, roundedViewScale(saved), viewScaleMaximum)
+                                : 1.0;
+    }
+    return m_viewScale;
+}
+
+void Backend::stepViewScale(int steps) {
+    const qreal scale =
+        qBound(viewScaleMinimum, roundedViewScale(viewScale() + steps * viewScaleStep),
+               viewScaleMaximum);
+    if (qFuzzyCompare(scale, m_viewScale))
+        return;
+
+    m_viewScale = scale;
+    QSettings().setValue(viewScaleSetting, scale);
+    emit viewScaleChanged();
+}
+
+void Backend::resetViewScale() {
+    if (qFuzzyCompare(viewScale(), qreal(1.0)))
+        return;
+
+    m_viewScale = 1.0;
+    QSettings().remove(viewScaleSetting);
+    emit viewScaleChanged();
+}
+
+qreal Backend::applyViewScale(qreal desktopScale) const {
+    return (desktopScale > 0 ? desktopScale : 1.0) * viewScale();
+}
 
 // --- Document history (docs/SPEC.md §4.5) -----------------------------------
 

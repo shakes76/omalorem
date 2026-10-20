@@ -332,7 +332,7 @@ ApplicationWindow {
         standardButtons: Dialog.Close
         anchors.centerIn: parent
         contentItem: Label {
-            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+M  Inline Math\nCtrl+Shift+M  Display Math\nCtrl+P  Print\nCtrl+Shift+P  Export PDF\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nAlt+Left / Alt+Right  Back / Forward\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
+            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+M  Inline Math\nCtrl+Shift+M  Display Math\nCtrl+P  Print\nCtrl+Shift+P  Export PDF\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nCtrl+- / Ctrl+=  Text Size\nCtrl+0  Text Size Reset\nAlt+Left / Alt+Right  Back / Forward\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
             lineHeight: 1.5
         }
     }
@@ -1012,6 +1012,40 @@ ApplicationWindow {
                     iconColor: win.darkMode ? win.textColor : "#62635f"
                     onClicked: win.closeSearch()
                 }
+            }
+        }
+    }
+
+    // --- Omalorem text size (docs/SPEC.md §4.3) ------------------------------
+    // Omalorem's own size, on top of the desktop's: 10% a step, both windows
+    // together. main.cpp applies it; Backend saves it.
+    Item {
+        id: viewScale
+        objectName: "viewScale"
+
+        function step(steps) {
+            backend.stepViewScale(steps);
+            backend.previewReportStatus("Text size " + Math.round(backend.viewScale * 100) + "%");
+        }
+
+        Shortcut {
+            sequences: ["Ctrl+=", "Ctrl++"]
+            context: Qt.ApplicationShortcut
+            onActivated: viewScale.step(1)
+        }
+
+        Shortcut {
+            sequence: "Ctrl+-"
+            context: Qt.ApplicationShortcut
+            onActivated: viewScale.step(-1)
+        }
+
+        Shortcut {
+            sequence: "Ctrl+0"
+            context: Qt.ApplicationShortcut
+            onActivated: {
+                backend.resetViewScale();
+                backend.previewReportStatus("Text size follows the desktop");
             }
         }
     }

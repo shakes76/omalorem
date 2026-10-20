@@ -35,6 +35,8 @@ class Backend : public QObject {
     Q_PROPERTY(bool previewVisible READ previewVisible WRITE setPreviewVisible NOTIFY previewVisibleChanged)
     Q_PROPERTY(QString previewPlacement READ previewPlacement WRITE setPreviewPlacement NOTIFY previewPlacementChanged)
     Q_PROPERTY(QString previewFont READ previewFont WRITE setPreviewFont NOTIFY previewFontChanged)
+    // Omalorem's own text size, on top of the desktop's (docs/SPEC.md §4.3).
+    Q_PROPERTY(qreal viewScale READ viewScale NOTIFY viewScaleChanged)
     Q_PROPERTY(bool previewCanGoBack READ previewCanGoBack NOTIFY previewHistoryChanged)
     Q_PROPERTY(bool previewCanGoForward READ previewCanGoForward NOTIFY previewHistoryChanged)
 
@@ -85,6 +87,13 @@ public:
     // remembers where the caret was before leaving a document, and says when
     // one has finished opening; nothing is recorded for a document that never
     // loads, such as after a cancelled unsaved-changes dialog.
+    qreal viewScale() const;
+    // One step is 10% of the desktop's size; the range is 60% to 150%.
+    Q_INVOKABLE void stepViewScale(int steps);
+    // Back to the desktop's own size.
+    Q_INVOKABLE void resetViewScale();
+    // The scale to use, given what the desktop asks for. main.cpp applies it.
+    Q_INVOKABLE qreal applyViewScale(qreal desktopScale) const;
     bool previewCanGoBack() const;
     bool previewCanGoForward() const;
     Q_INVOKABLE void previewHistoryPrepare(int caret);
@@ -131,6 +140,7 @@ signals:
     void previewAvailableChanged();
     void previewVisibleChanged();
     void previewPlacementChanged();
+    void viewScaleChanged();
     void previewHistoryChanged();
     // Emitted when back or forward has reopened a document, with the caret
     // position it was left at.
@@ -206,6 +216,12 @@ private:
     mutable bool m_previewVisible = true;
     mutable QString m_previewPlacement;
     mutable QString m_previewFont;
+
+    static constexpr qreal viewScaleStep = 0.1;
+    static constexpr qreal viewScaleMinimum = 0.6;
+    static constexpr qreal viewScaleMaximum = 1.5;
+    mutable qreal m_viewScale = 1.0;
+    mutable bool m_viewScaleLoaded = false;
 
     struct PreviewVisit {
         QUrl url;

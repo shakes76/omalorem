@@ -25,7 +25,8 @@ the gap should be fixed or raised.
 | Release 0.2.0 | Done | Tag `omalorem-v0.2.0` at `332ad1f`, pushed. `bin/install` confirmed working by the owner |
 | M7 Document links and history | Done | Commits `855a3e7`…`dd66240`, merged. See §8 and SPEC §4.5, §5.7 |
 | Release 0.3.0 | Done | Tag `omalorem-v0.3.0` at `87f1a22`, pushed |
-| M8 Preview → editor scroll sync | **In progress** | Branch `m8-preview-scroll-sync`. See §8 and SPEC §4.4, §5.7 |
+| M8 Preview → editor scroll sync | Done | Commit `b0dc4fe`, merged. See §8 and SPEC §4.4, §5.7 |
+| M9 Omalorem's own text size | Done | Branch `m9-view-scale`. See §8 and SPEC §4.3, §5.6.1 |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -35,6 +36,7 @@ What works today:
 - `Ctrl+Shift+T` switches the preview's prose between iA Writer Mono S and Quattro S, saved in `preview/font`. Code stays in Mono, and the column width doesn't change.
 - The preview re-renders 120 ms after the last keystroke. Open, reload and recovery render at once.
 - Rendering is block-keyed: unchanged blocks keep their DOM nodes and typeset math, and KaTeX output is cached. An update of the 2,000-line, 200-equation document takes a median 9.5 ms offscreen.
+- `Ctrl+-` and `Ctrl+=` set Omalorem's own text size, 10% a step on top of the desktop's, and `Ctrl+0` returns to the desktop's. Both windows and the chrome follow; it is saved as `view/textScale`.
 - Scroll sync runs both ways, on a fractional source line: the window you last scrolled leads. The preview follows the editor until the reader scrolls the preview, and then the editor follows the preview until the editor is scrolled or typed in again.
 - Local images in the document's folder and its subfolders load through `omalorem-doc:`. Remote, out-of-folder and unsaved-document images show a placeholder with the alt text.
 - Headings have GitHub-style ids, so `#anchor` links scroll within the preview.
@@ -48,7 +50,7 @@ What works today:
 - With the preview hidden, the `omalorem` binary never loads QtWebEngine: `ldd` shows no WebEngine library, and none is mapped at runtime.
 - `no_preview` builds are plain Omawrite with the Omalorem name.
 
-Tests: `bin/test` passes both targets. `tst_omalorem` has 35 passed. `tst_preview` has 38 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
+Tests: `bin/test` passes both targets. `tst_omalorem` has 37 passed. `tst_preview` has 38 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
 
 ## 2. Rules for every change
 
@@ -192,7 +194,11 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: M8, the preview leading the editor
+## 7. Next: the 0.4.0 release
+
+M8 and M9 are in and nothing else is scheduled. Release as in §7's recipe below: bump `pkgver` to 0.4.0, update the version in the README, SPEC header and here, commit, push, `bin/install`, then tag `omalorem-v0.4.0` and push the tag.
+
+### Done: M8, the preview leading the editor
 
 Scroll sync in the other direction, so reading down the preview brings the editor along and the passage just read is ready to edit. Scope in SPEC §4.4 and §5.7. Built on the `following` flag the preview already keeps: when the reader has taken the preview off the editor's lead, the page publishes its own top line instead.
 
@@ -379,3 +385,17 @@ Findings:
 Findings:
 - The two directions are kept apart by one rule: the page publishes only while it isn't following, and the editor suppresses publishing only while applying. Everything else is the existing M2 machinery, inverted.
 - `Qt.callLater(function() { ... })` did not clear the guard: with a throwaway closure the reset never ran, and the editor stayed silent for good. The property change is delivered while `scrollTo()` runs, so the guard is cleared on the next line instead. Worth remembering for any other "suppress while applying" flag in QML.
+
+### M9: Omalorem's own text size
+| Part | What |
+|---|---|
+| `Backend` | `viewScale` (saved as `view/textScale`, rounded to tenths, clamped 0.6–1.5), `stepViewScale`, `resetViewScale`, and `applyViewScale(desktopScale)` — the policy, so it can be tested without running `main()` |
+| `main.cpp` | Added lines that apply the product to the two things the desktop's scale already feeds: `applyInterfaceFont()` and `Backend::setTextScale()`. Connected after upstream's handler, so they have the last word |
+| `Main.qml` | A text-size block with `Ctrl+-`, `Ctrl+=` (and `Ctrl++`) and `Ctrl+0`, reporting the percentage in the status line |
+| Tests | `stepsItsOwnTextScale` (steps, clamps, what is saved, nonsense ignored, odd values rounded) and `changesTextSizeFromTheKeyboard` (the editor's font really changes, 20 → 18 → 22 → 20) |
+
+Findings:
+- The whole text-size chain already funnels through one value, so a factor applied at the source reaches the editor, the chrome and the preview with nothing else to change. The preview needed no code at all: it takes `textScale` from the bridge.
+- Keeping it a factor rather than an absolute size means the desktop's setting still works, and `Ctrl+0` has something to return to.
+- `applyViewScale()` exists so the arithmetic is testable: the wiring in `main.cpp` is two calls, and the tests drive the policy directly.
+- Why this needed no Omawrite change: `main.cpp`'s upstream block leaves `applyInterfaceFont` and `backend` in scope, so the fork's added lines can reuse the very same calls.
