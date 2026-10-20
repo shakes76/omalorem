@@ -1,6 +1,6 @@
 # Omalorem — Development status
 
-Last updated: 2026-09-29 · Branch: `main`, pushed to `origin` (github.com/shakes76/omalorem). Upstream Omawrite is the `upstream` remote. Releases: `omalorem-v0.3.0` (current), `omalorem-v0.2.0` and `omaview-v0.1.0` (the last commit under the old name). Release tags carry the name, because upstream's `v…` tags are in this repository
+Last updated: 2026-10-20 · Branch: `main`, pushed to `origin` (github.com/shakes76/omalorem). Upstream Omawrite is the `upstream` remote. Releases: `omalorem-v0.4.0` (current), then `omalorem-v0.3.0`, `omalorem-v0.2.0` and `omaview-v0.1.0` (the last commit under the old name). Release tags carry the name, because upstream's `v…` tags are in this repository
 
 This is the working log for developers and coding agents. It records where the project
 stands, how the code is laid out, the rules every change must follow, and what was done
@@ -26,7 +26,8 @@ the gap should be fixed or raised.
 | M7 Document links and history | Done | Commits `855a3e7`…`dd66240`, merged. See §8 and SPEC §4.5, §5.7 |
 | Release 0.3.0 | Done | Tag `omalorem-v0.3.0` at `87f1a22`, pushed |
 | M8 Preview → editor scroll sync | Done | Commit `b0dc4fe`, merged. See §8 and SPEC §4.4, §5.7 |
-| M9 Omalorem's own text size | Done | Branch `m9-view-scale`. See §8 and SPEC §4.3, §5.6.1 |
+| M9 Omalorem's own text size | Done | Commit `abae9f5`, merged. See §8 and SPEC §4.3, §5.6.1 |
+| Release 0.4.0 | Done | Tag `omalorem-v0.4.0`; `pkgver` 0.4.0 |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -194,9 +195,9 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: the 0.4.0 release
+## 7. Next: nothing scheduled
 
-M8 and M9 are in and nothing else is scheduled. Release as in §7's recipe below: bump `pkgver` to 0.4.0, update the version in the README, SPEC header and here, commit, push, `bin/install`, then tag `omalorem-v0.4.0` and push the tag.
+0.4.0 is released. SPEC §11 holds the future features, §10 the open questions, and §6 what still wants checking by hand on Hyprland.
 
 ### Done: M8, the preview leading the editor
 
