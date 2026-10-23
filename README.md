@@ -50,10 +50,11 @@ Omalorem was first released as Omaview 0.1.0 (tag `omaview-v0.1.0`).
   opens that file in the editor, and `notes.md#results` scrolls to that heading. Those
   links carry a dotted underline, so they read differently from links that open your
   browser. `Alt+Left` goes back.
-- **Room for the text.** Side by side, Omawrite's ten-character margins take a third of
-  the editor window. `Ctrl+Shift+W` drops them to the preview's, so both columns are the
-  same width, without making the lines any longer than the 65 characters they are meant
-  to be.
+- **Room for the text.** Two windows on one screen leave each of them narrow, and
+  Omawrite's margins were measured for one wide one. `Ctrl+Shift+W` gives the space back:
+  a 24 px gutter and a line of up to 80 characters instead of 65, in the editor and the
+  preview together. It is still a measure, not the whole window, so a maximized window
+  keeps its margins.
 - **Math in the editor too.** Formulas are highlighted in the accent colour, and
   `Ctrl+M` and `Ctrl+Shift+M` insert inline and display math. These work even in the
   build without the preview.
@@ -119,7 +120,7 @@ optional Hyprland snippets for the preview window, the launcher and keybindings.
 - `Ctrl+B`, `Ctrl+I`, and `Ctrl+K` insert bold, italic, and link Markdown.
 - `Ctrl+M` wraps the selection in inline math `$…$`, or inserts `$$` with the cursor between. `Ctrl+Shift+M` inserts a display math block on its own lines. Return inside an open `$$` block adds a plain newline.
 - `Ctrl+-` and `Ctrl+=` make Omalorem's text one step smaller or larger, 10% at a time, in both windows at once; `Ctrl+0` goes back to the desktop's size. This is Omalorem's own setting, on top of `omarchy display text size`, and it is remembered.
-- `Ctrl+Shift+W` narrows the editor's margins. Omawrite keeps ten characters of margin on each side, which is most of a narrow window; this drops them to the 24 px the preview keeps, so the two columns are the same width. The 65-character line is kept either way, so on a wide window nothing changes. It is remembered.
+- `Ctrl+Shift+W` narrows the margins in both windows: the side gutter drops to 24 px and the line loosens from 65 to 80 characters, which is the usual upper bound for technical writing. It is remembered.
 - `Alt+Left` and `Alt+Right` go back and forward through the documents you have opened in this window, putting the cursor back where you left it. The mouse's side buttons do the same over the preview.
 - `Ctrl+?` shows the keyboard shortcut reference.
 

@@ -806,6 +806,7 @@ PreviewBridge *Backend::previewBridge() const {
     m_previewBridge->setTextScale(m_textScale);
     m_previewBridge->setDocumentUrl(m_fileUrl);
     m_previewBridge->setFontFamily(previewFont());
+    m_previewBridge->setColumnCharacters(editorColumnCharactersFor(narrowMargins()));
     m_previewBridge->setMarkdown(currentDocumentText());
     updatePreviewTheme();
 
@@ -816,6 +817,10 @@ PreviewBridge *Backend::previewBridge() const {
     });
     connect(self, &Backend::fileUrlChanged, m_previewBridge, [self]() {
         self->m_previewBridge->setDocumentUrl(self->m_fileUrl);
+    });
+    connect(self, &Backend::narrowMarginsChanged, m_previewBridge, [self]() {
+        self->m_previewBridge->setColumnCharacters(
+            editorColumnCharactersFor(self->narrowMargins()));
     });
     // openExternalUrl keeps its own scheme filter; the bridge pre-checks too.
     connect(m_previewBridge, &PreviewBridge::externalLinkRequested, self,
@@ -1045,6 +1050,8 @@ void Backend::toggleNarrowMargins() {
         QSettings().setValue(narrowMarginsSetting, true);
     else
         QSettings().remove(narrowMarginsSetting);
+    // The preview follows through the bridge, but only if one exists: a
+    // session that never shows the preview still builds nothing.
     emit narrowMarginsChanged();
 }
 

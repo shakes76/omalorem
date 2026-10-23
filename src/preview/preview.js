@@ -515,6 +515,12 @@
         document.documentElement.dataset.font = bridge.fontFamily || "mono";
     }
 
+    // The editor's measure, so the two columns stay the same width.
+    function applyMeasure() {
+        const characters = bridge.columnCharacters > 0 ? bridge.columnCharacters : 65;
+        document.documentElement.style.setProperty("--measure", characters + "ch");
+    }
+
     // The page never navigates: in-page anchors scroll, links into the
     // document's folder ask the editor to open that document, and everything
     // else is handed to the bridge, which opens only http(s) and mailto.
@@ -564,6 +570,7 @@
             applyTheme();
             applyTextScale();
             applyFontFamily();
+            applyMeasure();
             render();
             bridge.markdownChanged.connect(render);
             bridge.sourceLineChanged.connect(followEditor);
@@ -579,6 +586,7 @@
             bridge.themeChanged.connect(applyTheme);
             bridge.textScaleChanged.connect(applyTextScale);
             bridge.fontFamilyChanged.connect(applyFontFamily);
+            bridge.columnCharactersChanged.connect(applyMeasure);
             bridge.ready();
         });
     }

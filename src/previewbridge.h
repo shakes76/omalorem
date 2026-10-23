@@ -6,6 +6,8 @@
 #include <QUrl>
 #include <QVariantMap>
 
+#include "editorlayout.h"
+
 // The preview page's view of one editor: everything it needs to render,
 // published over a QWebChannel. It deliberately knows nothing about
 // QtWebEngine, so the editor (and its tests) can build without Chromium.
@@ -22,6 +24,9 @@ class PreviewBridge : public QObject {
     Q_PROPERTY(QVariantMap theme READ theme NOTIFY themeChanged)
     Q_PROPERTY(qreal textScale READ textScale NOTIFY textScaleChanged)
     Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY fontFamilyChanged)
+    // The measure #content uses, in characters: 65 normally, 80 with narrow
+    // margins (docs/SPEC.md §4.6).
+    Q_PROPERTY(int columnCharacters READ columnCharacters NOTIFY columnCharactersChanged)
     // The source line at the top of the editor's view, plus the fraction of
     // it scrolled past, which the preview lines up with (editor → preview).
     Q_PROPERTY(qreal sourceLine READ sourceLine WRITE setSourceLine NOTIFY sourceLineChanged)
@@ -41,6 +46,7 @@ public:
     QVariantMap theme() const { return m_theme; }
     qreal textScale() const { return m_textScale; }
     QString fontFamily() const { return m_fontFamily; }
+    int columnCharacters() const { return m_columnCharacters; }
     qreal sourceLine() const { return m_sourceLine; }
     bool pageReady() const { return m_pageReady; }
 
@@ -52,6 +58,7 @@ public:
                   const QString &accent, const QString &selection, bool dark);
     void setTextScale(qreal textScale);
     void setFontFamily(const QString &fontFamily);
+    void setColumnCharacters(int characters);
     void setSourceLine(qreal sourceLine);
 
     static QString mutedColor(bool dark);
@@ -85,6 +92,7 @@ signals:
     void themeChanged();
     void textScaleChanged();
     void fontFamilyChanged();
+    void columnCharactersChanged();
     void sourceLineChanged();
     void pageReadyChanged();
     void renderedRevisionChanged();
@@ -108,6 +116,7 @@ private:
     QVariantMap m_theme;
     qreal m_textScale = 1.0;
     QString m_fontFamily = QStringLiteral("mono");
+    int m_columnCharacters = editorColumnCharacters;
     qreal m_sourceLine = 0;
     bool m_pageReady = false;
     QTimer m_debounceTimer;

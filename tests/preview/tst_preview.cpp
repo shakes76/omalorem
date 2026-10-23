@@ -295,6 +295,25 @@ private slots:
         QTRY_VERIFY(js(proseFont).toString().startsWith(QStringLiteral("\"iA Writer Mono S\"")));
     }
 
+    // The page takes its measure from the editor, so narrow margins widens
+    // both columns together (docs/SPEC.md §4.6).
+    void followsTheEditorsMeasure() {
+        QVERIFY(renderFixture(QStringLiteral("sample.md")));
+        const QString measure = QStringLiteral(
+            "getComputedStyle(document.documentElement).getPropertyValue('--measure').trim()");
+        const QString columnWidth = QStringLiteral(
+            "document.getElementById('content').getBoundingClientRect().width");
+        QCOMPARE(js(measure).toString(), QStringLiteral("65ch"));
+        const double tightWidth = js(columnWidth).toDouble();
+
+        m_bridge->setColumnCharacters(80);
+        QTRY_COMPARE(js(measure).toString(), QStringLiteral("80ch"));
+        QTRY_VERIFY(js(columnWidth).toDouble() > tightWidth);
+
+        m_bridge->setColumnCharacters(65);
+        QTRY_COMPARE(js(columnWidth).toDouble(), tightWidth);
+    }
+
     void keepsScrollPositionAcrossRenders() {
         QString longDocument = fixture(QStringLiteral("sample.md"));
         for (int i = 0; i < 4; ++i)

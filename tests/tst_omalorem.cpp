@@ -977,28 +977,29 @@ private slots:
         QCOMPARE(editorColumnWidth(12, 600, false), 360);
         QCOMPARE(editorColumnWidth(12, 400, false), 360);
 
-        // Narrow margins: the gutter becomes the preview's 24 px a side, and
-        // half of a 1536 px screen gains 192 px of text.
-        QCOMPARE(editorColumnWidth(12, 1280, true), 780);
+        // Narrow margins: the gutter becomes the preview's 24 px a side and
+        // the measure loosens to 80 characters.
+        QCOMPARE(editorColumnWidth(12, 1280, true), 960);
+        QCOMPARE(editorColumnWidth(12, 900, true), 852);
         QCOMPARE(editorColumnWidth(12, 760, true), 712);
         QCOMPARE(editorColumnWidth(12, 400, true), 360);
 
-        // Narrow margins reaches the full measure at 828 px; upstream's
-        // gutter holds the column short until 1020. In between is where the
-        // toggle gains the most.
-        QCOMPARE(editorColumnWidth(12, 900, false), 660);
-        QCOMPARE(editorColumnWidth(12, 900, true), 780);
+        // Because the measure moves too, the toggle always does something
+        // above the floor — unlike a version that only shrank the gutter,
+        // which did nothing once the window fitted 65 characters.
+        for (int width = 420; width <= 2600; width += 10)
+            QVERIFY(editorColumnWidth(12, width, true) > editorColumnWidth(12, width, false));
 
-        // The measure is kept, so once the window fits it and upstream's
-        // gutter as well, the two modes are the same and the toggle does
-        // nothing at all.
-        for (int width = 1020; width <= 2000; width += 10)
-            QCOMPARE(editorColumnWidth(12, width, true), editorColumnWidth(12, width, false));
+        // A 749 px window at text size 0.7 (14 px text, 8.4 px a character),
+        // where 65 characters already fitted and the gutter was never the
+        // binding term: 101 px of margin a side becomes 38.
+        QCOMPARE(editorColumnWidth(8.4, 749, false), 546);
+        QCOMPARE(editorColumnWidth(8.4, 749, true), 672);
 
-        // With the text size (M9) at 90%, narrow margins reaches the full
-        // measure in a half-screen window, where today it shows 43 characters.
-        QCOMPARE(editorColumnWidth(10.8, 755, false), 539);
-        QCOMPARE(editorColumnWidth(10.8, 755, true), 702);
+        // At 0.9 the window itself binds, so both the measure and the gutter
+        // give way to it.
+        QCOMPARE(editorColumnWidth(10.8, 749, false), 533);
+        QCOMPARE(editorColumnWidth(10.8, 749, true), 701);
     }
 
     void remembersNarrowMargins() {

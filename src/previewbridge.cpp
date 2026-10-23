@@ -86,6 +86,14 @@ void PreviewBridge::setFontFamily(const QString &fontFamily) {
     emit fontFamilyChanged();
 }
 
+void PreviewBridge::setColumnCharacters(int characters) {
+    if (m_columnCharacters == characters || characters <= 0)
+        return;
+
+    m_columnCharacters = characters;
+    emit columnCharactersChanged();
+}
+
 void PreviewBridge::setSourceLine(qreal sourceLine) {
     // A thousandth of a line is well under a pixel; finer changes aren't
     // worth a trip over the channel.
