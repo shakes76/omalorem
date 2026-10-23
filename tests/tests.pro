@@ -14,6 +14,9 @@ HEADERS += \
 
 QT += widgets printsupport quickcontrols2 quickdialogs2 dbus
 
+# Omalorem narrow margins: the column arithmetic, header-only.
+HEADERS += ../src/editorlayout.h
+
 # Omalorem preview: the bridge has no WebEngine dependency.
 SOURCES += ../src/previewbridge.cpp
 HEADERS += ../src/previewbridge.h

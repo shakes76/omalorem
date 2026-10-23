@@ -37,6 +37,8 @@ class Backend : public QObject {
     Q_PROPERTY(QString previewFont READ previewFont WRITE setPreviewFont NOTIFY previewFontChanged)
     // Omalorem's own text size, on top of the desktop's (docs/SPEC.md §4.3).
     Q_PROPERTY(qreal viewScale READ viewScale NOTIFY viewScaleChanged)
+    // Narrow margins: the editor column's gutter (docs/SPEC.md §4.6).
+    Q_PROPERTY(bool narrowMargins READ narrowMargins NOTIFY narrowMarginsChanged)
     Q_PROPERTY(bool previewCanGoBack READ previewCanGoBack NOTIFY previewHistoryChanged)
     Q_PROPERTY(bool previewCanGoForward READ previewCanGoForward NOTIFY previewHistoryChanged)
 
@@ -94,6 +96,12 @@ public:
     Q_INVOKABLE void resetViewScale();
     // The scale to use, given what the desktop asks for. main.cpp applies it.
     Q_INVOKABLE qreal applyViewScale(qreal desktopScale) const;
+    // Narrow margins, saved as view/narrowMargins and off by default.
+    bool narrowMargins() const;
+    Q_INVOKABLE void toggleNarrowMargins();
+    // Omawrite's column width, or the narrow one. Main.qml binds to it.
+    Q_INVOKABLE int editorColumnWidth(qreal characterWidth, qreal windowWidth,
+                                      bool narrow) const;
     bool previewCanGoBack() const;
     bool previewCanGoForward() const;
     Q_INVOKABLE void previewHistoryPrepare(int caret);
@@ -141,6 +149,7 @@ signals:
     void previewVisibleChanged();
     void previewPlacementChanged();
     void viewScaleChanged();
+    void narrowMarginsChanged();
     void previewHistoryChanged();
     // Emitted when back or forward has reopened a document, with the caret
     // position it was left at.
@@ -222,6 +231,9 @@ private:
     static constexpr qreal viewScaleMaximum = 1.5;
     mutable qreal m_viewScale = 1.0;
     mutable bool m_viewScaleLoaded = false;
+
+    mutable bool m_narrowMargins = false;
+    mutable bool m_narrowMarginsLoaded = false;
 
     struct PreviewVisit {
         QUrl url;

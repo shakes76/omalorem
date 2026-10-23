@@ -31,6 +31,7 @@
 
 #include <algorithm>
 
+#include "editorlayout.h"
 #include "markdownhighlighter.h"
 
 constexpr qreal typoraLineHeightPercent = 140;
@@ -788,6 +789,7 @@ const QString previewPlacementSetting = QStringLiteral("preview/placement");
 const QString windowPlacement = QStringLiteral("window");
 const QString dockedPlacement = QStringLiteral("docked");
 const QString viewScaleSetting = QStringLiteral("view/textScale");
+const QString narrowMarginsSetting = QStringLiteral("view/narrowMargins");
 const QString previewFontSetting = QStringLiteral("preview/font");
 const QString monoFont = QStringLiteral("mono");
 const QString quattroFont = QStringLiteral("quattro");
@@ -1020,6 +1022,34 @@ void Backend::resetViewScale() {
 
 qreal Backend::applyViewScale(qreal desktopScale) const {
     return (desktopScale > 0 ? desktopScale : 1.0) * viewScale();
+}
+
+// --- Narrow margins (docs/SPEC.md §4.6) -------------------------------------
+// Upstream's gutter is 10 characters a side and never shrinks, which costs a
+// third of the window when the editor and the preview share a screen. Narrow
+// margins hands that space to the text, keeping the 65-character measure.
+
+bool Backend::narrowMargins() const {
+    if (!m_narrowMarginsLoaded) {
+        m_narrowMarginsLoaded = true;
+        m_narrowMargins = QSettings().value(narrowMarginsSetting, false).toBool();
+    }
+    return m_narrowMargins;
+}
+
+void Backend::toggleNarrowMargins() {
+    const bool narrow = !narrowMargins();
+    m_narrowMargins = narrow;
+    // Off is Omawrite's own layout, so it leaves nothing behind in the file.
+    if (narrow)
+        QSettings().setValue(narrowMarginsSetting, true);
+    else
+        QSettings().remove(narrowMarginsSetting);
+    emit narrowMarginsChanged();
+}
+
+int Backend::editorColumnWidth(qreal characterWidth, qreal windowWidth, bool narrow) const {
+    return ::editorColumnWidth(characterWidth, windowWidth, narrow);
 }
 
 // --- Document history (docs/SPEC.md §4.5) -----------------------------------

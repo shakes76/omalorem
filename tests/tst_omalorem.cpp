@@ -1,5 +1,6 @@
 #include <QtTest>
 #include <QFont>
+#include <QFontMetricsF>
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlEngine>
@@ -11,6 +12,7 @@
 #include <QTextLayout>
 
 #include "backend.h"
+#include "editorlayout.h"
 #include "markdownhighlighter.h"
 #include "previewbridge.h"
 #include "previewpolicy.h"
@@ -960,6 +962,117 @@ private slots:
         QCOMPARE(backend.viewScale(), 1.0);
         QCOMPARE(editor->property("font").value<QFont>().pixelSize(), 20);
         QCOMPARE(backend.status(), QStringLiteral("Text size follows the desktop"));
+        QSettings().remove(QStringLiteral("view"));
+    }
+
+    // --- Omalorem narrow margins (M10) ---------------------------------------
+
+    void computesTheEditorColumn() {
+        // Omawrite's own formula, at the default 20 px text (12 px a
+        // character): the 65-character measure, or the window less a gutter of
+        // 20 characters, or the 360 px floor.
+        QCOMPARE(editorColumnWidth(12, 1280, false), 780);
+        QCOMPARE(editorColumnWidth(12, 1020, false), 780);
+        QCOMPARE(editorColumnWidth(12, 760, false), 520);
+        QCOMPARE(editorColumnWidth(12, 600, false), 360);
+        QCOMPARE(editorColumnWidth(12, 400, false), 360);
+
+        // Narrow margins: the gutter becomes the preview's 24 px a side, and
+        // half of a 1536 px screen gains 192 px of text.
+        QCOMPARE(editorColumnWidth(12, 1280, true), 780);
+        QCOMPARE(editorColumnWidth(12, 760, true), 712);
+        QCOMPARE(editorColumnWidth(12, 400, true), 360);
+
+        // Narrow margins reaches the full measure at 828 px; upstream's
+        // gutter holds the column short until 1020. In between is where the
+        // toggle gains the most.
+        QCOMPARE(editorColumnWidth(12, 900, false), 660);
+        QCOMPARE(editorColumnWidth(12, 900, true), 780);
+
+        // The measure is kept, so once the window fits it and upstream's
+        // gutter as well, the two modes are the same and the toggle does
+        // nothing at all.
+        for (int width = 1020; width <= 2000; width += 10)
+            QCOMPARE(editorColumnWidth(12, width, true), editorColumnWidth(12, width, false));
+
+        // With the text size (M9) at 90%, narrow margins reaches the full
+        // measure in a half-screen window, where today it shows 43 characters.
+        QCOMPARE(editorColumnWidth(10.8, 755, false), 539);
+        QCOMPARE(editorColumnWidth(10.8, 755, true), 702);
+    }
+
+    void remembersNarrowMargins() {
+        QSettings settings;
+        settings.remove(QStringLiteral("view"));
+        {
+            Backend backend;
+            QSignalSpy marginsSpy(&backend, &Backend::narrowMarginsChanged);
+            // Omawrite's layout until it is asked for.
+            QVERIFY(!backend.narrowMargins());
+            backend.toggleNarrowMargins();
+            QVERIFY(backend.narrowMargins());
+            QCOMPARE(marginsSpy.count(), 1);
+        }
+        settings.sync();
+        QCOMPARE(settings.value(QStringLiteral("view/narrowMargins")).toBool(), true);
+        {
+            Backend backend;
+            QVERIFY(backend.narrowMargins());
+            backend.toggleNarrowMargins();
+            QVERIFY(!backend.narrowMargins());
+        }
+        // Off leaves nothing behind, so the settings say nothing about layout.
+        settings.sync();
+        QVERIFY(!settings.contains(QStringLiteral("view/narrowMargins")));
+    }
+
+    void narrowsMarginsFromTheKeyboard() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+        QSettings().remove(QStringLiteral("view"));
+
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> root(component.create());
+        auto *window = qobject_cast<QQuickWindow *>(root.data());
+        QVERIFY(window);
+        window->setWidth(760);
+        window->requestActivate();
+        QVERIFY(QTest::qWaitForWindowActive(window));
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+
+        // The same metrics Main.qml's FontMetrics reports, worked out here
+        // rather than read back, so the column is checked and not echoed.
+        QFont writerFont(QStringLiteral("iA Writer Mono S"));
+        writerFont.setPixelSize(20);
+        const qreal characterWidth = QFontMetricsF(writerFont).averageCharWidth();
+        const auto column = [&](qreal width, bool narrow) {
+            return editorColumnWidth(characterWidth, width, narrow);
+        };
+        // Off, the column is upstream's: that it matches is what lets the
+        // Binding below stand in for it.
+        QCOMPARE(editor->property("width").toInt(), column(760, false));
+
+        QTest::keyClick(window, Qt::Key_W, Qt::ControlModifier | Qt::ShiftModifier);
+        QVERIFY(backend.narrowMargins());
+        QCOMPARE(editor->property("width").toInt(), column(760, true));
+        QCOMPARE(backend.status(), QStringLiteral("Narrow margins"));
+        // Still a binding, not a frozen number.
+        window->setWidth(900);
+        QTRY_COMPARE(editor->property("width").toInt(), column(900, true));
+
+        QTest::keyClick(window, Qt::Key_W, Qt::ControlModifier | Qt::ShiftModifier);
+        QVERIFY(!backend.narrowMargins());
+        QCOMPARE(backend.status(), QStringLiteral("Normal margins"));
+        // Qt restores upstream's own binding, so the layout still follows the
+        // window rather than keeping the last width it was given.
+        QCOMPARE(editor->property("width").toInt(), column(900, false));
+        window->setWidth(760);
+        QTRY_COMPARE(editor->property("width").toInt(), column(760, false));
         QSettings().remove(QStringLiteral("view"));
     }
 

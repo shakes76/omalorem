@@ -332,7 +332,7 @@ ApplicationWindow {
         standardButtons: Dialog.Close
         anchors.centerIn: parent
         contentItem: Label {
-            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+M  Inline Math\nCtrl+Shift+M  Display Math\nCtrl+P  Print\nCtrl+Shift+P  Export PDF\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nCtrl+- / Ctrl+=  Text Size\nCtrl+0  Text Size Reset\nAlt+Left / Alt+Right  Back / Forward\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
+            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+M  Inline Math\nCtrl+Shift+M  Display Math\nCtrl+P  Print\nCtrl+Shift+P  Export PDF\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nCtrl+- / Ctrl+=  Text Size\nCtrl+0  Text Size Reset\nCtrl+Shift+W  Narrow Margins\nAlt+Left / Alt+Right  Back / Forward\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
             lineHeight: 1.5
         }
     }
@@ -1046,6 +1046,36 @@ ApplicationWindow {
             onActivated: {
                 backend.resetViewScale();
                 backend.previewReportStatus("Text size follows the desktop");
+            }
+        }
+    }
+
+    // --- Omalorem narrow margins (docs/SPEC.md §4.6) -------------------------
+    // Upstream reserves 10 characters a side and never gives them back, which
+    // costs a third of the window beside the preview. This hands that space to
+    // the text, down to the 24 px gutter the preview keeps, and leaves the
+    // 65-character measure alone. The Binding overrides upstream's own
+    // editorWidth binding and restores it when the mode goes off, so nothing
+    // of Omawrite's layout is copied here.
+    Item {
+        id: narrowMargins
+        objectName: "narrowMargins"
+
+        Binding {
+            target: editor
+            property: "width"
+            when: backend.narrowMargins
+            value: backend.editorColumnWidth(writerFontMetrics.averageCharacterWidth,
+                                             win.width, true)
+        }
+
+        Shortcut {
+            sequence: "Ctrl+Shift+W"
+            context: Qt.ApplicationShortcut
+            onActivated: {
+                backend.toggleNarrowMargins();
+                backend.previewReportStatus(backend.narrowMargins ? "Narrow margins"
+                                                                  : "Normal margins");
             }
         }
     }
