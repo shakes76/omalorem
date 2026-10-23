@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: v1.6 · 2026-10-23 · M8 and M9 released as 0.4.0; M10 (the wide column) built, unreleased
+Status: v1.6 · 2026-10-23 · M8 and M9 released as 0.4.0, M10 (the wide column) as 0.5.0
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -728,8 +728,8 @@ Backend history: visit / back / forward  ◀── Backend::open succeeds (fileU
 ## 8. Milestones
 
 M0 to M6 are done, except M3, which moved to §11, and released as `omalorem-v0.2.0`.
-M7 followed as `omalorem-v0.3.0`, and M8 and M9 as `omalorem-v0.4.0`. M10 is built and
-unreleased.
+M7 followed as `omalorem-v0.3.0`, M8 and M9 as `omalorem-v0.4.0`, and M10 as
+`omalorem-v0.5.0`.
 
 | # | Deliverable | Acceptance |
 |---|---|---|
@@ -744,7 +744,7 @@ unreleased.
 | M9 | Omalorem's own text size *(done)* | `Ctrl+-`, `Ctrl+=` and `Ctrl+0` step and reset a factor on the desktop's text size, saved as `view/textScale`, applied to both windows and the chrome without touching Omawrite's own files. Tests for the steps, the clamps, what is saved, and the editor really resizing |
 | M8 | Preview → editor scroll sync *(done)* | Scrolling the preview scrolls the editor to the same place, by the same measure as the other direction; whichever window was last scrolled leads; neither publishes the other's moves back. Tests at the page, the bridge and the whole path |
 | M7 | Document links and history *(done)* | Clicking a link to a Markdown file in the document's folder opens it, with the unsaved-changes dialog when needed; followable links carry a dotted underline; `notes.md#heading` scrolls there; `Alt+Left` / `Alt+Right` and the mouse's side buttons walk the last 20 documents, restoring the caret; links outside the folder, missing files and unsaved documents are refused with a status message. Tests at each layer (§4.5, §5.7) |
-| M10 | The wide column *(done, unreleased)* | `Ctrl+Shift+W` drops the gutter to 24 px a side and loosens the measure from 65 to 80 characters, in both windows, saved as `view/wideColumn` and off by default. Upstream's own binding is restored when it is switched off. Works in `no_preview` builds. Tests for the width in every band and mode, for the owner's own case, for the page's measure, and for the setting |
+| M10 | The wide column *(done)* | `Ctrl+Shift+W` drops the gutter to 24 px a side and loosens the measure from 65 to 80 characters, in both windows, saved as `view/wideColumn` and off by default. Upstream's own binding is restored when it is switched off. Works in `no_preview` builds. Tests for the width in every band and mode, for the owner's own case, for the page's measure, and for the setting |
 
 ## 9. Decisions log
 

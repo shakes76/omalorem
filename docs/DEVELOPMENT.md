@@ -1,6 +1,6 @@
 # Omalorem — Development status
 
-Last updated: 2026-10-23 · Branch: `main`, pushed to `origin` (github.com/shakes76/omalorem). Upstream Omawrite is the `upstream` remote. Releases: `omalorem-v0.4.0` (current), then `omalorem-v0.3.0`, `omalorem-v0.2.0` and `omaview-v0.1.0` (the last commit under the old name). Release tags carry the name, because upstream's `v…` tags are in this repository
+Last updated: 2026-10-23 · Branch: `main`, pushed to `origin` (github.com/shakes76/omalorem). Upstream Omawrite is the `upstream` remote. Releases: `omalorem-v0.5.0` (current), then `omalorem-v0.4.0`, `omalorem-v0.3.0`, `omalorem-v0.2.0` and `omaview-v0.1.0` (the last commit under the old name). Release tags carry the name, because upstream's `v…` tags are in this repository
 
 This is the working log for developers and coding agents. It records where the project
 stands, how the code is laid out, the rules every change must follow, and what was done
@@ -28,7 +28,8 @@ the gap should be fixed or raised.
 | M8 Preview → editor scroll sync | Done | Commit `b0dc4fe`, merged. See §8 and SPEC §4.4, §5.7 |
 | M9 Omalorem's own text size | Done | Commit `abae9f5`, merged. See §8 and SPEC §4.3, §5.6.1 |
 | Release 0.4.0 | Done | Tag `omalorem-v0.4.0`; `pkgver` 0.4.0 |
-| M10 The wide column | Done, unreleased | Branch `m10-loose-measure`. See §8 and SPEC §4.6, §5.6.2 |
+| M10 The wide column | Done | Commits `7bca116`…`60288ca`, merged. See §8 and SPEC §4.6, §5.6.2 |
+| Release 0.5.0 | Done | Tag `omalorem-v0.5.0`; `pkgver` 0.5.0 |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -197,11 +198,11 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: a release for M10
+## 7. Next: nothing scheduled
 
-M10 is built and unreleased, so the next step is 0.5.0 by the recipe below. SPEC §11 holds the future features, §10 the open questions, and §6 what still wants checking by hand on Hyprland.
+0.5.0 is released. SPEC §11 holds the future features, §10 the open questions, and §6 what still wants checking by hand on Hyprland.
 
-Also open, and worth settling before publishing anywhere: upstream Omawrite has moved to 0.7.0 while the fork sits at 0.5.0 (`8f98892`), and `pkgbuild/PKGBUILD` builds from `$startdir/..` with an empty `source=()`, which neither the AUR nor the Omarchy package repository accepts.
+Two things are open before Omalorem is published anywhere. Upstream Omawrite has moved to **0.7.0** while the fork sits at Omawrite 0.5.0 (`8f98892`), so a rebase is due; the additive audit in §5 is what makes it cheap. And `pkgbuild/PKGBUILD` builds from `$startdir/..` with an empty `source=()`, which suits `bin/install` and neither the AUR nor the Omarchy package repository: a release PKGBUILD has to fetch the tag tarball or a pinned `git+https` source, build in `$srcdir`, keep the plugin's install line, and list `OFL-1.1` beside `MIT` for the bundled fonts.
 
 ### Done: M10, the wide column
 
@@ -211,7 +212,7 @@ Also open, and worth settling before publishing anywhere: upstream Omawrite has 
 
 Scroll sync in the other direction, so reading down the preview brings the editor along and the passage just read is ready to edit. Scope in SPEC §4.4 and §5.7. Built on the `following` flag the preview already keeps: when the reader has taken the preview off the editor's lead, the page publishes its own top line instead.
 
-After it: nothing is planned, and 0.4.0 would be the release.
+After it came M10 and 0.5.0.
 
 **How a release is made**, for the next one:
 1. Check the tree: `bin/test` green, `bin/build-no-preview` builds, `ldd build/omalorem` shows no WebEngine, and the additive audit in §5 is clean.
