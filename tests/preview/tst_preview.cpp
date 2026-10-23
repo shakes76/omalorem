@@ -295,7 +295,7 @@ private slots:
         QTRY_VERIFY(js(proseFont).toString().startsWith(QStringLiteral("\"iA Writer Mono S\"")));
     }
 
-    // The page takes its measure from the editor, so narrow margins widens
+    // The page takes its measure from the editor, so the wide column widens
     // both columns together (docs/SPEC.md §4.6).
     void followsTheEditorsMeasure() {
         QVERIFY(renderFixture(QStringLiteral("sample.md")));

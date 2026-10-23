@@ -965,7 +965,7 @@ private slots:
         QSettings().remove(QStringLiteral("view"));
     }
 
-    // --- Omalorem narrow margins (M10) ---------------------------------------
+    // --- Omalorem wide column (M10) ---------------------------------------
 
     void computesTheEditorColumn() {
         // Omawrite's own formula, at the default 20 px text (12 px a
@@ -977,7 +977,7 @@ private slots:
         QCOMPARE(editorColumnWidth(12, 600, false), 360);
         QCOMPARE(editorColumnWidth(12, 400, false), 360);
 
-        // Narrow margins: the gutter becomes the preview's 24 px a side and
+        // The wide column: the gutter becomes the preview's 24 px a side and
         // the measure loosens to 80 characters.
         QCOMPARE(editorColumnWidth(12, 1280, true), 960);
         QCOMPARE(editorColumnWidth(12, 900, true), 852);
@@ -1002,32 +1002,32 @@ private slots:
         QCOMPARE(editorColumnWidth(10.8, 749, true), 701);
     }
 
-    void remembersNarrowMargins() {
+    void remembersTheWideColumn() {
         QSettings settings;
         settings.remove(QStringLiteral("view"));
         {
             Backend backend;
-            QSignalSpy marginsSpy(&backend, &Backend::narrowMarginsChanged);
+            QSignalSpy marginsSpy(&backend, &Backend::wideColumnChanged);
             // Omawrite's layout until it is asked for.
-            QVERIFY(!backend.narrowMargins());
-            backend.toggleNarrowMargins();
-            QVERIFY(backend.narrowMargins());
+            QVERIFY(!backend.wideColumn());
+            backend.toggleWideColumn();
+            QVERIFY(backend.wideColumn());
             QCOMPARE(marginsSpy.count(), 1);
         }
         settings.sync();
-        QCOMPARE(settings.value(QStringLiteral("view/narrowMargins")).toBool(), true);
+        QCOMPARE(settings.value(QStringLiteral("view/wideColumn")).toBool(), true);
         {
             Backend backend;
-            QVERIFY(backend.narrowMargins());
-            backend.toggleNarrowMargins();
-            QVERIFY(!backend.narrowMargins());
+            QVERIFY(backend.wideColumn());
+            backend.toggleWideColumn();
+            QVERIFY(!backend.wideColumn());
         }
         // Off leaves nothing behind, so the settings say nothing about layout.
         settings.sync();
-        QVERIFY(!settings.contains(QStringLiteral("view/narrowMargins")));
+        QVERIFY(!settings.contains(QStringLiteral("view/wideColumn")));
     }
 
-    void narrowsMarginsFromTheKeyboard() {
+    void widensTheColumnFromTheKeyboard() {
         const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
         QVERIFY(!mainQmlPath.isEmpty());
         QSettings().remove(QStringLiteral("view"));
@@ -1051,24 +1051,24 @@ private slots:
         QFont writerFont(QStringLiteral("iA Writer Mono S"));
         writerFont.setPixelSize(20);
         const qreal characterWidth = QFontMetricsF(writerFont).averageCharWidth();
-        const auto column = [&](qreal width, bool narrow) {
-            return editorColumnWidth(characterWidth, width, narrow);
+        const auto column = [&](qreal width, bool wide) {
+            return editorColumnWidth(characterWidth, width, wide);
         };
         // Off, the column is upstream's: that it matches is what lets the
         // Binding below stand in for it.
         QCOMPARE(editor->property("width").toInt(), column(760, false));
 
         QTest::keyClick(window, Qt::Key_W, Qt::ControlModifier | Qt::ShiftModifier);
-        QVERIFY(backend.narrowMargins());
+        QVERIFY(backend.wideColumn());
         QCOMPARE(editor->property("width").toInt(), column(760, true));
-        QCOMPARE(backend.status(), QStringLiteral("Narrow margins"));
+        QCOMPARE(backend.status(), QStringLiteral("Wide column"));
         // Still a binding, not a frozen number.
         window->setWidth(900);
         QTRY_COMPARE(editor->property("width").toInt(), column(900, true));
 
         QTest::keyClick(window, Qt::Key_W, Qt::ControlModifier | Qt::ShiftModifier);
-        QVERIFY(!backend.narrowMargins());
-        QCOMPARE(backend.status(), QStringLiteral("Normal margins"));
+        QVERIFY(!backend.wideColumn());
+        QCOMPARE(backend.status(), QStringLiteral("Normal column"));
         // Qt restores upstream's own binding, so the layout still follows the
         // window rather than keeping the last width it was given.
         QCOMPARE(editor->property("width").toInt(), column(900, false));

@@ -24,8 +24,8 @@ class PreviewBridge : public QObject {
     Q_PROPERTY(QVariantMap theme READ theme NOTIFY themeChanged)
     Q_PROPERTY(qreal textScale READ textScale NOTIFY textScaleChanged)
     Q_PROPERTY(QString fontFamily READ fontFamily NOTIFY fontFamilyChanged)
-    // The measure #content uses, in characters: 65 normally, 80 with narrow
-    // margins (docs/SPEC.md §4.6).
+    // The measure #content uses, in characters: 65 normally, 80 with the wide
+    // column (docs/SPEC.md §4.6).
     Q_PROPERTY(int columnCharacters READ columnCharacters NOTIFY columnCharactersChanged)
     // The source line at the top of the editor's view, plus the fraction of
     // it scrolled past, which the preview lines up with (editor → preview).

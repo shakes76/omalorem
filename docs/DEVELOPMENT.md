@@ -28,7 +28,7 @@ the gap should be fixed or raised.
 | M8 Preview → editor scroll sync | Done | Commit `b0dc4fe`, merged. See §8 and SPEC §4.4, §5.7 |
 | M9 Omalorem's own text size | Done | Commit `abae9f5`, merged. See §8 and SPEC §4.3, §5.6.1 |
 | Release 0.4.0 | Done | Tag `omalorem-v0.4.0`; `pkgver` 0.4.0 |
-| M10 Narrow margins | Done, unreleased | Branch `m10-loose-measure`. See §8 and SPEC §4.6, §5.6.2 |
+| M10 The wide column | Done, unreleased | Branch `m10-loose-measure`. See §8 and SPEC §4.6, §5.6.2 |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -39,7 +39,7 @@ What works today:
 - The preview re-renders 120 ms after the last keystroke. Open, reload and recovery render at once.
 - Rendering is block-keyed: unchanged blocks keep their DOM nodes and typeset math, and KaTeX output is cached. An update of the 2,000-line, 200-equation document takes a median 9.5 ms offscreen.
 - `Ctrl+-` and `Ctrl+=` set Omalorem's own text size, 10% a step on top of the desktop's, and `Ctrl+0` returns to the desktop's. Both windows and the chrome follow; it is saved as `view/textScale`.
-- `Ctrl+Shift+W` narrows the margins in both windows: a 24 px gutter instead of upstream's ten characters a side, and a measure of 80 characters instead of 65. Saved as `view/narrowMargins`, off by default. The editor half works in `no_preview` builds; the preview gets the measure as `PreviewBridge::columnCharacters`.
+- `Ctrl+Shift+W` widens the column in both windows: a 24 px gutter instead of upstream's ten characters a side, and a measure of 80 characters instead of 65. Saved as `view/wideColumn`, off by default. The editor half works in `no_preview` builds; the preview gets the measure as `PreviewBridge::columnCharacters`.
 - Scroll sync runs both ways, on a fractional source line: the window you last scrolled leads. The preview follows the editor until the reader scrolls the preview, and then the editor follows the preview until the editor is scrolled or typed in again.
 - Local images in the document's folder and its subfolders load through `omalorem-doc:`. Remote, out-of-folder and unsaved-document images show a placeholder with the alt text.
 - Headings have GitHub-style ids, so `#anchor` links scroll within the preview.
@@ -203,7 +203,7 @@ M10 is built and unreleased, so the next step is 0.5.0 by the recipe below. SPEC
 
 Also open, and worth settling before publishing anywhere: upstream Omawrite has moved to 0.7.0 while the fork sits at 0.5.0 (`8f98892`), and `pkgbuild/PKGBUILD` builds from `$startdir/..` with an empty `source=()`, which neither the AUR nor the Omarchy package repository accepts.
 
-### Done: M10, narrow margins
+### Done: M10, the wide column
 
 `Ctrl+Shift+W` gives the sides back to the text in both windows: a 24 px gutter and an 80-character measure. Scope in SPEC §4.6 and §5.6.2. Nothing of Omawrite's layout is edited: a `Binding` with `when:` overrides upstream's `editorWidth` and Qt restores it when the mode goes off.
 
@@ -395,24 +395,24 @@ Findings:
 - The two directions are kept apart by one rule: the page publishes only while it isn't following, and the editor suppresses publishing only while applying. Everything else is the existing M2 machinery, inverted.
 - `Qt.callLater(function() { ... })` did not clear the guard: with a throwaway closure the reset never ran, and the editor stayed silent for good. The property change is delivered while `scrollTo()` runs, so the guard is cleared on the next line instead. Worth remembering for any other "suppress while applying" flag in QML.
 
-### M10: Narrow margins
+### M10: The wide column
 | Part | What |
 |---|---|
-| `src/editorlayout.h` | `editorColumnWidth(characterWidth, windowWidth, narrow)` and `editorColumnCharactersFor(narrow)`, header-only and free of GUI types. In the unconditional `HEADERS`, not the preview scope, so `no_preview` builds get it |
-| `Backend` | `narrowMargins` (saved as `view/narrowMargins`, off by default), `toggleNarrowMargins()`, and `editorColumnWidth()` as a `Q_INVOKABLE` for the QML binding |
-| `Main.qml` | A narrow-margins block: a `Binding` on `editor.width` guarded by `when: backend.narrowMargins`, and `Ctrl+Shift+W`, reporting "Narrow margins" / "Normal margins" |
-| `PreviewBridge` | `columnCharacters` (65 or 80), set in the lazy getter and on `narrowMarginsChanged`, so the preview follows without anything being built eagerly |
+| `src/editorlayout.h` | `editorColumnWidth(characterWidth, windowWidth, wide)` and `editorColumnCharactersFor(wide)`, header-only and free of GUI types. In the unconditional `HEADERS`, not the preview scope, so `no_preview` builds get it |
+| `Backend` | `wideColumn` (saved as `view/wideColumn`, off by default), `toggleWideColumn()`, and `editorColumnWidth()` as a `Q_INVOKABLE` for the QML binding |
+| `Main.qml` | A wide-column block: a `Binding` on `editor.width` guarded by `when: backend.wideColumn`, and `Ctrl+Shift+W`, reporting "Wide column" / "Normal column" |
+| `PreviewBridge` | `columnCharacters` (65 or 80), set in the lazy getter and on `wideColumnChanged`, so the preview follows without anything being built eagerly |
 | The page | `preview.js` writes `--measure`; `#content` is `max-width: var(--measure, 65ch)`. Its 24 px padding already matched the editor's new gutter |
-| Tests | `computesTheEditorColumn` (every band, both modes, the owner's own case), `remembersNarrowMargins` (default, saving, and that off leaves nothing behind), `narrowsMarginsFromTheKeyboard` (the editor really resizes, and still follows the window afterwards) and `followsTheEditorsMeasure` in `tst_preview` |
+| Tests | `computesTheEditorColumn` (every band, both modes, the owner's own case), `remembersTheWideColumn` (default, saving, and that off leaves nothing behind), `widensTheColumnFromTheKeyboard` (the editor really resizes, and still follows the window afterwards) and `followsTheEditorsMeasure` in `tst_preview` |
 
 Findings:
 - The thick margin is not the 65-character measure. Upstream caps the column at the measure *and* reserves a flat 20 characters, 10 a side; in one wide window the reserve never binds, but between about 600 and 1020 px of window width it is the only term that binds and costs a fixed 120 px a side. Half of a 1536 px screen shows 43 characters.
-- The preview never had the problem: `#content` is `max-width: 65ch` with a 24 px padding, so it keeps 24 px and gives the rest to the text. Side by side the editor carried a 120 px margin and the preview a 24 px one. Matching the preview is what narrow margins does, so the change needed nothing on the preview side at all — no CSS, no bridge call.
-- **A `Binding` with `when:` is what keeps this additive.** Upstream's `editorWidth` and the `TextEdit`'s `width: win.editorWidth` are both upstream lines and cannot be edited. Qt restores the original binding when `when` goes false, so switching the mode off gives back Omawrite's own layout rather than a copy of it — `narrowsMarginsFromTheKeyboard` resizes the window afterwards to prove the binding is live and not a frozen number.
-- **The first draft of the test was wrong about where the modes converge.** They are identical only above about 1020 px, not above 828: narrow margins reaches the full measure at 828 px, but upstream's own gutter holds the column short until 1020. The gap between the two is where the toggle gains most — at 900 px, 660 px of text becomes 780. SPEC §4.6 and the decisions log were corrected to match.
+- The preview never had the problem: `#content` is `max-width: 65ch` with a 24 px padding, so it keeps 24 px and gives the rest to the text. Side by side the editor carried a 120 px margin and the preview a 24 px one. Matching the preview is what the wide column does, so the change needed nothing on the preview side at all — no CSS, no bridge call.
+- **A `Binding` with `when:` is what keeps this additive.** Upstream's `editorWidth` and the `TextEdit`'s `width: win.editorWidth` are both upstream lines and cannot be edited. Qt restores the original binding when `when` goes false, so switching the mode off gives back Omawrite's own layout rather than a copy of it — `widensTheColumnFromTheKeyboard` resizes the window afterwards to prove the binding is live and not a frozen number.
+- **The first draft of the test was wrong about where the modes converge** (in the gutter-only version, since superseded). They were identical only above about 1020 px, not above 828: the shrunken gutter reached the full 65-character measure at 828 px, but upstream's own gutter held the column short until 1020. Writing the test is what caught it; the spec had said 828.
 - Window resizes reach QML asynchronously under the offscreen platform, so the post-resize assertions need `QTRY_COMPARE`.
 - No footer icon: principle 5 leaves the footer one extra icon and that is the preview toggle, as M7 already found for back and forward. The status line carries the feedback instead, as the text size does.
-- **The first build shrank the gutter only, and did nothing for the owner.** At text size 0.7 in a 749 px window, 65 characters already fitted: the measure was binding, not the gutter, so `Ctrl+Shift+W` changed no pixel. The lesson is that there are two ways to waste a narrow window and the gutter is only one of them — once the measure binds, making the text smaller turns the space it frees into more margin, not more text. Narrow margins now moves both terms, 24 px and 80 characters, so it always does something above the floor.
+- **The first build shrank the gutter only, and did nothing for the owner.** At text size 0.7 in a 749 px window, 65 characters already fitted: the measure was binding, not the gutter, so `Ctrl+Shift+W` changed no pixel. The lesson is that there are two ways to waste a narrow window and the gutter is only one of them — once the measure binds, making the text smaller turns the space it frees into more margin, not more text. The wide column now moves both terms, 24 px and 80 characters, so it always does something above the floor.
 - The preview needed exactly one new bridge property. `#content` already had the 24 px padding, so only the measure had to travel — `--measure` as a CSS custom property, in the same shape as `--base-size`.
 
 ### M9: Omalorem's own text size

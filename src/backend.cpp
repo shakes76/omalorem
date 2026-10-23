@@ -789,7 +789,7 @@ const QString previewPlacementSetting = QStringLiteral("preview/placement");
 const QString windowPlacement = QStringLiteral("window");
 const QString dockedPlacement = QStringLiteral("docked");
 const QString viewScaleSetting = QStringLiteral("view/textScale");
-const QString narrowMarginsSetting = QStringLiteral("view/narrowMargins");
+const QString wideColumnSetting = QStringLiteral("view/wideColumn");
 const QString previewFontSetting = QStringLiteral("preview/font");
 const QString monoFont = QStringLiteral("mono");
 const QString quattroFont = QStringLiteral("quattro");
@@ -806,7 +806,7 @@ PreviewBridge *Backend::previewBridge() const {
     m_previewBridge->setTextScale(m_textScale);
     m_previewBridge->setDocumentUrl(m_fileUrl);
     m_previewBridge->setFontFamily(previewFont());
-    m_previewBridge->setColumnCharacters(editorColumnCharactersFor(narrowMargins()));
+    m_previewBridge->setColumnCharacters(editorColumnCharactersFor(wideColumn()));
     m_previewBridge->setMarkdown(currentDocumentText());
     updatePreviewTheme();
 
@@ -818,9 +818,9 @@ PreviewBridge *Backend::previewBridge() const {
     connect(self, &Backend::fileUrlChanged, m_previewBridge, [self]() {
         self->m_previewBridge->setDocumentUrl(self->m_fileUrl);
     });
-    connect(self, &Backend::narrowMarginsChanged, m_previewBridge, [self]() {
+    connect(self, &Backend::wideColumnChanged, m_previewBridge, [self]() {
         self->m_previewBridge->setColumnCharacters(
-            editorColumnCharactersFor(self->narrowMargins()));
+            editorColumnCharactersFor(self->wideColumn()));
     });
     // openExternalUrl keeps its own scheme filter; the bridge pre-checks too.
     connect(m_previewBridge, &PreviewBridge::externalLinkRequested, self,
@@ -1029,34 +1029,35 @@ qreal Backend::applyViewScale(qreal desktopScale) const {
     return (desktopScale > 0 ? desktopScale : 1.0) * viewScale();
 }
 
-// --- Narrow margins (docs/SPEC.md §4.6) -------------------------------------
-// Upstream's gutter is 10 characters a side and never shrinks, which costs a
-// third of the window when the editor and the preview share a screen. Narrow
-// margins hands that space to the text, keeping the 65-character measure.
+// --- Wide column (docs/SPEC.md §4.6) ----------------------------------------
+// Upstream's gutter is 10 characters a side and never shrinks, and its
+// measure stops at 65 characters, so a window shared with the preview spends
+// a third of itself on margin. The wide column hands that space back: a 24 px
+// gutter and 80 characters, in both windows.
 
-bool Backend::narrowMargins() const {
-    if (!m_narrowMarginsLoaded) {
-        m_narrowMarginsLoaded = true;
-        m_narrowMargins = QSettings().value(narrowMarginsSetting, false).toBool();
+bool Backend::wideColumn() const {
+    if (!m_wideColumnLoaded) {
+        m_wideColumnLoaded = true;
+        m_wideColumn = QSettings().value(wideColumnSetting, false).toBool();
     }
-    return m_narrowMargins;
+    return m_wideColumn;
 }
 
-void Backend::toggleNarrowMargins() {
-    const bool narrow = !narrowMargins();
-    m_narrowMargins = narrow;
+void Backend::toggleWideColumn() {
+    const bool wide = !wideColumn();
+    m_wideColumn = wide;
     // Off is Omawrite's own layout, so it leaves nothing behind in the file.
-    if (narrow)
-        QSettings().setValue(narrowMarginsSetting, true);
+    if (wide)
+        QSettings().setValue(wideColumnSetting, true);
     else
-        QSettings().remove(narrowMarginsSetting);
+        QSettings().remove(wideColumnSetting);
     // The preview follows through the bridge, but only if one exists: a
     // session that never shows the preview still builds nothing.
-    emit narrowMarginsChanged();
+    emit wideColumnChanged();
 }
 
-int Backend::editorColumnWidth(qreal characterWidth, qreal windowWidth, bool narrow) const {
-    return ::editorColumnWidth(characterWidth, windowWidth, narrow);
+int Backend::editorColumnWidth(qreal characterWidth, qreal windowWidth, bool wide) const {
+    return ::editorColumnWidth(characterWidth, windowWidth, wide);
 }
 
 // --- Document history (docs/SPEC.md §4.5) -----------------------------------

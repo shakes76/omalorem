@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: v1.6 · 2026-10-23 · M8 and M9 released as 0.4.0; M10 (narrow margins) built, unreleased
+Status: v1.6 · 2026-10-23 · M8 and M9 released as 0.4.0; M10 (the wide column) built, unreleased
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -157,7 +157,7 @@ the preview. The word count stays at the bottom right of the editor window.
 | `Ctrl+P` | Print. Uses the rendered preview, so the math appears |
 | `Ctrl+-` / `Ctrl+=` | Omalorem's own text size, 10% a step (M9) |
 | `Ctrl+0` | Back to the desktop's text size (M9) |
-| `Ctrl+Shift+W` | Narrow margins on or off: a 24 px gutter and an 80-character measure (M10) |
+| `Ctrl+Shift+W` | The wide column on or off: a 24 px gutter and an 80-character measure (M10) |
 | `Alt+Left` | Back, to the document visited before this one (M7) |
 | `Alt+Right` | Forward again (M7) |
 
@@ -285,7 +285,7 @@ opens it in the editor, and back returns to where you were.
 - **Not in scope here:** following links in the editor's own text, opening a second
   window for the target, and previewing a document without opening it in the editor.
 
-### 4.6 The editor column and its margins (M10)
+### 4.6 The column and its margins (M10)
 
 Omawrite centres the editor in a column of about 65 characters — the reading measure it
 took from Typora — and reserves a gutter of **20 characters, 10 a side**, that never
@@ -302,17 +302,18 @@ whatever the window does. Half of a 1536 px screen — about 755 px, at the defa
 text — leaves a column of 43 characters with 120 px empty on either side, a third of the
 window.
 
-The preview already avoids this. `#content` is `max-width: 65ch` with a 24 px side
-padding (§4.3), so when the window is too narrow for the measure it keeps a 24 px gutter
-and gives the rest to the text. Side by side today the editor carries a 120 px margin and
-the preview a 24 px one; that asymmetry is what the feature really fixes.
+The preview has only half of the problem. `#content` is `max-width: 65ch` with a 24 px
+side padding (§4.3), so when the window is too narrow for the measure it keeps a 24 px
+gutter and gives the rest to the text — at the default text size the editor carries a
+120 px margin beside a preview with 24 px. But the measure binds there too, and when it
+does, both windows waste the same space.
 
 Shrinking the text does not help, and this is the part that surprises. Once the text is
 small enough for 65 characters to fit, the measure is what binds, and every further
 pixel the window has becomes margin. At 749 px and text size 0.7 the column is 546 px
 with **101 px of margin a side**, and `Ctrl+-` from there only makes that worse.
 
-- **`Ctrl+Shift+W` turns narrow margins on and off.** It changes both terms:
+- **`Ctrl+Shift+W` turns the wide column on and off.** It changes both terms:
 
   ```
   editorWidth = min(80ch, max(360, width - 48))
@@ -332,9 +333,9 @@ with **101 px of margin a side**, and `Ctrl+-` from there only makes that worse.
   floor, at every window width and text size. At 749 px: text size 0.7 goes from 65
   characters and 101 px margins to 80 and 38; 0.9 from 49 characters and 108 px margins
   to 65 and 24; 1.0 from 42 and 120 to 58 and 24.
-- **It is saved**, as `view/narrowMargins`, and it is **off by default**, so Omawrite's
+- **It is saved**, as `view/wideColumn`, and it is **off by default**, so Omawrite's
   editor is untouched until it is asked for.
-- **The status line reports the change** — "Narrow margins" or "Normal margins" — the way
+- **The status line reports the change** — "Wide column" or "Normal column" — the way
   the text size reports its percentage. There is no footer icon: principle 5 leaves the
   footer one extra icon and that is the preview toggle, and the nearest sibling feature,
   Omalorem's own text size (M9), is shortcuts only for the same reason.
@@ -551,16 +552,16 @@ calls upstream makes, with the same lambda, so nothing of Omawrite's is edited. 
 connected after upstream's handler, so on a desktop change they have the last word. The
 `Ctrl+-`, `Ctrl+=` and `Ctrl+0` shortcuts live in the fork's own block in `Main.qml`.
 
-### 5.6.2 Narrow margins (M10)
+### 5.6.2 The wide column (M10)
 
-`editorColumnWidth(charWidth, windowWidth, narrow)` and `editorColumnCharactersFor(narrow)`
+`editorColumnWidth(charWidth, windowWidth, wide)` and `editorColumnCharactersFor(wide)`
 are pure functions in a new `src/editorlayout.h`, so the arithmetic is tested in C++
 rather than guessed at in QML, and the two measures (65 and 80) have one home that both
 windows read.
 The header goes in the unconditional `HEADERS` of `omalorem.pro`, not the preview scope
 that holds `previewpolicy.h`, because this works in `no_preview` builds too. `Backend`
-exposes it as a `Q_INVOKABLE` and owns the setting: `narrowMargins`, saved as
-`view/narrowMargins`, with `toggleNarrowMargins()`, loaded lazily like the other view
+exposes it as a `Q_INVOKABLE` and owns the setting: `wideColumn`, saved as
+`view/wideColumn`, with `toggleWideColumn()`, loaded lazily like the other view
 settings.
 
 Upstream's `editorWidth` and the `TextEdit`'s `width: win.editorWidth` are both upstream
@@ -571,7 +572,7 @@ instead:
 Binding {
     target: editor
     property: "width"
-    when: backend.narrowMargins
+    when: backend.wideColumn
     value: backend.editorColumnWidth(writerFontMetrics.averageCharacterWidth,
                                      win.width, true)
 }
@@ -583,8 +584,8 @@ gives back Omawrite's layout itself rather than a copy of it. `editor.x` centres
 block in `Main.qml`, beside `Ctrl+-` and `Ctrl+0`.
 
 The preview's half is one more bridge property. `PreviewBridge::columnCharacters` is
-`editorColumnCharactersFor(narrowMargins())`, set when the bridge is built and again on
-`narrowMarginsChanged`; `preview.js` writes it to the `--measure` custom property and
+`editorColumnCharactersFor(wideColumn())`, set when the bridge is built and again on
+`wideColumnChanged`; `preview.js` writes it to the `--measure` custom property and
 `#content` is `max-width: var(--measure, 65ch)`. Nothing is created eagerly: a session
 that never shows the preview still builds no bridge, because the connection is made
 inside the lazy getter.
@@ -697,8 +698,8 @@ Backend history: visit / back / forward  ◀── Backend::open succeeds (fileU
     `previewPlacement`.
   - `editorColumnWidth` in all three width bands, in both modes: the 65ch cap, the
     gutter that binds between it and the 360 px floor, and the floor itself; that
-    narrow margins is wider at every width above the floor; the owner's own case
-    (749 px at text size 0.7); and the default and saving of `narrowMargins` (M10).
+    the wide column is wider at every width above the floor; the owner's own case
+    (749 px at text size 0.7); and the default and saving of `wideColumn` (M10).
 - **Render tests:** a `tests/preview/` QtTest target loads `index.html` in an offscreen
   `QQuickWebEngineView` from a fixture corpus (`tests/fixtures/*.md`). It asserts, using
   `runJavaScript`:
@@ -721,7 +722,7 @@ Backend history: visit / back / forward  ◀── Backend::open succeeds (fileU
     `omarchy display text size …` updates both windows live;
   - dark and light toggle;
   - the portal dialogs for PDF export;
-  - narrow margins in a half-screen window: the editor column matches the preview's, and
+  - the wide column in a half-screen window: the editor column matches the preview's, and
     turning it off restores Omawrite's layout exactly (M10).
 
 ## 8. Milestones
@@ -743,7 +744,7 @@ unreleased.
 | M9 | Omalorem's own text size *(done)* | `Ctrl+-`, `Ctrl+=` and `Ctrl+0` step and reset a factor on the desktop's text size, saved as `view/textScale`, applied to both windows and the chrome without touching Omawrite's own files. Tests for the steps, the clamps, what is saved, and the editor really resizing |
 | M8 | Preview → editor scroll sync *(done)* | Scrolling the preview scrolls the editor to the same place, by the same measure as the other direction; whichever window was last scrolled leads; neither publishes the other's moves back. Tests at the page, the bridge and the whole path |
 | M7 | Document links and history *(done)* | Clicking a link to a Markdown file in the document's folder opens it, with the unsaved-changes dialog when needed; followable links carry a dotted underline; `notes.md#heading` scrolls there; `Alt+Left` / `Alt+Right` and the mouse's side buttons walk the last 20 documents, restoring the caret; links outside the folder, missing files and unsaved documents are refused with a status message. Tests at each layer (§4.5, §5.7) |
-| M10 | Narrow margins *(done, unreleased)* | `Ctrl+Shift+W` drops the gutter to 24 px a side and loosens the measure from 65 to 80 characters, in both windows, saved as `view/narrowMargins` and off by default. Upstream's own binding is restored when it is switched off. Works in `no_preview` builds. Tests for the width in every band and mode, for the owner's own case, for the page's measure, and for the setting |
+| M10 | The wide column *(done, unreleased)* | `Ctrl+Shift+W` drops the gutter to 24 px a side and loosens the measure from 65 to 80 characters, in both windows, saved as `view/wideColumn` and off by default. Upstream's own binding is restored when it is switched off. Works in `no_preview` builds. Tests for the width in every band and mode, for the owner's own case, for the page's measure, and for the setting |
 
 ## 9. Decisions log
 
@@ -768,9 +769,9 @@ unreleased.
 | 2026-09-21 | M4: the editor math features work in every build, `no_preview` included. Emphasis markers inside math are neither hidden nor skipped by the caret. `Ctrl+M` and `Ctrl+Shift+M` are one undo step each. |
 | 2026-09-21 | M5: `Ctrl+P` reaches the preview through lines added to `Backend::printDocument()`. With the preview hidden, output comes from the hidden preview window, never a second pane. Page margins come from cloned body padding, because Qt's `printToPdf` has none. Wide formulas are scaled to fit for now (§11.2). Output stays simple: no headers, page numbers or link URLs (§11.3). |
 | 2026-10-20 | M9: Omalorem gets a text size of its own, as a factor on the desktop's, because two windows side by side need less than one does. It is applied in `main.cpp`'s added lines, to the same two places the desktop's scale feeds, so no Omawrite file changes. `Ctrl+0` returns to the desktop's size rather than to 1.0 in the abstract — at 1.0 they are the same thing. |
-| 2026-10-23 | M10: narrow margins keeps the 65ch measure and only shrinks the gutter, to the preview's own 24 px, so the two columns line up. *(Superseded below: shrinking the gutter alone does nothing once the measure binds, which is where the owner actually was.)* |
-| 2026-10-23 | M10: narrow margins moves both terms — a 24 px gutter **and** an 80-character measure, in the editor and the preview alike. Shrinking the gutter alone was no help at text size 0.7, where 65 characters already fitted and the margin was the measure's doing, not the gutter's; and making the text smaller only turned more of the window into margin. 80 is a measure and not the window, so a maximized window still keeps a margin rather than running to 124 characters a line. The preview gets it as `PreviewBridge::columnCharacters`, which is the only thing that had to cross the bridge. |
-| 2026-10-23 | M10: no second footer icon. Principle 5 leaves the footer one extra icon and that is the preview toggle, as M7 already found for back and forward; the nearest sibling feature, the text size (M9), is a shortcut with a status line, and the margins follow it. |
+| 2026-10-23 | M10: the wide column keeps the 65ch measure and only shrinks the gutter, to the preview's own 24 px, so the two columns line up. *(Superseded below: shrinking the gutter alone does nothing once the measure binds, which is where the owner actually was.)* |
+| 2026-10-23 | M10: the wide column moves both terms — a 24 px gutter **and** an 80-character measure, in the editor and the preview alike. Shrinking the gutter alone was no help at text size 0.7, where 65 characters already fitted and the margin was the measure's doing, not the gutter's; and making the text smaller only turned more of the window into margin. 80 is a measure and not the window, so a maximized window still keeps a margin rather than running to 124 characters a line. The preview gets it as `PreviewBridge::columnCharacters`, which is the only thing that had to cross the bridge. |
+| 2026-10-23 | M10: no second footer icon. Principle 5 leaves the footer one extra icon and that is the preview toggle, as M7 already found for back and forward; the nearest sibling feature, the text size (M9), is a shortcut with a status line, and the column follows it. |
 | 2026-10-20 | M8: scroll sync works both ways, and the window you last scrolled leads. The preview publishes its top line only while it isn't following the editor, and the editor doesn't publish a move the preview asked for; that is what keeps the two from chasing each other. |
 | 2026-09-28 | M7: a link to a Markdown file inside the document's folder opens that document in the editor. The folder rule is the images' rule, for the same reason. Links outside it, and links in unsaved documents, are refused with a status message. |
 | 2026-09-28 | M7: back and forward are `Alt+Left` / `Alt+Right` and the mouse's side buttons over the preview, not a second footer icon: principle 5 leaves the footer one extra icon, and it is the preview toggle. |

@@ -120,7 +120,7 @@ optional Hyprland snippets for the preview window, the launcher and keybindings.
 - `Ctrl+B`, `Ctrl+I`, and `Ctrl+K` insert bold, italic, and link Markdown.
 - `Ctrl+M` wraps the selection in inline math `$…$`, or inserts `$$` with the cursor between. `Ctrl+Shift+M` inserts a display math block on its own lines. Return inside an open `$$` block adds a plain newline.
 - `Ctrl+-` and `Ctrl+=` make Omalorem's text one step smaller or larger, 10% at a time, in both windows at once; `Ctrl+0` goes back to the desktop's size. This is Omalorem's own setting, on top of `omarchy display text size`, and it is remembered.
-- `Ctrl+Shift+W` narrows the margins in both windows: the side gutter drops to 24 px and the line loosens from 65 to 80 characters, which is the usual upper bound for technical writing. It is remembered.
+- `Ctrl+Shift+W` widens the column in both windows: the side gutter drops to 24 px and the line loosens from 65 to 80 characters, which is the usual upper bound for technical writing. It is remembered.
 - `Alt+Left` and `Alt+Right` go back and forward through the documents you have opened in this window, putting the cursor back where you left it. The mouse's side buttons do the same over the preview.
 - `Ctrl+?` shows the keyboard shortcut reference.
 

@@ -9,7 +9,7 @@ HEADERS += \
     src/markdownhighlighter.h \
     src/systemtheme.h
 
-# Omalorem narrow margins (docs/SPEC.md §5.6.2): editor layout, so it belongs
+# Omalorem wide column (docs/SPEC.md §5.6.2): editor layout, so it belongs
 # outside the preview scope below and builds under no_preview too.
 HEADERS += src/editorlayout.h
 

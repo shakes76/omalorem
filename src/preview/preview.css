@@ -90,7 +90,7 @@ html[data-font="quattro"] {
 
 /* The same measure as the editor column, centred. #content itself stays in
    Mono, so the measure is the same width whichever font the prose uses.
-   --measure is 65ch, or 80ch with narrow margins (docs/SPEC.md §4.6). */
+   --measure is 65ch, or 80ch in the wide column (docs/SPEC.md §4.6). */
 #content {
     box-sizing: content-box;
     max-width: var(--measure, 65ch);

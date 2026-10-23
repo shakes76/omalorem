@@ -37,8 +37,8 @@ class Backend : public QObject {
     Q_PROPERTY(QString previewFont READ previewFont WRITE setPreviewFont NOTIFY previewFontChanged)
     // Omalorem's own text size, on top of the desktop's (docs/SPEC.md §4.3).
     Q_PROPERTY(qreal viewScale READ viewScale NOTIFY viewScaleChanged)
-    // Narrow margins: the editor column's gutter (docs/SPEC.md §4.6).
-    Q_PROPERTY(bool narrowMargins READ narrowMargins NOTIFY narrowMarginsChanged)
+    // The wide column: a 24 px gutter and 80 characters (docs/SPEC.md §4.6).
+    Q_PROPERTY(bool wideColumn READ wideColumn NOTIFY wideColumnChanged)
     Q_PROPERTY(bool previewCanGoBack READ previewCanGoBack NOTIFY previewHistoryChanged)
     Q_PROPERTY(bool previewCanGoForward READ previewCanGoForward NOTIFY previewHistoryChanged)
 
@@ -96,12 +96,12 @@ public:
     Q_INVOKABLE void resetViewScale();
     // The scale to use, given what the desktop asks for. main.cpp applies it.
     Q_INVOKABLE qreal applyViewScale(qreal desktopScale) const;
-    // Narrow margins, saved as view/narrowMargins and off by default.
-    bool narrowMargins() const;
-    Q_INVOKABLE void toggleNarrowMargins();
-    // Omawrite's column width, or the narrow one. Main.qml binds to it.
+    // Saved as view/wideColumn, and off by default.
+    bool wideColumn() const;
+    Q_INVOKABLE void toggleWideColumn();
+    // Omawrite's column width, or the wide one. Main.qml binds to it.
     Q_INVOKABLE int editorColumnWidth(qreal characterWidth, qreal windowWidth,
-                                      bool narrow) const;
+                                      bool wide) const;
     bool previewCanGoBack() const;
     bool previewCanGoForward() const;
     Q_INVOKABLE void previewHistoryPrepare(int caret);
@@ -149,7 +149,7 @@ signals:
     void previewVisibleChanged();
     void previewPlacementChanged();
     void viewScaleChanged();
-    void narrowMarginsChanged();
+    void wideColumnChanged();
     void previewHistoryChanged();
     // Emitted when back or forward has reopened a document, with the caret
     // position it was left at.
@@ -232,8 +232,8 @@ private:
     mutable qreal m_viewScale = 1.0;
     mutable bool m_viewScaleLoaded = false;
 
-    mutable bool m_narrowMargins = false;
-    mutable bool m_narrowMarginsLoaded = false;
+    mutable bool m_wideColumn = false;
+    mutable bool m_wideColumnLoaded = false;
 
     struct PreviewVisit {
         QUrl url;
