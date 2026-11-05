@@ -282,6 +282,58 @@ Window {
             }
         }
 
+        // --- Back and forward (docs/SPEC.md §4.7) --------------------------
+        // Reading between notes is done with a hand on the mouse, and Alt+Left
+        // is not on the mouse. The plate is in the page colour, because the
+        // column is centred and its gutter can be 24 px wide, so a bare icon
+        // would sometimes sit on a paragraph. It appears with the first visit
+        // and is gone until then, so reading one document shows no chrome.
+        Rectangle {
+            id: historyControls
+            objectName: "previewHistoryControls"
+            anchors.left: parent.left
+            anchors.bottom: parent.bottom
+            anchors.leftMargin: 12
+            anchors.bottomMargin: 12
+            width: historyRow.width + 20
+            height: historyRow.height + 16
+            radius: 9
+            color: backend.themeBackground
+            visible: backend.previewCanGoBack || backend.previewCanGoForward
+
+            readonly property color mutedColor: backend.darkMode ? "#909191" : "#aeb1b5"
+            // The same colour, faded, for a direction with nowhere to go.
+            readonly property color spentColor: Qt.rgba(mutedColor.r, mutedColor.g,
+                                                        mutedColor.b, 0.35)
+
+            Row {
+                id: historyRow
+                anchors.centerIn: parent
+                spacing: 12
+                opacity: 0.55
+
+                FooterIconButton {
+                    objectName: "previewBackButton"
+                    iconName: "back"
+                    enabled: backend.previewCanGoBack
+                    iconColor: backend.previewCanGoBack ? historyControls.mutedColor
+                                                        : historyControls.spentColor
+                    tooltip: "Back"
+                    onClicked: backend.previewBridge.navigateBack()
+                }
+
+                FooterIconButton {
+                    objectName: "previewForwardButton"
+                    iconName: "forward"
+                    enabled: backend.previewCanGoForward
+                    iconColor: backend.previewCanGoForward ? historyControls.mutedColor
+                                                           : historyControls.spentColor
+                    tooltip: "Forward"
+                    onClicked: backend.previewBridge.navigateForward()
+                }
+            }
+        }
+
         // Only what means something in a preview: the text, and the documents
         // visited. Styled from the theme, like the rest of the window.
         Menu {

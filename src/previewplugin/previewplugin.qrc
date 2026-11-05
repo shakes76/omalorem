@@ -3,6 +3,7 @@
         <file alias="qmldir">qmldir</file>
         <file alias="PreviewWindow.qml">PreviewWindow.qml</file>
         <file alias="PreviewPane.qml">PreviewPane.qml</file>
+        <file alias="FooterIconButton.qml">../FooterIconButton.qml</file>
     </qresource>
     <qresource prefix="/preview">
         <file alias="index.html">../preview/index.html</file>

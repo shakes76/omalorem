@@ -2,5 +2,6 @@ module Omalorem.Preview
 plugin omalorempreviewplugin
 classname OmaloremPreviewPlugin
 prefer :/qt/qml/Omalorem/Preview/
+FooterIconButton 1.0 FooterIconButton.qml
 PreviewPane 1.0 PreviewPane.qml
 PreviewWindow 1.0 PreviewWindow.qml

@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: v1.6 · 2026-10-23 · M8 and M9 released as 0.4.0, M10 (the wide column) as 0.5.0
+Status: v1.7 · 2026-11-05 · M8 and M9 released as 0.4.0, M10 (the wide column) as 0.5.0; M11 (back and forward in the preview) specified
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -163,9 +163,11 @@ the preview. The word count stays at the bottom right of the editor window.
 
 All of these are added to the `Ctrl+?` reference dialog and to the README.
 
-The footer keeps its single extra icon, the preview toggle (principle 5), so back and
-forward are shortcuts only, and so are the text size (M9) and the margins (M10). Over
-the preview, the mouse's back and forward buttons do the same.
+The **editor's** footer keeps its single extra icon, the preview toggle (principle 5), so
+the text size (M9) and the wide column (M10) are shortcuts only. Over the preview, the
+mouse's back and forward buttons walk the documents, and from M11 the preview window has
+back and forward buttons of its own (§4.7) — its own window, with no footer for
+principle 5 to ration.
 
 ### 4.3 Preview typography
 - **The font matches the editor by default.** Prose uses **iA Writer Mono S**, the font
@@ -341,6 +343,33 @@ with **101 px of margin a side**, and `Ctrl+-` from there only makes that worse.
   Omalorem's own text size (M9), is shortcuts only for the same reason.
 - **It works in `no_preview` builds**, like the editor math (M4). The column arithmetic
   needs no WebEngine; only the preview's half of it goes over the bridge.
+
+### 4.7 Back and forward in the preview (M11)
+
+Following links between notes (§4.5) is reading, and reading is done with a hand on the
+mouse. `Alt+Left` is not on the mouse, and the side buttons that are — which the preview
+already honours — are missing from plenty of mice and awkward on a trackpad. The context
+menu has Back and Forward, but a right-click to turn a page is a poor way to read.
+
+- **Two icons, back and forward**, at the **bottom left of the preview window**, where
+  the editor keeps its own icons.
+- **They sit on a small plate in the page colour**, rounded like the editor's find bar,
+  so they read as the window's chrome rather than as marks in the text. The page's column
+  is centred and its gutter can be as narrow as 24 px (§4.6), so an unbacked icon would
+  sometimes land on a paragraph.
+- **The plate is there only when there is somewhere to go.** A session that opens one
+  document and reads it sees no chrome at all; the plate appears with the first visit and
+  stays. Within it each icon greys when its own direction is empty, as the context menu's
+  items do.
+- **One history, three ways in.** The buttons walk exactly the list that `Alt+Left` /
+  `Alt+Right`, the mouse's side buttons and the context menu walk, with the same rules and
+  the same caret restoring (§4.5). They add no state and no new backend call.
+- **Fixed sizes**, like the context menu's (§4.5), not scaled by Omalorem's text size
+  (M9). The preview's chrome is sized for the window, not for the prose.
+- **Principle 5 is about the editor's footer**, which holds upstream's save and open and
+  the fork's preview toggle. The preview is the fork's own window and has no footer; its
+  chrome is already its own. This does reverse what M7 decided for back and forward
+  (§9), on the ground that reading between notes is what the preview is for.
 
 ## 5. Architecture
 
@@ -710,7 +739,9 @@ Backend history: visit / back / forward  ◀── Backend::open succeeds (fileU
   - raw HTML escaped;
   - remote and out-of-folder images replaced by placeholders;
   - the computed `font-family` following `fontFamily`;
-  - `--measure` and the width of `#content` following `columnCharacters` (M10).
+  - `--measure` and the width of `#content` following `columnCharacters` (M10);
+  - the preview's back and forward buttons: hidden until there is history, each greyed
+    while its own direction is empty, and walking the same list as `Alt+Left` (M11).
 - **Performance test:** the 2,000-line fixture must meet the budget in 5.4. It is run
   manually and logged, not gated in CI.
 - **Manual checklist (Omarchy):**
@@ -729,7 +760,7 @@ Backend history: visit / back / forward  ◀── Backend::open succeeds (fileU
 
 M0 to M6 are done, except M3, which moved to §11, and released as `omalorem-v0.2.0`.
 M7 followed as `omalorem-v0.3.0`, M8 and M9 as `omalorem-v0.4.0`, and M10 as
-`omalorem-v0.5.0`.
+`omalorem-v0.5.0`. M11 is specified and not yet built.
 
 | # | Deliverable | Acceptance |
 |---|---|---|
@@ -744,6 +775,7 @@ M7 followed as `omalorem-v0.3.0`, M8 and M9 as `omalorem-v0.4.0`, and M10 as
 | M9 | Omalorem's own text size *(done)* | `Ctrl+-`, `Ctrl+=` and `Ctrl+0` step and reset a factor on the desktop's text size, saved as `view/textScale`, applied to both windows and the chrome without touching Omawrite's own files. Tests for the steps, the clamps, what is saved, and the editor really resizing |
 | M8 | Preview → editor scroll sync *(done)* | Scrolling the preview scrolls the editor to the same place, by the same measure as the other direction; whichever window was last scrolled leads; neither publishes the other's moves back. Tests at the page, the bridge and the whole path |
 | M7 | Document links and history *(done)* | Clicking a link to a Markdown file in the document's folder opens it, with the unsaved-changes dialog when needed; followable links carry a dotted underline; `notes.md#heading` scrolls there; `Alt+Left` / `Alt+Right` and the mouse's side buttons walk the last 20 documents, restoring the caret; links outside the folder, missing files and unsaved documents are refused with a status message. Tests at each layer (§4.5, §5.7) |
+| M11 | Back and forward in the preview | Two icons at the bottom left of the preview window, on a plate in the page colour, shown only while there is history and each greyed when its direction is empty. They walk the same list as `Alt+Left` with the same caret restoring. Tests at the window |
 | M10 | The wide column *(done)* | `Ctrl+Shift+W` drops the gutter to 24 px a side and loosens the measure from 65 to 80 characters, in both windows, saved as `view/wideColumn` and off by default. Upstream's own binding is restored when it is switched off. Works in `no_preview` builds. Tests for the width in every band and mode, for the owner's own case, for the page's measure, and for the setting |
 
 ## 9. Decisions log
@@ -774,7 +806,8 @@ M7 followed as `omalorem-v0.3.0`, M8 and M9 as `omalorem-v0.4.0`, and M10 as
 | 2026-10-23 | M10: no second footer icon. Principle 5 leaves the footer one extra icon and that is the preview toggle, as M7 already found for back and forward; the nearest sibling feature, the text size (M9), is a shortcut with a status line, and the column follows it. |
 | 2026-10-20 | M8: scroll sync works both ways, and the window you last scrolled leads. The preview publishes its top line only while it isn't following the editor, and the editor doesn't publish a move the preview asked for; that is what keeps the two from chasing each other. |
 | 2026-09-28 | M7: a link to a Markdown file inside the document's folder opens that document in the editor. The folder rule is the images' rule, for the same reason. Links outside it, and links in unsaved documents, are refused with a status message. |
-| 2026-09-28 | M7: back and forward are `Alt+Left` / `Alt+Right` and the mouse's side buttons over the preview, not a second footer icon: principle 5 leaves the footer one extra icon, and it is the preview toggle. |
+| 2026-09-28 | M7: back and forward are `Alt+Left` / `Alt+Right` and the mouse's side buttons over the preview, not a second footer icon: principle 5 leaves the footer one extra icon, and it is the preview toggle. *(Partly superseded below: the buttons exist, in the preview's own window rather than the editor's footer.)* |
+| 2026-11-05 | M11: the preview window gets back and forward buttons, at the owner's request, after reading across linked notes with a mouse proved the shortcut and the side buttons were not enough. Principle 5 rations the **editor's** footer, where upstream's own icons live; the preview is the fork's window and has no footer, so this is not the icon that principle was keeping back. They are hidden until there is history, so a one-document session still sees a bare window. |
 | 2026-09-28 | M7: followable links get a dotted underline, so a link that stays in the notes reads differently from one that opens the browser. |
 | 2026-09-25 | M6: `pkgbuild/` counts as the fork's own directory, like `README.md` and `docs/`. A renamed fork's packaging carries its own identity (icon, desktop entry, package name), so it can't stay additive-only against Omawrite's. |
 | 2026-09-25 | M6: the first release under the new name is 0.2.0, tagged `omalorem-v0.2.0`. Upstream's `v*` tags are in this repository, so Omalorem's carry the name. |

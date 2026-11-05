@@ -49,7 +49,8 @@ Omalorem was first released as Omaview 0.1.0 (tag `omaview-v0.1.0`).
 - **Links between your notes.** A link to another Markdown file in the document's folder
   opens that file in the editor, and `notes.md#results` scrolls to that heading. Those
   links carry a dotted underline, so they read differently from links that open your
-  browser. `Alt+Left` goes back.
+  browser. `Alt+Left` goes back, and the preview window grows its own back and forward
+  buttons once you have been somewhere.
 - **Room for the text.** Two windows on one screen leave each of them narrow, and
   Omawrite's margins were measured for one wide one. `Ctrl+Shift+W` gives the space back:
   a 24 px gutter and a line of up to 80 characters instead of 65, in the editor and the
@@ -122,7 +123,7 @@ optional Hyprland snippets for the preview window, the launcher and keybindings.
 - `Ctrl+M` wraps the selection in inline math `$…$`, or inserts `$$` with the cursor between. `Ctrl+Shift+M` inserts a display math block on its own lines. Return inside an open `$$` block adds a plain newline.
 - `Ctrl+-` and `Ctrl+=` make Omalorem's text one step smaller or larger, 10% at a time, in both windows at once; `Ctrl+0` goes back to the desktop's size. This is Omalorem's own setting, on top of `omarchy display text size`, and it is remembered.
 - `Ctrl+Shift+W` widens the column in both windows: the side gutter drops to 24 px and the line loosens from 65 to 80 characters, which is the usual upper bound for technical writing. It is remembered.
-- `Alt+Left` and `Alt+Right` go back and forward through the documents you have opened in this window, putting the cursor back where you left it. The mouse's side buttons do the same over the preview.
+- `Alt+Left` and `Alt+Right` go back and forward through the documents you have opened in this window, putting the cursor back where you left it. The mouse's side buttons do the same over the preview, as do the back and forward buttons at the bottom left of the preview window, which appear once there is somewhere to go.
 - `Ctrl+?` shows the keyboard shortcut reference.
 
 Every shortcut except the editing ones also works while the preview window has focus. Find

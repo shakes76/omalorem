@@ -1,6 +1,6 @@
 # Omalorem — Development status
 
-Last updated: 2026-10-23 · Branch: `main`, pushed to `origin` (github.com/shakes76/omalorem). Upstream Omawrite is the `upstream` remote. Releases: `omalorem-v0.5.0` (current), then `omalorem-v0.4.0`, `omalorem-v0.3.0`, `omalorem-v0.2.0` and `omaview-v0.1.0` (the last commit under the old name). Release tags carry the name, because upstream's `v…` tags are in this repository
+Last updated: 2026-11-05 · Branch: `main`, pushed to `origin` (github.com/shakes76/omalorem). Upstream Omawrite is the `upstream` remote. Releases: `omalorem-v0.5.0` (current), then `omalorem-v0.4.0`, `omalorem-v0.3.0`, `omalorem-v0.2.0` and `omaview-v0.1.0` (the last commit under the old name). Release tags carry the name, because upstream's `v…` tags are in this repository
 
 This is the working log for developers and coding agents. It records where the project
 stands, how the code is laid out, the rules every change must follow, and what was done
@@ -30,6 +30,7 @@ the gap should be fixed or raised.
 | Release 0.4.0 | Done | Tag `omalorem-v0.4.0`; `pkgver` 0.4.0 |
 | M10 The wide column | Done | Commits `7bca116`…`60288ca`, merged. See §8 and SPEC §4.6, §5.6.2 |
 | Release 0.5.0 | Done | Tag `omalorem-v0.5.0`; `pkgver` 0.5.0 |
+| M11 Back and forward in the preview | Done, unreleased | Branch `m11-preview-history-buttons`. See §8 and SPEC §4.7 |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -45,6 +46,7 @@ What works today:
 - Local images in the document's folder and its subfolders load through `omalorem-doc:`. Remote, out-of-folder and unsaved-document images show a placeholder with the alt text.
 - Headings have GitHub-style ids, so `#anchor` links scroll within the preview.
 - Right-clicking the preview shows its own menu: Copy, Select all, Back, Forward.
+- The preview window has back and forward buttons at its bottom left, on a plate in the page colour, shown only once there is history and each greyed when its own direction is empty. They walk the same list as `Alt+Left`.
 - A link to a Markdown file in the document's folder opens it in the editor, with a dotted underline to mark it and the unsaved-changes dialog when needed; `notes.md#heading` scrolls there. `Alt+Left` / `Alt+Right` and the mouse's side buttons walk the last 20 documents, restoring the caret. The history works in `no_preview` builds too, where only `Ctrl+O` fills it.
 - `Ctrl+Shift+P` exports a PDF, and `Ctrl+P` prints, both through the preview, so the math is rendered. The output uses the light palette and 20 mm margins. Export uses A4 or Letter by locale. Print opens the desktop's GTK print dialog through xdg-desktop-portal at once, renders on the paper chosen there, and sends a vector PDF; Qt's dialog is the fallback. Both work with the preview hidden: the preview window loads and stays hidden.
 - Returning to the preview's workspace repaints it, instead of leaving it black.
@@ -54,7 +56,7 @@ What works today:
 - With the preview hidden, the `omalorem` binary never loads QtWebEngine: `ldd` shows no WebEngine library, and none is mapped at runtime.
 - `no_preview` builds are plain Omawrite with the Omalorem name.
 
-Tests: `bin/test` passes both targets. `tst_omalorem` has 40 passed. `tst_preview` has 39 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
+Tests: `bin/test` passes both targets. `tst_omalorem` has 40 passed. `tst_preview` has 40 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
 
 ## 2. Rules for every change
 
@@ -198,11 +200,20 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: nothing scheduled
+## 7. Next: a release for M11
+
+M11 is built and unreleased, so the next step is 0.6.0 by the recipe below.
 
 0.5.0 is released. SPEC §11 holds the future features, §10 the open questions, and §6 what still wants checking by hand on Hyprland.
 
 Two things are open before Omalorem is published anywhere. Upstream Omawrite has moved to **0.7.0** while the fork sits at Omawrite 0.5.0 (`8f98892`), so a rebase is due; the additive audit in §5 is what makes it cheap. And `pkgbuild/PKGBUILD` builds from `$startdir/..` with an empty `source=()`, which suits `bin/install` and neither the AUR nor the Omarchy package repository: a release PKGBUILD has to fetch the tag tarball or a pinned `git+https` source, build in `$srcdir`, keep the plugin's install line, and list `OFL-1.1` beside `MIT` for the bundled fonts.
+
+### Done: M11, back and forward in the preview
+
+Two icons at the bottom left of the preview window, because reading across linked notes
+is mouse work and `Alt+Left` is not on the mouse. Scope in SPEC §4.7. No new backend
+call: `previewCanGoBack` / `previewCanGoForward` and `navigateBack()` / `navigateForward()`
+were already there for the context menu.
 
 ### Done: M10, the wide column
 
@@ -395,6 +406,22 @@ Findings:
 Findings:
 - The two directions are kept apart by one rule: the page publishes only while it isn't following, and the editor suppresses publishing only while applying. Everything else is the existing M2 machinery, inverted.
 - `Qt.callLater(function() { ... })` did not clear the guard: with a throwaway closure the reset never ran, and the editor stayed silent for good. The property change is delivered while `scrollTo()` runs, so the guard is cleared on the next line instead. Worth remembering for any other "suppress while applying" flag in QML.
+
+### M11: Back and forward in the preview
+| Part | What |
+|---|---|
+| `FooterIconButton.qml` | Two more icon branches, `back` and `forward` — arrows on the same 16 px grid as `save` and `preview`. Additive, like the `preview` branch before them |
+| The plugin module | `FooterIconButton.qml` is aliased into `previewplugin.qrc` and declared in `qmldir`, so `Omalorem.Preview` can use the editor's button rather than growing a second one |
+| `PreviewWindow.qml` | A `Rectangle` plate at the bottom left holding a `Row` of the two buttons, `visible` on `previewCanGoBack \|\| previewCanGoForward`, each button `enabled` per direction with a faded icon colour when spent |
+| Tests | `walksHistoryFromThePreviewButtons` in `tst_preview`: hidden with one document, shown after a visit, and a real mouse click on each button walking the history |
+
+Findings:
+- **No new plumbing at all.** M7 had already put the policy in `Backend` and the actions on the bridge for the context menu, so the window only needed two more callers. That is the shape to aim for: a second way in costs nothing when the first one was built as policy rather than as a menu.
+- **The icons came from the editor.** Rather than a second icon component in the plugin, `FooterIconButton.qml` is aliased into the plugin's qrc and declared in its `qmldir`. It is an upstream file, so it only gains the two new `else if` branches, and the audit stays clean.
+- **`enabled` needed nothing.** QML's `Item.enabled` already blocks the child `MouseArea` and stops the tooltip, so greying a spent direction is just a different `iconColor` from the caller — no change to the shared component's existing lines.
+- **The plate is not decoration.** The page's column is centred and its gutter is 24 px in the wide column (M10), so a bare icon at the bottom left would sometimes sit on a paragraph. It is in the page colour, rounded like the editor's find bar.
+- The test clicks with a real `QTest::mouseClick` rather than emitting `clicked`, because the thing worth proving is that the plate takes the mouse instead of the `WebEngineView` underneath it.
+- Principle 5 was never about this window. It rations the **editor's** footer, where upstream's save and open live; the preview is the fork's own window with no footer. M7's decision is marked partly superseded rather than rewritten.
 
 ### M10: The wide column
 | Part | What |

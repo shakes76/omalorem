@@ -69,6 +69,19 @@ Item {
                 context.lineTo(11.5, 8.5);
                 context.moveTo(10, 11);
                 context.lineTo(11.5, 11);
+            } else if (control.iconName === "back") {
+                // Arrows for the documents visited, in the preview's window.
+                context.moveTo(12.5, 8);
+                context.lineTo(3.5, 8);
+                context.moveTo(7.5, 4);
+                context.lineTo(3.5, 8);
+                context.lineTo(7.5, 12);
+            } else if (control.iconName === "forward") {
+                context.moveTo(3.5, 8);
+                context.lineTo(12.5, 8);
+                context.moveTo(8.5, 4);
+                context.lineTo(12.5, 8);
+                context.lineTo(8.5, 12);
             } else {
                 context.moveTo(2.5, 13);
                 context.lineTo(2.5, 3.5);

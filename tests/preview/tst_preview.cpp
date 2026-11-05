@@ -1149,6 +1149,67 @@ private slots:
 
     // The preview puts up its own context menu: Chromium's offers Back,
     // Forward and Reload, which mean nothing in a view that never navigates.
+    // The preview's own back and forward buttons (docs/SPEC.md §4.7).
+    void walksHistoryFromThePreviewButtons() {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const auto document = [&](const QString &name, const QByteArray &text) {
+            const QString path = directory.filePath(name);
+            QFile file(path);
+            file.open(QIODevice::WriteOnly);
+            file.write(text);
+            file.close();
+            return QUrl::fromLocalFile(path);
+        };
+        const QUrl first = document(QStringLiteral("one.md"), "# One\n\n[two](two.md)\n");
+        const QUrl second = document(QStringLiteral("two.md"), "# Two\n");
+
+        auto editor = createEditor();
+        const auto cleanup = qScopeGuard([&] {
+            closeEditor(editor);
+            QSettings().remove(QStringLiteral("preview"));
+        });
+        QVERIFY(editor.window);
+        editor.backend->open(first);
+        QTRY_VERIFY(previewWindow());
+        QQuickWindow *preview = previewWindow();
+        QTRY_VERIFY_WITH_TIMEOUT(editor.backend->previewBridge()->pageReady(), 20000);
+
+        auto *controls = preview->findChild<QQuickItem *>(QStringLiteral("previewHistoryControls"));
+        auto *back = preview->findChild<QQuickItem *>(QStringLiteral("previewBackButton"));
+        auto *forward = preview->findChild<QQuickItem *>(QStringLiteral("previewForwardButton"));
+        QVERIFY(controls && back && forward);
+
+        // One document and nowhere to go: no chrome over the page at all.
+        QCOMPARE(controls->isVisible(), false);
+
+        editor.backend->previewBridge()->openDocument(QStringLiteral("two.md"));
+        QTRY_COMPARE(editor.backend->fileUrl(), second);
+        QTRY_COMPARE(controls->isVisible(), true);
+        QCOMPARE(back->isEnabled(), true);
+        QCOMPARE(forward->isEnabled(), false);
+
+        // A real click on the page, to prove the plate takes the mouse rather
+        // than the web view underneath it.
+        const auto centreOf = [&](QQuickItem *item) {
+            const QPointF centre = item->mapToScene(
+                QPointF(item->width() / 2, item->height() / 2));
+            return centre.toPoint();
+        };
+        preview->requestActivate();
+        QVERIFY(QTest::qWaitForWindowActive(preview));
+        QTest::mouseClick(preview, Qt::LeftButton, {}, centreOf(back));
+        QTRY_COMPARE(editor.backend->fileUrl(), first);
+        QTRY_COMPARE(forward->isEnabled(), true);
+
+        QTest::mouseClick(preview, Qt::LeftButton, {}, centreOf(forward));
+        QTRY_COMPARE(editor.backend->fileUrl(), second);
+        QTRY_COMPARE(forward->isEnabled(), false);
+        QCOMPARE(back->isEnabled(), true);
+        // The plate stays once there is a history, whichever end you are at.
+        QCOMPARE(controls->isVisible(), true);
+    }
+
     void showsItsOwnContextMenu() {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
