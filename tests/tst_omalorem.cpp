@@ -12,6 +12,7 @@
 #include <QTextLayout>
 
 #include "backend.h"
+#include "documentname.h"
 #include "editorlayout.h"
 #include "markdownhighlighter.h"
 #include "previewbridge.h"
@@ -50,6 +51,39 @@ private slots:
         QCOMPARE(Backend::suggestedFileName(QStringLiteral("A/B")), QStringLiteral("A-B.md"));
         QCOMPARE(Backend::suggestedFileName(QString()), QStringLiteral("Untitled.md"));
         QCOMPARE(Backend::suggestedFileName(QStringLiteral("Already.md")),
+                 QStringLiteral("Already.md"));
+    }
+
+    // Omalorem: the markers around a first line are not part of a file name
+    // (docs/SPEC.md §4.8).
+    void stripsMarkdownMarkersFromSuggestedNames() {
+        QCOMPARE(documentNameFromFirstLine(QStringLiteral("# Spherical harmonics")),
+                 QStringLiteral("Spherical harmonics"));
+        QCOMPARE(documentNameFromFirstLine(QStringLiteral("## Part two ##")),
+                 QStringLiteral("Part two"));
+        QCOMPARE(documentNameFromFirstLine(QStringLiteral("**Notes**")),
+                 QStringLiteral("Notes"));
+        QCOMPARE(documentNameFromFirstLine(QStringLiteral("> ## Quoted heading")),
+                 QStringLiteral("Quoted heading"));
+        QCOMPARE(documentNameFromFirstLine(QStringLiteral("- shopping")),
+                 QStringLiteral("shopping"));
+        // Only the ends, so a hash inside the title stays.
+        QCOMPARE(documentNameFromFirstLine(QStringLiteral("C# notes")),
+                 QStringLiteral("C# notes"));
+        QCOMPARE(documentNameFromFirstLine(QStringLiteral("Plain title")),
+                 QStringLiteral("Plain title"));
+        // Nothing but markers leaves nothing; the caller decides what to do.
+        QVERIFY(documentNameFromFirstLine(QStringLiteral("###")).isEmpty());
+        QVERIFY(documentNameFromFirstLine(QString()).isEmpty());
+
+        // Through Omawrite's own rules, which still add the suffix, swap the
+        // slashes and fall back to Untitled.
+        QCOMPARE(Backend::suggestedFileName(QStringLiteral("# Spherical harmonics\nBody")),
+                 QStringLiteral("Spherical harmonics.md"));
+        QCOMPARE(Backend::suggestedFileName(QStringLiteral("# A/B")), QStringLiteral("A-B.md"));
+        QCOMPARE(Backend::suggestedFileName(QStringLiteral("###")),
+                 QStringLiteral("Untitled.md"));
+        QCOMPARE(Backend::suggestedFileName(QStringLiteral("# Already.md")),
                  QStringLiteral("Already.md"));
     }
 

@@ -46,6 +46,7 @@ What works today:
 - Local images in the document's folder and its subfolders load through `omalorem-doc:`. Remote, out-of-folder and unsaved-document images show a placeholder with the alt text.
 - Headings have GitHub-style ids, so `#anchor` links scroll within the preview.
 - Right-clicking the preview shows its own menu: Copy, Select all, Back, Forward.
+- Save suggests a file name from the document's first line with the Markdown markers dropped, so a `# Heading` does not become part of it (SPEC §4.8). The rules are in `src/documentname.h`; Omawrite's `suggestedFileName()` gains one call.
 - The preview window has back and forward buttons at its bottom left, on a plate in the page colour, shown only once there is history and each greyed when its own direction is empty. They walk the same list as `Alt+Left`.
 - A link to a Markdown file in the document's folder opens it in the editor, with a dotted underline to mark it and the unsaved-changes dialog when needed; `notes.md#heading` scrolls there. `Alt+Left` / `Alt+Right` and the mouse's side buttons walk the last 20 documents, restoring the caret. The history works in `no_preview` builds too, where only `Ctrl+O` fills it.
 - `Ctrl+Shift+P` exports a PDF, and `Ctrl+P` prints, both through the preview, so the math is rendered. The output uses the light palette and 20 mm margins. Export uses A4 or Letter by locale. Print opens the desktop's GTK print dialog through xdg-desktop-portal at once, renders on the paper chosen there, and sends a vector PDF; Qt's dialog is the fallback. Both work with the preview hidden: the preview window loads and stays hidden.
@@ -56,7 +57,7 @@ What works today:
 - With the preview hidden, the `omalorem` binary never loads QtWebEngine: `ldd` shows no WebEngine library, and none is mapped at runtime.
 - `no_preview` builds are plain Omawrite with the Omalorem name.
 
-Tests: `bin/test` passes both targets. `tst_omalorem` has 40 passed. `tst_preview` has 40 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
+Tests: `bin/test` passes both targets. `tst_omalorem` has 41 passed. `tst_preview` has 40 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
 
 ## 2. Rules for every change
 
@@ -207,6 +208,12 @@ M11 is built and unreleased, so the next step is 0.6.0 by the recipe below.
 0.5.0 is released. SPEC §11 holds the future features, §10 the open questions, and §6 what still wants checking by hand on Hyprland.
 
 Two things are open before Omalorem is published anywhere. Upstream Omawrite has moved to **0.7.0** while the fork sits at Omawrite 0.5.0 (`8f98892`), so a rebase is due; the additive audit in §5 is what makes it cheap. And `pkgbuild/PKGBUILD` builds from `$startdir/..` with an empty `source=()`, which suits `bin/install` and neither the AUR nor the Omarchy package repository: a release PKGBUILD has to fetch the tag tarball or a pinned `git+https` source, build in `$srcdir`, keep the plugin's install line, and list `OFL-1.1` beside `MIT` for the bundled fonts.
+
+### Done: the name Save suggests
+
+`# Spherical harmonics.md` is nobody's file name. `src/documentname.h` holds the rules, as a pure function, and the one line added to Omawrite's `suggestedFileName()` calls it. Scope in SPEC §4.8.
+
+Worth knowing if this comes up again: there is **no hook between the name and the dialog**. `suggestedSaveUrl()` builds the URL and `saveDialogRequested` hands it to the `Connections` block in `Main.qml` that sets `saveFileDialog.selectedFile` and opens it. A fork block connected to the same signal cannot change another slot's argument, and setting `selectedFile` after the dialog is open is not reliable with a portal dialog. So the choice was one added call inside the upstream function, or the fork owning a second save dialog and repeating upstream's cancel, save-for-close and pending-action handling. The call is the cheap and safe one.
 
 ### Done: M11, back and forward in the preview
 

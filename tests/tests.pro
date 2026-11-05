@@ -17,6 +17,9 @@ QT += widgets printsupport quickcontrols2 quickdialogs2 dbus
 # Omalorem wide column: the column arithmetic, header-only.
 HEADERS += ../src/editorlayout.h
 
+# Omalorem's suggested-name rules, header-only.
+HEADERS += ../src/documentname.h
+
 # Omalorem preview: the bridge has no WebEngine dependency.
 SOURCES += ../src/previewbridge.cpp
 HEADERS += ../src/previewbridge.h

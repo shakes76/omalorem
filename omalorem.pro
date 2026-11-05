@@ -13,6 +13,9 @@ HEADERS += \
 # outside the preview scope below and builds under no_preview too.
 HEADERS += src/editorlayout.h
 
+# Omalorem's rules for the name Save suggests (docs/SPEC.md §4.8).
+HEADERS += src/documentname.h
+
 SOURCES += \
     src/main.cpp \
     src/backend.cpp \

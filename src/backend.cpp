@@ -31,6 +31,7 @@
 
 #include <algorithm>
 
+#include "documentname.h"
 #include "editorlayout.h"
 #include "markdownhighlighter.h"
 
@@ -705,6 +706,9 @@ int Backend::countWords(const QString &text) {
 
 QString Backend::suggestedFileName(const QString &text) {
     QString name = text.section(QLatin1Char('\n'), 0, 0).trimmed();
+    // Omalorem: drop the Markdown markers around the line, so a heading does
+    // not become part of the file name (docs/SPEC.md §4.8).
+    name = documentNameFromFirstLine(name);
     name.replace(QRegularExpression(QStringLiteral("[/\\x00-\\x1f\\x7f]")),
                  QStringLiteral("-"));
     name = name.left(120).trimmed();

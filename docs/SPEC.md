@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: v1.7 · 2026-11-05 · M8 and M9 released as 0.4.0, M10 (the wide column) as 0.5.0; M11 (back and forward in the preview) specified
+Status: v1.7 · 2026-11-05 · M8 and M9 released as 0.4.0, M10 (the wide column) as 0.5.0; M11 (back and forward in the preview) and the suggested-name fix built
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -370,6 +370,25 @@ menu has Back and Forward, but a right-click to turn a page is a poor way to rea
   the fork's preview toggle. The preview is the fork's own window and has no footer; its
   chrome is already its own. This does reverse what M7 decided for back and forward
   (§9), on the ground that reading between notes is what the preview is for.
+
+### 4.8 The name Save suggests
+
+For an unsaved document, Omawrite offers a file name taken from the first line, in the
+folder last saved to. A first line is almost always a Markdown heading, so what it
+offered was `# Spherical harmonics.md` — hash, space and all, to be edited out by hand
+every time.
+
+- **The markers around the line are dropped**, from both ends: `#`, `>`, `-`, `*`, `+`,
+  `_` and the space after them. A closed heading (`## Part two ##`) and a title in
+  emphasis (`**Notes**`) both come out clean.
+- **Only the ends**, so `C# notes` keeps its hash.
+- **A line of nothing but markers leaves nothing**, and Omawrite's own `Untitled` rule
+  takes over.
+- Omawrite's other rules are untouched: the `.md` suffix, slashes and control characters
+  becoming `-`, the 120-character limit, and `Untitled`.
+- The rules live in the fork's own `src/documentname.h`. Omawrite's `suggestedFileName()`
+  gains one line, which calls it — the one place the name is built, so `Ctrl+S` and the
+  fork's PDF export (§5.5) both get it.
 
 ## 5. Architecture
 
@@ -807,6 +826,7 @@ M7 followed as `omalorem-v0.3.0`, M8 and M9 as `omalorem-v0.4.0`, and M10 as
 | 2026-10-20 | M8: scroll sync works both ways, and the window you last scrolled leads. The preview publishes its top line only while it isn't following the editor, and the editor doesn't publish a move the preview asked for; that is what keeps the two from chasing each other. |
 | 2026-09-28 | M7: a link to a Markdown file inside the document's folder opens that document in the editor. The folder rule is the images' rule, for the same reason. Links outside it, and links in unsaved documents, are refused with a status message. |
 | 2026-09-28 | M7: back and forward are `Alt+Left` / `Alt+Right` and the mouse's side buttons over the preview, not a second footer icon: principle 5 leaves the footer one extra icon, and it is the preview toggle. *(Partly superseded below: the buttons exist, in the preview's own window rather than the editor's footer.)* |
+| 2026-11-05 | The name Save suggests drops the Markdown markers around the document's first line (§4.8). The rules are a pure function in the fork's own header, so Omawrite's `suggestedFileName()` gains a single call and keeps every rule of its own. There is no hook between it and the dialog — `suggestedSaveUrl()` hands the finished URL to the QML handler that opens the dialog — so this is the only place a fix can go without the fork owning a second save dialog. |
 | 2026-11-05 | M11: the preview window gets back and forward buttons, at the owner's request, after reading across linked notes with a mouse proved the shortcut and the side buttons were not enough. Principle 5 rations the **editor's** footer, where upstream's own icons live; the preview is the fork's window and has no footer, so this is not the icon that principle was keeping back. They are hidden until there is history, so a one-document session still sees a bare window. |
 | 2026-09-28 | M7: followable links get a dotted underline, so a link that stays in the notes reads differently from one that opens the browser. |
 | 2026-09-25 | M6: `pkgbuild/` counts as the fork's own directory, like `README.md` and `docs/`. A renamed fork's packaging carries its own identity (icon, desktop entry, package name), so it can't stay additive-only against Omawrite's. |
