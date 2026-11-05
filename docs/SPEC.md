@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: v1.8 · 2026-11-05 · M8 and M9 released as 0.4.0, M10 (the wide column) as 0.5.0; M11 (back and forward in the preview), the suggested-name fix and M12 (a new document here) built
+Status: v1.8 · 2026-11-05 · M10 (the wide column) released as 0.5.0; M11 (back and forward in the preview), the suggested-name fix (§4.8) and M12 (a new document here) as 0.6.0
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -810,7 +810,7 @@ Backend history: visit / back / forward  ◀── Backend::open succeeds (fileU
 
 M0 to M6 are done, except M3, which moved to §11, and released as `omalorem-v0.2.0`.
 M7 followed as `omalorem-v0.3.0`, M8 and M9 as `omalorem-v0.4.0`, and M10 as
-`omalorem-v0.5.0`. M11 and M12 are built and unreleased.
+`omalorem-v0.5.0`, and M11, the suggested-name fix and M12 as `omalorem-v0.6.0`.
 
 | # | Deliverable | Acceptance |
 |---|---|---|

@@ -1,6 +1,6 @@
 # Omalorem — Development status
 
-Last updated: 2026-11-05 · Branch: `main`, pushed to `origin` (github.com/shakes76/omalorem). Upstream Omawrite is the `upstream` remote. Releases: `omalorem-v0.5.0` (current), then `omalorem-v0.4.0`, `omalorem-v0.3.0`, `omalorem-v0.2.0` and `omaview-v0.1.0` (the last commit under the old name). Release tags carry the name, because upstream's `v…` tags are in this repository
+Last updated: 2026-11-05 · Branch: `main`, pushed to `origin` (github.com/shakes76/omalorem). Upstream Omawrite is the `upstream` remote. Releases: `omalorem-v0.6.0` (current), then `omalorem-v0.5.0`, `omalorem-v0.4.0`, `omalorem-v0.3.0`, `omalorem-v0.2.0` and `omaview-v0.1.0` (the last commit under the old name). Release tags carry the name, because upstream's `v…` tags are in this repository
 
 This is the working log for developers and coding agents. It records where the project
 stands, how the code is laid out, the rules every change must follow, and what was done
@@ -30,9 +30,10 @@ the gap should be fixed or raised.
 | Release 0.4.0 | Done | Tag `omalorem-v0.4.0`; `pkgver` 0.4.0 |
 | M10 The wide column | Done | Commits `7bca116`…`60288ca`, merged. See §8 and SPEC §4.6, §5.6.2 |
 | Release 0.5.0 | Done | Tag `omalorem-v0.5.0`; `pkgver` 0.5.0 |
-| M11 Back and forward in the preview | Done, unreleased | Branch `m11-preview-history-buttons`. See §8 and SPEC §4.7 |
-| The name Save suggests | Done, unreleased | Branch `fix-save-name`, on top of M11. See §7 and SPEC §4.8 |
-| M12 A new document here | Done, unreleased | Branch `m12-new-document`, on top of `fix-save-name`. See §7 and SPEC §4.9 |
+| M11 Back and forward in the preview | Done | Commit `35b3f14`, merged. See §8 and SPEC §4.7 |
+| The name Save suggests | Done | Commit `ecf31f0`, merged. See §7 and SPEC §4.8 |
+| M12 A new document here | Done | Commit `97aaaba`, merged. See §8 and SPEC §4.9 |
+| Release 0.6.0 | Done | Tag `omalorem-v0.6.0`; `pkgver` 0.6.0 |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -204,13 +205,11 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: a release for M11, the Save name and M12
+## 7. Next: the rebase onto Omawrite 0.7.2
 
-Three changes are built and unreleased, so the next step is 0.6.0 by the recipe below.
+0.6.0 is released and nothing is pending. SPEC §11 holds the future features, §10 the open questions, and §6 what still wants checking by hand on Hyprland.
 
-0.5.0 is released. SPEC §11 holds the future features, §10 the open questions, and §6 what still wants checking by hand on Hyprland.
-
-Two things are open before Omalorem is published anywhere. Upstream Omawrite has moved to **0.7.0** while the fork sits at Omawrite 0.5.0 (`8f98892`), so a rebase is due; the additive audit in §5 is what makes it cheap. And `pkgbuild/PKGBUILD` builds from `$startdir/..` with an empty `source=()`, which suits `bin/install` and neither the AUR nor the Omarchy package repository: a release PKGBUILD has to fetch the tag tarball or a pinned `git+https` source, build in `$srcdir`, keep the plugin's install line, and list `OFL-1.1` beside `MIT` for the bundled fonts.
+Two things are open before Omalorem is published anywhere, and the first is now the biggest thing on the list. Upstream Omawrite has moved to **0.7.2** — 201 commits past the fork point at Omawrite 0.5.0 (`8f98892`) — so a rebase is overdue; the additive audit in §5 is what makes it cheap. One conflict is certain and it is the good kind: upstream's `feature/shortcuts-dialog` (`6a2bb95`) and `d0ed34c` replaced the inline `Ctrl+?` reference string with a `ShortcutsDialog.qml` component, so the one line this fork modifies no longer exists upstream. Resolving it means adding the fork's shortcut rows to that new component instead — after which the diff against upstream is **purely additive**, with no modified-line exception left at all. The two functions the newest changes insert into, `suggestedFileName()` and `completePendingAction()`, are both untouched upstream, so those insertions still apply as they stand. And `pkgbuild/PKGBUILD` builds from `$startdir/..` with an empty `source=()`, which suits `bin/install` and neither the AUR nor the Omarchy package repository: a release PKGBUILD has to fetch the tag tarball or a pinned `git+https` source, build in `$srcdir`, keep the plugin's install line, and list `OFL-1.1` beside `MIT` for the bundled fonts.
 
 ### Done: the name Save suggests
 
@@ -259,7 +258,7 @@ were already there for the context menu.
 
 Scroll sync in the other direction, so reading down the preview brings the editor along and the passage just read is ready to edit. Scope in SPEC §4.4 and §5.7. Built on the `following` flag the preview already keeps: when the reader has taken the preview off the editor's lead, the page publishes its own top line instead.
 
-After it came M10 and 0.5.0.
+After it came M10 and 0.5.0, then M11, the Save name, M12 and 0.6.0.
 
 **How a release is made**, for the next one:
 1. Check the tree: `bin/test` green, `bin/build-no-preview` builds, `ldd build/omalorem` shows no WebEngine, and the additive audit in §5 is clean.
