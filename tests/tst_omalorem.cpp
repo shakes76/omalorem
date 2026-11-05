@@ -1239,6 +1239,175 @@ private slots:
         QCOMPARE(navigation.at(1).constFirst().toInt(), 1);
     }
 
+    // --- A new document here (docs/SPEC.md §4.9) ---
+
+    void emptiesTheDocumentInPlace() {
+        QTemporaryDir root;
+        QVERIFY(root.isValid());
+        const QDir dir(root.path());
+        const auto document = [&](const QString &name) {
+            const QString path = dir.filePath(name);
+            QFile file(path);
+            file.open(QIODevice::WriteOnly);
+            file.write("# note\n");
+            file.close();
+            return QUrl::fromLocalFile(path);
+        };
+        const QUrl a = document(QStringLiteral("a.md"));
+        const QUrl b = document(QStringLiteral("b.md"));
+
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine);
+        component.setData("import QtQuick\nTextEdit { objectName: 'sourceEditor'\n"
+                          "  Component.onCompleted: backend.attachDocument(textDocument) }",
+                          QUrl(QStringLiteral("qrc:/NewDocumentHarness.qml")));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> editor(component.create());
+        QVERIFY(editor);
+
+        // Two documents read, so there is a history and a file to clear.
+        backend.open(a);
+        backend.previewHistoryVisited();
+        backend.open(b);
+        backend.previewHistoryVisited();
+        QVERIFY(backend.previewCanGoBack());
+        editor->setProperty("text", QStringLiteral("# note\nedited"));
+        QVERIFY(backend.editorTextChanged());
+        QVERIFY(backend.modified());
+        QCOMPARE(backend.fileName(), QStringLiteral("b.md"));
+
+        QSignalSpy fileSpy(&backend, &Backend::fileUrlChanged);
+        QSignalSpy historySpy(&backend, &Backend::previewHistoryChanged);
+        backend.newDocument();
+
+        // Untitled again, so Ctrl+S goes to the save dialog.
+        QCOMPARE(backend.fileUrl(), QUrl());
+        QCOMPARE(backend.fileName(), QStringLiteral("Untitled.md"));
+        QCOMPARE(fileSpy.count(), 1);
+        QVERIFY(!backend.modified());
+        QCOMPARE(editor->property("text").toString(), QString());
+        QCOMPARE(backend.wordCount(), 0);
+        QCOMPARE(backend.status(), QStringLiteral("New document"));
+        // Nothing behind the new document, in the undo stack or the history.
+        QVERIFY(!editor->property("canUndo").toBool());
+        QVERIFY(!backend.previewCanGoBack());
+        QVERIFY(!backend.previewCanGoForward());
+        QCOMPARE(backend.previewHistoryGo(-1, 0), QUrl());
+        QCOMPARE(historySpy.count(), 1);
+        // The documents themselves are untouched on disk.
+        QFile left(b.toLocalFile());
+        QVERIFY(left.open(QIODevice::ReadOnly));
+        QCOMPARE(left.readAll(), QByteArray("# note\n"));
+        // And the window it empties is a place to start: the first visit to the
+        // blank document is not recorded, so Back stays quiet.
+        backend.previewHistoryVisited();
+        QVERIFY(!backend.previewCanGoBack());
+    }
+
+    void asksBeforeEmptyingTheDocument() {
+        const QString mainQmlPath = QFINDTESTDATA("../src/Main.qml");
+        QVERIFY(!mainQmlPath.isEmpty());
+        QTemporaryDir root;
+        QVERIFY(root.isValid());
+        const QString path = QDir(root.path()).filePath(QStringLiteral("notes.md"));
+        {
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write("# notes\n");
+        }
+        const QUrl url = QUrl::fromLocalFile(path);
+
+        Backend backend;
+        QQmlEngine engine;
+        engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+        QQmlComponent component(&engine, QUrl::fromLocalFile(mainQmlPath));
+        QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+        QScopedPointer<QObject> rootObject(component.create());
+        auto *window = qobject_cast<QQuickWindow *>(rootObject.data());
+        QVERIFY(window);
+        window->requestActivate();
+        QVERIFY(QTest::qWaitForWindowActive(window));
+        QObject *editor = window->findChild<QObject *>(QStringLiteral("sourceEditor"));
+        QVERIFY(editor);
+
+        // The dialog carries no objectName of its own; it is upstream's.
+        QObject *dialog = nullptr;
+        for (QObject *child : window->findChildren<QObject *>()) {
+            if (QByteArray(child->metaObject()->className())
+                    .startsWith("UnsavedChangesDialog")) {
+                dialog = child;
+                break;
+            }
+        }
+        QVERIFY(dialog);
+
+        // An unmodified document goes at once.
+        backend.open(url);
+        QVERIFY(!backend.modified());
+        QTest::keyClick(window, Qt::Key_N, Qt::ControlModifier | Qt::ShiftModifier);
+        QCOMPARE(backend.fileName(), QStringLiteral("Untitled.md"));
+        QVERIFY(!dialog->property("opened").toBool());
+
+        // The preview is kept across a new document, and empties with the
+        // editor. Main.qml's own Connections on the editor is what feeds the
+        // bridge, and it is enabled by previewAvailable; visible stays off so
+        // no WebEngine page is loaded for this.
+        backend.setPreviewAvailable(true);
+        backend.setPreviewVisible(false);
+        PreviewBridge *bridge = backend.previewBridge();
+        QVERIFY(bridge);
+
+        // A modified one asks first, and Cancel changes nothing.
+        backend.open(url);
+        editor->setProperty("text", QStringLiteral("# notes\nedited once"));
+        // Main.qml's own onTextChanged takes editorTextChanged(), so the
+        // modified flag is what there is to ask here.
+        QTRY_VERIFY(backend.modified());
+        QTest::keyClick(window, Qt::Key_N, Qt::ControlModifier | Qt::ShiftModifier);
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        QCOMPARE(window->property("pendingAction").toString(), QStringLiteral("newDocument"));
+        QCOMPARE(backend.fileName(), QStringLiteral("notes.md"));
+        QVERIFY(QMetaObject::invokeMethod(dialog, "cancelRequested"));
+        QCOMPARE(window->property("pendingAction").toString(), QString());
+        QCOMPARE(backend.fileName(), QStringLiteral("notes.md"));
+        QCOMPARE(editor->property("text").toString(),
+                 QStringLiteral("# notes\nedited once"));
+
+        QTRY_COMPARE(bridge->markdown(), QStringLiteral("# notes\nedited once"));
+        QVERIFY(!bridge->baseUrl().isEmpty());
+
+        // Discard empties the window and leaves the file as it was.
+        QTest::keyClick(window, Qt::Key_N, Qt::ControlModifier | Qt::ShiftModifier);
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        QVERIFY(QMetaObject::invokeMethod(dialog, "discardRequested"));
+        QCOMPARE(backend.fileName(), QStringLiteral("Untitled.md"));
+        QCOMPARE(editor->property("text").toString(), QString());
+        QTRY_COMPARE(bridge->markdown(), QString());
+        QVERIFY(bridge->baseUrl().isEmpty());
+        {
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::ReadOnly));
+            QCOMPARE(file.readAll(), QByteArray("# notes\n"));
+        }
+
+        // Save writes the document, then empties the window.
+        backend.open(url);
+        editor->setProperty("text", QStringLiteral("# notes\nedited twice"));
+        QTRY_VERIFY(backend.modified());
+        QTest::keyClick(window, Qt::Key_N, Qt::ControlModifier | Qt::ShiftModifier);
+        QTRY_VERIFY(dialog->property("opened").toBool());
+        QVERIFY(QMetaObject::invokeMethod(dialog, "saveRequested"));
+        QTRY_COMPARE(backend.fileName(), QStringLiteral("Untitled.md"));
+        QCOMPARE(editor->property("text").toString(), QString());
+        {
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::ReadOnly));
+            QCOMPARE(file.readAll(), QByteArray("# notes\nedited twice"));
+        }
+    }
+
     void keepsDocumentHistory() {
         QTemporaryDir root;
         QVERIFY(root.isValid());

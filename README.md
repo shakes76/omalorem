@@ -115,6 +115,7 @@ optional Hyprland snippets for the preview window, the launcher and keybindings.
 - `Ctrl+Shift+T` switches the preview's prose between iA Writer Mono S and the proportional iA Writer Quattro S. The editor keeps Mono.
 - `F11` in the preview window fullscreens the preview, for reading.
 - `Ctrl+N` opens a new Omalorem window.
+- `Ctrl+Shift+N` starts a new, empty document in the window you are in, rather than opening a second one. It asks about unsaved changes first, the same way `Ctrl+O` does.
 - `Ctrl+Z`, `Ctrl+Shift+Z`, and `Ctrl+Y` handle undo and redo.
 - `Super+F` toggles fullscreen. Qt maps this key as `Meta+F`.
 - `Ctrl+F` searches the document. Use `Enter` or `Ctrl+G` for the next match and `Shift+Enter` for the previous match.

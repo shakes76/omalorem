@@ -31,6 +31,8 @@ the gap should be fixed or raised.
 | M10 The wide column | Done | Commits `7bca116`…`60288ca`, merged. See §8 and SPEC §4.6, §5.6.2 |
 | Release 0.5.0 | Done | Tag `omalorem-v0.5.0`; `pkgver` 0.5.0 |
 | M11 Back and forward in the preview | Done, unreleased | Branch `m11-preview-history-buttons`. See §8 and SPEC §4.7 |
+| The name Save suggests | Done, unreleased | Branch `fix-save-name`, on top of M11. See §7 and SPEC §4.8 |
+| M12 A new document here | Done, unreleased | Branch `m12-new-document`, on top of `fix-save-name`. See §7 and SPEC §4.9 |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -55,9 +57,10 @@ What works today:
 - Closing the preview only hides it. Closing the editor closes both.
 - `Ctrl+F` and `Ctrl+H` from the preview bring the editor forward. F11 in the preview fullscreens the preview.
 - With the preview hidden, the `omalorem` binary never loads QtWebEngine: `ldd` shows no WebEngine library, and none is mapped at runtime.
+- `Ctrl+Shift+N` empties the current window instead of starting a second process, asking about unsaved changes first through Omawrite's own pending-action path. The text, file name, modified flag, undo history, recovery file and visit history all go; the theme, text size and wide column stay. Works in `no_preview` builds.
 - `no_preview` builds are plain Omawrite with the Omalorem name.
 
-Tests: `bin/test` passes both targets. `tst_omalorem` has 41 passed. `tst_preview` has 40 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
+Tests: `bin/test` passes both targets. `tst_omalorem` has 43 passed. `tst_preview` has 40 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
 
 ## 2. Rules for every change
 
@@ -201,9 +204,9 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: a release for M11
+## 7. Next: a release for M11, the Save name and M12
 
-M11 is built and unreleased, so the next step is 0.6.0 by the recipe below.
+Three changes are built and unreleased, so the next step is 0.6.0 by the recipe below.
 
 0.5.0 is released. SPEC §11 holds the future features, §10 the open questions, and §6 what still wants checking by hand on Hyprland.
 
@@ -214,6 +217,32 @@ Two things are open before Omalorem is published anywhere. Upstream Omawrite has
 `# Spherical harmonics.md` is nobody's file name. `src/documentname.h` holds the rules, as a pure function, and the one line added to Omawrite's `suggestedFileName()` calls it. Scope in SPEC §4.8.
 
 Worth knowing if this comes up again: there is **no hook between the name and the dialog**. `suggestedSaveUrl()` builds the URL and `saveDialogRequested` hands it to the `Connections` block in `Main.qml` that sets `saveFileDialog.selectedFile` and opens it. A fork block connected to the same signal cannot change another slot's argument, and setting `selectedFile` after the dialog is open is not reliable with a portal dialog. So the choice was one added call inside the upstream function, or the fork owning a second save dialog and repeating upstream's cancel, save-for-close and pending-action handling. The call is the cheap and safe one.
+
+### Done: M12, a new document here
+
+`Ctrl+Shift+N` empties the window already open, beside `Ctrl+N`'s second process. Scope
+in SPEC §4.9.
+
+How it reaches the unsaved-changes dialog is the part worth remembering. The fork's block
+sets `win.pendingAction = "newDocument"` and opens upstream's dialog; upstream's own
+`completePendingAction()` gains a `newDocument` case, three added lines with no line
+changed. That buys Save, Discard, Cancel and the dismissed-save-dialog path for nothing,
+because `onDiscardRequested` and `onSaveSucceeded` already call that one function. The
+alternative — a fork-owned flag with its own `Connections` on the dialog and on
+`saveFileDialog` — would duplicate four behaviours that upstream may change.
+
+`Backend::newDocument()` is the fork's own function, so what it clears was a free choice:
+the text, the file URL, the modified flag, `clearUndoRedoStacks()` (undoing back into the
+document just left would resurrect its text under a new name), the known file contents,
+the recovery file, the file watch, and the visit history. The history goes because a
+document with no file of its own never enters it, so leaving it would make the first Back
+skip the document just left.
+
+Two things the tests had to work around: Main.qml's own `onTextChanged` consumes
+`editorTextChanged()`, so a QML-driven test has to ask the `modified` flag instead; and
+the `Connections` block that feeds the preview bridge is `enabled: backend.previewAvailable`,
+so proving the preview empties needs `setPreviewAvailable(true)` with `setPreviewVisible(false)`,
+which keeps WebEngine out of `tst_omalorem`.
 
 ### Done: M11, back and forward in the preview
 
@@ -413,6 +442,20 @@ Findings:
 Findings:
 - The two directions are kept apart by one rule: the page publishes only while it isn't following, and the editor suppresses publishing only while applying. Everything else is the existing M2 machinery, inverted.
 - `Qt.callLater(function() { ... })` did not clear the guard: with a throwaway closure the reset never ran, and the editor stayed silent for good. The property change is delivered while `scrollTo()` runs, so the guard is cleared on the next line instead. Worth remembering for any other "suppress while applying" flag in QML.
+
+### M12: A new document here
+| Part | What |
+|---|---|
+| `src/backend.cpp` / `.h` | `Backend::newDocument()`, the fork's own: clears the text, the undo stacks, the recovery file, the known file contents, the file URL, the file watch, the modified flag and the visit history, and sets the status |
+| `src/Main.qml` | A fork `Item` with the `Ctrl+Shift+N` shortcut and a `request()` that asks the unsaved-changes dialog when the document is modified, plus three added lines giving upstream's `completePendingAction()` a `newDocument` case |
+| Tests | `emptiesTheDocumentInPlace` on the backend, and `asksBeforeEmptyingTheDocument` driving the real `Main.qml`: the dialog's Cancel, Discard and Save paths, an unmodified document going at once, and the preview emptying with the editor |
+
+Findings:
+- **Reusing `completePendingAction()` was the whole design.** Three added lines there buy Save, Discard, Cancel and the dismissed-save-dialog path, because `onDiscardRequested` and `onSaveSucceeded` already call that one function. A fork-owned flag with its own `Connections` on the dialog and on `saveFileDialog` would have duplicated four behaviours upstream may change, which is what principle 1 exists to stop.
+- **The undo stack had to be cleared.** `loadDocumentText()` alone leaves the history, so Ctrl+Z after a new document would bring the old text back into an untitled window and the next Ctrl+S would offer to save it somewhere new. `open()` has the same shape, but a new document is the case where it reads as a bug.
+- **The visit history goes too.** `previewHistoryVisited()` ignores a document with no file of its own, so the blank document never becomes a history entry — which means leaving the history in place would make the first Back skip the document just left, not return to it.
+- **Two test traps.** Main.qml's own `onTextChanged` consumes `editorTextChanged()`, so a QML-driven test must ask the `modified` flag rather than call it again. And the `Connections` block that feeds the preview bridge is `enabled: backend.previewAvailable`, so proving the preview empties needs `setPreviewAvailable(true)` with `setPreviewVisible(false)` — available keeps the feed on, invisible keeps `previewWindowLoader` from pulling WebEngine into `tst_omalorem`.
+- `Ctrl+Shift+N` was unbound, so nothing had to move.
 
 ### M11: Back and forward in the preview
 | Part | What |

@@ -73,6 +73,9 @@ ApplicationWindow {
         } else if (action === "open") {
             backend.open(pendingOpenUrl);
         }
+        // Omalorem: a new document here (docs/SPEC.md §4.9).
+        if (action === "newDocument")
+            backend.newDocument();
     }
 
     FontMetrics {
@@ -332,7 +335,7 @@ ApplicationWindow {
         standardButtons: Dialog.Close
         anchors.centerIn: parent
         contentItem: Label {
-            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+M  Inline Math\nCtrl+Shift+M  Display Math\nCtrl+P  Print\nCtrl+Shift+P  Export PDF\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nCtrl+- / Ctrl+=  Text Size\nCtrl+0  Text Size Reset\nCtrl+Shift+W  Wide Column\nAlt+Left / Alt+Right  Back / Forward\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
+            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+Shift+N  New Document\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+M  Inline Math\nCtrl+Shift+M  Display Math\nCtrl+P  Print\nCtrl+Shift+P  Export PDF\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nCtrl+- / Ctrl+=  Text Size\nCtrl+0  Text Size Reset\nCtrl+Shift+W  Wide Column\nAlt+Left / Alt+Right  Back / Forward\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
             lineHeight: 1.5
         }
     }
@@ -1047,6 +1050,31 @@ ApplicationWindow {
                 backend.resetViewScale();
                 backend.previewReportStatus("Text size follows the desktop");
             }
+        }
+    }
+
+    // --- Omalorem new document here (docs/SPEC.md §4.9) --------------------
+    // Ctrl+N starts a second process; this empties the window already open.
+    // The unsaved-changes question goes through Omawrite's own pendingAction
+    // path, so Save, Discard and Cancel behave exactly as they do for Ctrl+O.
+    Item {
+        id: newDocumentHere
+        objectName: "newDocumentHere"
+
+        function request() {
+            if (!backend.modified) {
+                backend.newDocument();
+                return;
+            }
+            win.pendingAction = "newDocument";
+            if (!unsavedChangesDialog.opened)
+                unsavedChangesDialog.open();
+        }
+
+        Shortcut {
+            sequence: "Ctrl+Shift+N"
+            context: Qt.ApplicationShortcut
+            onActivated: newDocumentHere.request()
         }
     }
 

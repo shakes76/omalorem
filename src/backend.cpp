@@ -313,6 +313,33 @@ void Backend::newWindow() {
         setStatus(QStringLiteral("Could not open a new window."));
 }
 
+// --- A new document here (docs/SPEC.md §4.9) ---
+// Omawrite's Ctrl+N starts a second process. This empties the window that is
+// already open. Main.qml has put the unsaved-changes question first, so by the
+// time this runs the text is either saved or being discarded on purpose.
+void Backend::newDocument() {
+    loadDocumentText(QString());
+    // Undoing back into the document just left would resurrect its text under
+    // a new name, so the new document starts with nothing behind it.
+    if (m_document)
+        m_document->clearUndoRedoStacks();
+    clearRecovery();
+    m_lastKnownFileContents.clear();
+    m_hasKnownFileContents = false;
+    setFileUrl(QUrl());
+    watchCurrentFile();
+    setModified(false);
+    // The window has started over, so it has nowhere to go back to. A document
+    // with no file of its own never enters the history, so leaving it would
+    // make the first Back skip the document just left.
+    m_previewHistory.clear();
+    m_previewHistoryIndex = -1;
+    m_previewPendingHistoryIndex = -1;
+    m_previewPreparedCaret = 0;
+    emit previewHistoryChanged();
+    setStatus(QStringLiteral("New document"));
+}
+
 QString Backend::clipboardUrl() const {
     const QClipboard *clipboard = QGuiApplication::clipboard();
     if (!clipboard)

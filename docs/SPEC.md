@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: v1.7 · 2026-11-05 · M8 and M9 released as 0.4.0, M10 (the wide column) as 0.5.0; M11 (back and forward in the preview) and the suggested-name fix built
+Status: v1.8 · 2026-11-05 · M8 and M9 released as 0.4.0, M10 (the wide column) as 0.5.0; M11 (back and forward in the preview), the suggested-name fix and M12 (a new document here) built
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -158,6 +158,7 @@ the preview. The word count stays at the bottom right of the editor window.
 | `Ctrl+-` / `Ctrl+=` | Omalorem's own text size, 10% a step (M9) |
 | `Ctrl+0` | Back to the desktop's text size (M9) |
 | `Ctrl+Shift+W` | The wide column on or off: a 24 px gutter and an 80-character measure (M10) |
+| `Ctrl+Shift+N` | A new, empty document in this window, asking about unsaved changes first (M12) |
 | `Alt+Left` | Back, to the document visited before this one (M7) |
 | `Alt+Right` | Forward again (M7) |
 
@@ -389,6 +390,31 @@ every time.
 - The rules live in the fork's own `src/documentname.h`. Omawrite's `suggestedFileName()`
   gains one line, which calls it — the one place the name is built, so `Ctrl+S` and the
   fork's PDF export (§5.5) both get it.
+
+### 4.9 A new document here (M12)
+
+`Ctrl+N` starts a second process with a second window. That is right when you want two
+notes side by side, and wrong when you simply want to start something new where you are:
+one window per note stops scaling after a few, and on a tiling desktop each new window
+rearranges the ones already open.
+
+`Ctrl+Shift+N` empties the **current** window instead.
+
+- **Unsaved changes are asked about first**, through the same dialog and the same
+  Save / Discard / Cancel behaviour as `Ctrl+O` and closing already use. Save goes to the
+  save dialog when the document has no file yet, and the window is emptied only once the
+  save succeeds. Cancel leaves everything as it was.
+- **What is cleared**: the text, the file name (the window is `Untitled.md` again, so
+  `Ctrl+S` opens the save dialog), the modified flag, the undo history, the recovery file
+  and the file watch.
+- **The visit history is cleared too** (§4.7), so back and forward go quiet. The window
+  has started over; the documents it had been reading are no longer where it came from.
+  Going back to a document left behind this way would otherwise skip one, because the
+  blank document is not itself a place to come back to.
+- **The preview is kept**, and empties with the editor. No second process, so no second
+  preview window.
+- Nothing else in the window changes: the theme, the text size, the wide column and the
+  window geometry are the window's, not the document's.
 
 ## 5. Architecture
 
@@ -748,6 +774,9 @@ Backend history: visit / back / forward  ◀── Backend::open succeeds (fileU
     gutter that binds between it and the 360 px floor, and the floor itself; that
     the wide column is wider at every width above the floor; the owner's own case
     (749 px at text size 0.7); and the default and saving of `wideColumn` (M10).
+  - a new document in this window: the text, the file name, the modified flag and the
+    visit history all cleared; the unsaved-changes dialog asked first, and nothing
+    cleared when it is cancelled or the save dialog dismissed (M12).
 - **Render tests:** a `tests/preview/` QtTest target loads `index.html` in an offscreen
   `QQuickWebEngineView` from a fixture corpus (`tests/fixtures/*.md`). It asserts, using
   `runJavaScript`:
@@ -774,12 +803,14 @@ Backend history: visit / back / forward  ◀── Backend::open succeeds (fileU
   - the portal dialogs for PDF export;
   - the wide column in a half-screen window: the editor column matches the preview's, and
     turning it off restores Omawrite's layout exactly (M10).
+  - `Ctrl+Shift+N` on a modified document: the dialog's Save, Discard and Cancel each
+    behave as they do for `Ctrl+O`, and the preview empties with the editor (M12).
 
 ## 8. Milestones
 
 M0 to M6 are done, except M3, which moved to §11, and released as `omalorem-v0.2.0`.
 M7 followed as `omalorem-v0.3.0`, M8 and M9 as `omalorem-v0.4.0`, and M10 as
-`omalorem-v0.5.0`. M11 is specified and not yet built.
+`omalorem-v0.5.0`. M11 and M12 are built and unreleased.
 
 | # | Deliverable | Acceptance |
 |---|---|---|
@@ -796,11 +827,15 @@ M7 followed as `omalorem-v0.3.0`, M8 and M9 as `omalorem-v0.4.0`, and M10 as
 | M7 | Document links and history *(done)* | Clicking a link to a Markdown file in the document's folder opens it, with the unsaved-changes dialog when needed; followable links carry a dotted underline; `notes.md#heading` scrolls there; `Alt+Left` / `Alt+Right` and the mouse's side buttons walk the last 20 documents, restoring the caret; links outside the folder, missing files and unsaved documents are refused with a status message. Tests at each layer (§4.5, §5.7) |
 | M11 | Back and forward in the preview | Two icons at the bottom left of the preview window, on a plate in the page colour, shown only while there is history and each greyed when its direction is empty. They walk the same list as `Alt+Left` with the same caret restoring. Tests at the window |
 | M10 | The wide column *(done)* | `Ctrl+Shift+W` drops the gutter to 24 px a side and loosens the measure from 65 to 80 characters, in both windows, saved as `view/wideColumn` and off by default. Upstream's own binding is restored when it is switched off. Works in `no_preview` builds. Tests for the width in every band and mode, for the owner's own case, for the page's measure, and for the setting |
+| M12 | A new document here *(done)* | `Ctrl+Shift+N` empties the current window: the text, the file name, the modified flag, the undo history, the recovery file and the visit history, with the unsaved-changes dialog asked first through upstream's own pending-action path. Works in `no_preview` builds. Tests for what is cleared, for the dialog's three answers, and for the preview emptying |
 
 ## 9. Decisions log
 
 | Date | Decision |
 |---|---|
+| 2026-11-05 | M12: `Ctrl+Shift+N` empties the current window, beside `Ctrl+N`'s new process. One window per note stops scaling after a few, and on a tiling desktop every new window rearranges the ones already open. |
+| 2026-11-05 | M12: the unsaved-changes dialog is reached by adding a `newDocument` case to Main.qml's own `completePendingAction()` — three added lines, no line changed. The alternative, a second set of `Connections` on the dialog and the save dialog driven by a fork-owned flag, would duplicate upstream's Save, Discard, Cancel and save-dialog-dismissed handling and could drift from it. Reusing the one function is what principle 1 is for. |
+| 2026-11-05 | M12: a new document clears the visit history (§4.7). The blank document is not itself a place to come back to, so leaving the history would make the first Back skip the document just left. |
 | 2026-09-21 | The preview defaults to its own top-level window, so Hyprland tiles it on Omarchy. Docked split is optional. *(Superseded below: there is no docked split in v1.)* |
 | 2026-09-21 | The preview font matches the editor (iA Writer Mono S). It can be switched to the proportional iA Writer Quattro S. |
 | 2026-09-21 | Raw HTML is escaped and remote images are blocked, with no opt-ins in v1. |

@@ -128,6 +128,9 @@ public:
     Q_INVOKABLE void keepExternalVersion();
     Q_INVOKABLE void printDocument();
     Q_INVOKABLE void newWindow();
+    // Omalorem: empty this window instead of starting a second one
+    // (docs/SPEC.md §4.9). Main.qml asks about unsaved changes first.
+    Q_INVOKABLE void newDocument();
     Q_INVOKABLE QString clipboardUrl() const;
     Q_INVOKABLE QString clipboardText() const;
     Q_INVOKABLE bool editorTextChanged();
