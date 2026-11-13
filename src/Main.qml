@@ -335,7 +335,7 @@ ApplicationWindow {
         standardButtons: Dialog.Close
         anchors.centerIn: parent
         contentItem: Label {
-            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+Shift+N  New Document\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+M  Inline Math\nCtrl+Shift+M  Display Math\nCtrl+P  Print\nCtrl+Shift+P  Export PDF\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nCtrl+- / Ctrl+=  Text Size\nCtrl+0  Text Size Reset\nCtrl+Shift+W  Wide Column\nAlt+Left / Alt+Right  Back / Forward\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
+            text: "Ctrl+S  Save\nCtrl+Shift+S  Save As\nCtrl+O  Open\nCtrl+N  New Window\nCtrl+Shift+N  New Document\nCtrl+Shift+C  Spell Check\nCtrl+F  Find\nCtrl+H  Find and Replace\nCtrl+B  Bold\nCtrl+I  Italic\nCtrl+K  Link\nCtrl+M  Inline Math\nCtrl+Shift+M  Display Math\nCtrl+P  Print\nCtrl+Shift+P  Export PDF\nCtrl+E  Preview\nCtrl+Shift+T  Preview Font\nCtrl+- / Ctrl+=  Text Size\nCtrl+0  Text Size Reset\nCtrl+Shift+W  Wide Column\nAlt+Left / Alt+Right  Back / Forward\nF11 / Super+F  Fullscreen\nCtrl+?  Shortcuts"
             lineHeight: 1.5
         }
     }
@@ -779,6 +779,21 @@ ApplicationWindow {
                     }
                 }
 
+                // Omalorem spell check (docs/SPEC.md §4.10): only the right
+                // button, so selecting, placing the caret and dragging stay
+                // the TextEdit's. Anything that is not an unknown word is
+                // left alone, which is what the editor did before.
+                MouseArea {
+                    objectName: "editorContextArea"
+                    anchors.fill: parent
+                    acceptedButtons: Qt.RightButton
+                    onClicked: function(mouse) {
+                        var position = editor.positionAt(mouse.x, mouse.y);
+                        if (!spellCheck.openAt(position, mouse.x, mouse.y))
+                            mouse.accepted = false;
+                    }
+                }
+
                 onTextChanged: {
                     if (win.searchUpdating)
                         return;
@@ -1049,6 +1064,123 @@ ApplicationWindow {
             onActivated: {
                 backend.resetViewScale();
                 backend.previewReportStatus("Text size follows the desktop");
+            }
+        }
+    }
+
+    // --- Omalorem spell check (docs/SPEC.md §4.10) -------------------------
+    // The underline is the highlighter's; this is the toggle and the menu that
+    // offers corrections. The menu opens on an unknown word and nowhere else,
+    // so right-clicking anything else behaves exactly as it did.
+    Item {
+        id: spellCheck
+        objectName: "spellCheck"
+
+        // What the menu is currently offering, from backend.misspellingAt().
+        property var current: null
+
+        function openAt(position, x, y) {
+            var found = backend.misspellingAt(position);
+            if (!found || found.word === undefined)
+                return false;
+            current = found;
+            spellMenu.popup(x, y);
+            return true;
+        }
+
+        function replaceWith(replacement) {
+            if (!current)
+                return;
+            backend.replaceTextAsOneEdit(current.start,
+                                         current.start + current.length,
+                                         replacement);
+            current = null;
+        }
+
+        Shortcut {
+            sequence: "Ctrl+Shift+C"
+            context: Qt.ApplicationShortcut
+            onActivated: {
+                backend.toggleSpellCheck();
+                if (!backend.spellCheck) {
+                    backend.previewReportStatus("Spell check off");
+                } else if (backend.spellLanguage() !== "") {
+                    // Name the dictionary: a desktop set to en_US marks
+                    // British and Australian spelling wrong, and the writer
+                    // should learn that here and not from a red "colour".
+                    backend.previewReportStatus("Spell check on ("
+                                                + backend.spellLanguage() + ")");
+                }
+            }
+        }
+
+        Menu {
+            id: spellMenu
+            objectName: "spellMenu"
+
+            readonly property color textColor: backend.themeForeground
+            readonly property color mutedColor: backend.darkMode ? "#909191" : "#aeb1b5"
+
+            background: Rectangle {
+                implicitWidth: 200
+                color: backend.themeBackground
+                border.color: spellMenu.mutedColor
+                border.width: 1
+            }
+
+            delegate: MenuItem {
+                id: spellMenuItem
+                implicitHeight: 32
+                contentItem: Text {
+                    text: spellMenuItem.text
+                    color: spellMenuItem.enabled ? spellMenu.textColor : spellMenu.mutedColor
+                    font.family: "iA Writer Mono S"
+                    font.pixelSize: 14
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: spellMenuItem.highlighted ? backend.themeSelection : "transparent"
+                }
+            }
+
+            Instantiator {
+                model: spellCheck.current ? spellCheck.current.suggestions : []
+                delegate: MenuItem {
+                    objectName: "spellSuggestion"
+                    text: modelData
+                    onTriggered: spellCheck.replaceWith(modelData)
+                }
+                onObjectAdded: (index, object) => spellMenu.insertItem(index, object)
+                onObjectRemoved: (index, object) => spellMenu.removeItem(object)
+            }
+
+            MenuItem {
+                objectName: "spellNoSuggestions"
+                text: "No suggestions"
+                enabled: false
+                height: visible ? implicitHeight : 0
+                visible: !spellCheck.current
+                         || spellCheck.current.suggestions.length === 0
+            }
+
+            MenuSeparator {}
+
+            MenuItem {
+                objectName: "spellAddToDictionary"
+                text: "Add to dictionary"
+                onTriggered: {
+                    backend.addToDictionary(spellCheck.current.word);
+                    spellCheck.current = null;
+                }
+            }
+
+            MenuItem {
+                objectName: "spellIgnore"
+                text: "Ignore in this document"
+                onTriggered: {
+                    backend.ignoreWord(spellCheck.current.word);
+                    spellCheck.current = null;
+                }
             }
         }
     }

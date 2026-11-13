@@ -15,10 +15,13 @@ SOURCES += \
     tst_preview.cpp \
     ../../src/backend.cpp \
     ../../src/markdownhighlighter.cpp \
+    ../../src/spellchecker.cpp \
     ../../src/previewbridge.cpp
 HEADERS += \
     ../../src/backend.h \
     ../../src/markdownhighlighter.h \
+    ../../src/spellchecker.h \
+    ../../src/spellwords.h \
     ../../src/previewbridge.h
 
 RESOURCES += ../../src/resources.qrc ../../src/previewhost.qrc harness.qrc
@@ -34,3 +37,6 @@ previewplugin.commands = \
 previewplugin.depends = FORCE
 QMAKE_EXTRA_TARGETS += previewplugin
 PRE_TARGETDEPS += preview-plugin
+
+# Omalorem spell check (docs/SPEC.md §4.10): markdownhighlighter.cpp calls it.
+LIBS += -lhunspell

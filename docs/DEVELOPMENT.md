@@ -34,6 +34,7 @@ the gap should be fixed or raised.
 | The name Save suggests | Done | Commit `ecf31f0`, merged. See §7 and SPEC §4.8 |
 | M12 A new document here | Done | Commit `97aaaba`, merged. See §8 and SPEC §4.9 |
 | Release 0.6.0 | Done | Tag `omalorem-v0.6.0`; `pkgver` 0.6.0 |
+| M13 Spell check | Done, unreleased | Branch `m13-spell-check`. See §8 and SPEC §4.10 |
 
 What works today:
 - The preview opens as its own top-level window with no transient parent, so Hyprland tiles it beside the editor.
@@ -59,9 +60,10 @@ What works today:
 - `Ctrl+F` and `Ctrl+H` from the preview bring the editor forward. F11 in the preview fullscreens the preview.
 - With the preview hidden, the `omalorem` binary never loads QtWebEngine: `ldd` shows no WebEngine library, and none is mapped at runtime.
 - `Ctrl+Shift+N` empties the current window instead of starting a second process, asking about unsaved changes first through Omawrite's own pending-action path. The text, file name, modified flag, undo history, recovery file and visit history all go; the theme, text size and wide column stay. Works in `no_preview` builds.
+- Spell check underlines unknown words in the editor, skipping code spans, fenced code, math, link URLs, bare URLs, addresses, words with digits and single letters. Right-click an underlined word for suggestions, Add to dictionary or Ignore in this document. `Ctrl+Shift+C` toggles it, saved as `editor/spellCheck`, on by default. Hunspell with the system's dictionaries; the dictionary is read on the first word checked (30–35 ms) and not at all when the feature is off. Works in `no_preview` builds.
 - `no_preview` builds are plain Omawrite with the Omalorem name.
 
-Tests: `bin/test` passes both targets. `tst_omalorem` has 43 passed. `tst_preview` has 40 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
+Tests: `bin/test` passes both targets. `tst_omalorem` has 50 passed. `tst_preview` has 40 passed, with no expected failures. `patchesOnlyChangedBlocks` logs the render timing (§5).
 
 ## 2. Rules for every change
 
@@ -205,9 +207,9 @@ Render budget at M2, from `tst_preview`'s log, offscreen with no GPU:
   - M4: math colours in light and dark themes; `Ctrl+M` and `Ctrl+Shift+M`; Return in a `$$` block
   - M2: that scroll sync feels smooth with the editor's wheel animation and with a GPU; that Quattro looks right; that a local image beside a saved document shows; and the scrollbar-drag question above
 
-## 7. Next: the rebase onto Omawrite 0.7.2
+## 7. Next: a release for M13, then the rebase onto Omawrite 0.7.2
 
-0.6.0 is released and nothing is pending. SPEC §11 holds the future features, §10 the open questions, and §6 what still wants checking by hand on Hyprland.
+0.6.0 is released; M13 is built and unreleased, so the next step is 0.7.0 by the recipe below. SPEC §11 holds the future features, §10 the open questions, and §6 what still wants checking by hand on Hyprland.
 
 Two things are open before Omalorem is published anywhere, and the first is now the biggest thing on the list. Upstream Omawrite has moved to **0.7.2** — 201 commits past the fork point at Omawrite 0.5.0 (`8f98892`) — so a rebase is overdue; the additive audit in §5 is what makes it cheap. One conflict is certain and it is the good kind: upstream's `feature/shortcuts-dialog` (`6a2bb95`) and `d0ed34c` replaced the inline `Ctrl+?` reference string with a `ShortcutsDialog.qml` component, so the one line this fork modifies no longer exists upstream. Resolving it means adding the fork's shortcut rows to that new component instead — after which the diff against upstream is **purely additive**, with no modified-line exception left at all. The two functions the newest changes insert into, `suggestedFileName()` and `completePendingAction()`, are both untouched upstream, so those insertions still apply as they stand. And `pkgbuild/PKGBUILD` builds from `$startdir/..` with an empty `source=()`, which suits `bin/install` and neither the AUR nor the Omarchy package repository: a release PKGBUILD has to fetch the tag tarball or a pinned `git+https` source, build in `$srcdir`, keep the plugin's install line, and list `OFL-1.1` beside `MIT` for the bundled fonts.
 
@@ -216,6 +218,52 @@ Two things are open before Omalorem is published anywhere, and the first is now 
 `# Spherical harmonics.md` is nobody's file name. `src/documentname.h` holds the rules, as a pure function, and the one line added to Omawrite's `suggestedFileName()` calls it. Scope in SPEC §4.8.
 
 Worth knowing if this comes up again: there is **no hook between the name and the dialog**. `suggestedSaveUrl()` builds the URL and `saveDialogRequested` hands it to the `Connections` block in `Main.qml` that sets `saveFileDialog.selectedFile` and opens it. A fork block connected to the same signal cannot change another slot's argument, and setting `selectedFile` after the dialog is open is not reliable with a portal dialog. So the choice was one added call inside the upstream function, or the fork owning a second save dialog and repeating upstream's cancel, save-for-close and pending-action handling. The call is the cheap and safe one.
+
+### Done: M13, spell check
+
+Spell check in the **editor**, not the preview. Scope in SPEC §4.10.
+
+The choice was not close once the preview was examined. Chromium's own spell checker only
+marks *editable* content, so on a read-only rendered page it does nothing at all; and even
+a hand-rolled checker in the page would put the squiggle where the word cannot be fixed.
+The editor, meanwhile, already computes exactly the regions spell check must skip —
+`MarkdownHighlighter` tracks fenced code across lines, code spans, math spans and link
+URLs for its own formatting — and it works in `no_preview` builds.
+
+Findings:
+- **`libhunspell` did not need the plugin treatment.** Measured on an empty binary it
+  costs about 1.4 ms of start-up, against the 90 ms that forced WebEngine behind a
+  plugin in M1.1. Principle 2 is about real cost, not about every library, so it is
+  linked normally. The dictionary is the expensive part — 30–35 ms for `en_AU`'s 850 KB
+  — and that stays lazy: read on the first word checked, never when the feature is off.
+- **The locale is not the dialect.** This machine runs `LANG=en_US.UTF-8` with
+  `hunspell-en_au`, `-en_gb` and `-en_us` all installed, so locale-driven selection picks
+  `en_US` and marks *colour*, *behaviour*, *recognise*, *organise* and *centre* wrong —
+  every one of them in this project's own prose. Found by running the three dictionaries
+  against that vocabulary before trusting the default. The fix is not a cleverer default,
+  because the locale really is `en_US`: turning spell check on now names the dictionary
+  it chose, and `editor/spellLanguage` overrides it.
+- **A missing dictionary is reported, not swallowed.** Nothing was installed when this
+  was written, which is the normal state on a fresh Arch system. Without a dictionary
+  nothing is a misspelling, so the editor would have looked exactly like a broken
+  feature — the same shape as the `Ctrl+Shift+W` confusion in M10. The status line names
+  the package instead.
+- **The tests carry their own dictionary.** `tests/fixtures/dictionaries/en_TEST.{aff,dic}`
+  is twenty words written for the purpose, so the suite says the same thing on a machine
+  with no dictionaries, with `en_US`, or with all of them. One test
+  (`usesTheSystemDictionaryWhenThereIsOne`) uses the real one and `QSKIP`s when there is
+  none.
+- **The underline merges rather than replaces.** `highlightSpelling` reads the format
+  already at the word and adds only the underline style and colour, the way
+  `highlightSearch` does with the background, so a misspelling inside a heading or in
+  bold keeps its own colour and weight.
+- **The editor's first context menu.** It opens on an unknown word and nowhere else: the
+  `MouseArea` takes only `Qt.RightButton` and sets `mouse.accepted = false` when there is
+  no misspelling, so every other gesture reaches the `TextEdit` as before. Principle 5
+  rations chrome that is visible when it is not wanted, which this is not.
+- `tests/preview/preview.pro` compiles `markdownhighlighter.cpp` too, so it needed
+  `-lhunspell` as well. Easy to miss: the editor tests linked and the preview ones did
+  not.
 
 ### Done: M12, a new document here
 

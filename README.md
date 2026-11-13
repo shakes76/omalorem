@@ -117,6 +117,7 @@ optional Hyprland snippets for the preview window, the launcher and keybindings.
 - `F11` in the preview window fullscreens the preview, for reading.
 - `Ctrl+N` opens a new Omalorem window.
 - `Ctrl+Shift+N` starts a new, empty document in the window you are in, rather than opening a second one. It asks about unsaved changes first, the same way `Ctrl+O` does.
+- `Ctrl+Shift+C` turns spell check on and off. Unknown words get a red wavy underline in the editor; code, math and URLs are left alone. Right-click an underlined word for suggestions, *Add to dictionary* or *Ignore in this document*. It is on by default and uses the dictionaries your system already has — install `hunspell-en_au` (or `-en_gb`, `-en_us`) and the editor will find it. Turning it on names the one it chose, because a desktop set to `en_US` will mark *colour* and *behaviour* wrong.
 - `Ctrl+Z`, `Ctrl+Shift+Z`, and `Ctrl+Y` handle undo and redo.
 - `Super+F` toggles fullscreen. Qt maps this key as `Meta+F`.
 - `Ctrl+F` searches the document. Use `Enter` or `Ctrl+G` for the next match and `Shift+Enter` for the previous match.

@@ -15,6 +15,8 @@
 #include "documentname.h"
 #include "editorlayout.h"
 #include "markdownhighlighter.h"
+#include "spellchecker.h"
+#include "spellwords.h"
 #include "previewbridge.h"
 #include "previewpolicy.h"
 
@@ -1237,6 +1239,223 @@ private slots:
         QCOMPARE(navigation.count(), 2);
         QCOMPARE(navigation.at(0).constFirst().toInt(), -1);
         QCOMPARE(navigation.at(1).constFirst().toInt(), 1);
+    }
+
+    // --- Spell check (docs/SPEC.md §4.10) ---
+
+    // The words a line offers for checking. Pure, so no dictionary is needed.
+    void picksTheProseOutOfMarkdown() {
+        const auto words = [](const QString &line, int previousState = -1) {
+            QStringList found;
+            for (const SpellWord &word :
+                 spellWords(line, MarkdownHighlighter::spellSkipRanges(line, previousState)))
+                found << line.mid(word.start, word.length);
+            return found;
+        };
+
+        QCOMPARE(words(QStringLiteral("the spherical harmonic")),
+                 QStringList({"the", "spherical", "harmonic"}));
+        // Markers are punctuation, so they fall out of the word scan.
+        QCOMPARE(words(QStringLiteral("## A heading")), QStringList({"heading"}));
+        QCOMPARE(words(QStringLiteral("- a list item")), QStringList({"list", "item"}));
+        // Code spans and fenced code hold no prose.
+        QCOMPARE(words(QStringLiteral("call `funcname` now")), QStringList({"call", "now"}));
+        QCOMPARE(words(QStringLiteral("notaword inside"),
+                       MarkdownHighlighter::MathBacktickFence),
+                 QStringList());
+        // Math, inline and display.
+        QCOMPARE(words(QStringLiteral("where $x_{ij}$ is small")),
+                 QStringList({"where", "is", "small"}));
+        QCOMPARE(words(QStringLiteral("and \\(y_k\\) too")), QStringList({"and", "too"}));
+        // A link's text is prose; its URL is not.
+        QCOMPARE(words(QStringLiteral("see [the notes](./spherical-harmonics.md) here")),
+                 QStringList({"see", "the", "notes", "here"}));
+        // Bare URLs, addresses, paths and anything with a digit.
+        QCOMPARE(words(QStringLiteral("at https://example.com/page now")),
+                 QStringList({"at", "now"}));
+        QCOMPARE(words(QStringLiteral("mail someone@example.com today")),
+                 QStringList({"mail", "today"}));
+        QCOMPARE(words(QStringLiteral("see docs/SPEC.md for it")),
+                 QStringList({"see", "for", "it"}));
+        QCOMPARE(words(QStringLiteral("version v1 and h2o")), QStringList({"version", "and"}));
+        // A full stop ends a sentence; it does not make a file name.
+        QCOMPARE(words(QStringLiteral("That is the end.")),
+                 QStringList({"That", "is", "the", "end"}));
+        // Apostrophes stay inside a word and drop off its ends.
+        QCOMPARE(words(QStringLiteral("don't quote 'me' now")),
+                 QStringList({"don't", "quote", "me", "now"}));
+        // Single letters are labels more often than misspellings.
+        QCOMPARE(words(QStringLiteral("a b point")), QStringList({"point"}));
+    }
+
+    void readsADictionaryAndSuggests() {
+        const QString base = QFINDTESTDATA("fixtures/dictionaries/en_TEST.dic");
+        QVERIFY(!base.isEmpty());
+        const QString stem = base.left(base.size() - 4);
+
+        SpellChecker checker;
+        checker.setDictionary(stem);
+        QVERIFY(checker.available());
+        QVERIFY(checker.unavailableMessage().isEmpty());
+
+        QVERIFY(checker.check(QStringLiteral("spherical")));
+        QVERIFY(!checker.check(QStringLiteral("sphericl")));
+        QVERIFY(checker.suggest(QStringLiteral("sphericl"))
+                    .contains(QStringLiteral("spherical")));
+        // Ignoring is for this document only, and takes effect at once.
+        QSignalSpy vocabulary(&checker, &SpellChecker::vocabularyChanged);
+        checker.ignore(QStringLiteral("sphericl"));
+        QVERIFY(checker.check(QStringLiteral("sphericl")));
+        QCOMPARE(vocabulary.count(), 1);
+        checker.clearIgnored();
+        QVERIFY(!checker.check(QStringLiteral("sphericl")));
+    }
+
+    // With no dictionary, nothing is a misspelling and the message says why.
+    void saysWhenThereIsNoDictionary() {
+        QTemporaryDir empty;
+        QVERIFY(empty.isValid());
+        QCOMPARE(SpellChecker::findDictionary(QStringLiteral("en_AU"),
+                                              {empty.path()}),
+                 QString());
+
+        SpellChecker checker;
+        checker.setDictionary(QString());
+        QVERIFY(!checker.available());
+        QVERIFY(checker.unavailableMessage().contains(QStringLiteral("hunspell")));
+        QVERIFY(checker.check(QStringLiteral("sphericl")));
+        QCOMPARE(checker.suggest(QStringLiteral("sphericl")), QStringList());
+    }
+
+    // en_AU is preferred, another English falls back, then anything at all.
+    void choosesTheClosestDictionary() {
+        QTemporaryDir root;
+        QVERIFY(root.isValid());
+        const QDir dir(root.path());
+        const auto install = [&](const QString &name) {
+            for (const QString &suffix : {QStringLiteral(".dic"), QStringLiteral(".aff")}) {
+                QFile file(dir.filePath(name + suffix));
+                QVERIFY(file.open(QIODevice::WriteOnly));
+                file.write("1\nword\n");
+            }
+        };
+        install(QStringLiteral("de_DE"));
+        QCOMPARE(QFileInfo(SpellChecker::findDictionary(QStringLiteral("en_AU"),
+                                                        {root.path()})).fileName(),
+                 QStringLiteral("de_DE"));
+        install(QStringLiteral("en_GB"));
+        QCOMPARE(QFileInfo(SpellChecker::findDictionary(QStringLiteral("en_AU"),
+                                                        {root.path()})).fileName(),
+                 QStringLiteral("en_GB"));
+        install(QStringLiteral("en_AU"));
+        QCOMPARE(QFileInfo(SpellChecker::findDictionary(QStringLiteral("en_AU"),
+                                                        {root.path()})).fileName(),
+                 QStringLiteral("en_AU"));
+    }
+
+    void underlinesOnlyTheUnknownWord() {
+        const QString base = QFINDTESTDATA("fixtures/dictionaries/en_TEST.dic");
+        QVERIFY(!base.isEmpty());
+
+        QTextDocument document;
+        document.setPlainText(QStringLiteral("## the sphericl harmonic\n"
+                                             "a `codeword` and $x_{ij}$ here"));
+        MarkdownHighlighter highlighter(&document);
+        SpellChecker checker;
+        checker.setDictionary(base.left(base.size() - 4));
+        highlighter.setSpellChecker(&checker);
+
+        const auto underlined = [&](int block) {
+            QStringList marked;
+            const QTextBlock line = document.findBlockByNumber(block);
+            const QString text = line.text();
+            QString current;
+            for (int i = 0; i < text.size(); ++i) {
+                bool wavy = false;
+                for (const QTextLayout::FormatRange &range : line.layout()->formats()) {
+                    if (i >= range.start && i < range.start + range.length
+                        && range.format.underlineStyle()
+                               == QTextCharFormat::SpellCheckUnderline) {
+                        wavy = true;
+                    }
+                }
+                if (wavy) {
+                    current += text.at(i);
+                } else if (!current.isEmpty()) {
+                    marked << current;
+                    current.clear();
+                }
+            }
+            if (!current.isEmpty())
+                marked << current;
+            return marked;
+        };
+
+        // "the" and "harmonic" are known; the heading markers are not words.
+        QCOMPARE(underlined(0), QStringList({"sphericl"}));
+        // "codeword" is in a code span and "ij" is in math, so neither is
+        // checked; "here" and "and" are known... except "here" is not in the
+        // fixture dictionary, which is exactly what should be underlined.
+        QCOMPARE(underlined(1), QStringList({"here"}));
+
+        // Turning it off takes every underline away.
+        highlighter.setSpellChecker(nullptr);
+        QCOMPARE(underlined(0), QStringList());
+    }
+
+    // The one test that uses whatever this machine has installed, and skips
+    // when it has nothing. Everything else runs against the fixture so the
+    // suite says the same thing on every machine.
+    void usesTheSystemDictionaryWhenThereIsOne() {
+        const QString found = SpellChecker::findDictionary(QStringLiteral("en_AU"));
+        if (found.isEmpty())
+            QSKIP("No hunspell dictionary installed on this machine.");
+
+        SpellChecker checker;
+        checker.setDictionary(found);
+        QVERIFY(checker.available());
+        QVERIFY(!checker.language().isEmpty());
+
+        // Real prose, through the real dictionary.
+        QVERIFY(checker.check(QStringLiteral("spherical")));
+        QVERIFY(checker.check(QStringLiteral("harmonics")));
+        QVERIFY(!checker.check(QStringLiteral("sphericl")));
+        QVERIFY(checker.suggest(QStringLiteral("sphericl"))
+                    .contains(QStringLiteral("spherical")));
+
+        // An en_AU or en_GB dictionary knows this project's own spelling; an
+        // en_US one does not, which is why the language is reported when spell
+        // check is turned on.
+        if (checker.language().startsWith(QStringLiteral("en_AU"))
+            || checker.language().startsWith(QStringLiteral("en_GB"))) {
+            QVERIFY(checker.check(QStringLiteral("colour")));
+            QVERIFY(checker.check(QStringLiteral("behaviour")));
+        }
+    }
+
+    void remembersTheSpellCheckSetting() {
+        QSettings settings;
+        settings.remove(QStringLiteral("editor"));
+        {
+            Backend backend;
+            QSignalSpy spy(&backend, &Backend::spellCheckChanged);
+            // On by default: prose is what the editor is for.
+            QVERIFY(backend.spellCheck());
+            backend.toggleSpellCheck();
+            QVERIFY(!backend.spellCheck());
+            QCOMPARE(spy.count(), 1);
+        }
+        settings.sync();
+        QCOMPARE(settings.value(QStringLiteral("editor/spellCheck")).toBool(), false);
+        {
+            Backend backend;
+            QVERIFY(!backend.spellCheck());
+            backend.toggleSpellCheck();
+            QVERIFY(backend.spellCheck());
+        }
+        // On is the default, so it leaves nothing behind.
+        settings.sync();
+        QVERIFY(!settings.contains(QStringLiteral("editor/spellCheck")));
     }
 
     // --- A new document here (docs/SPEC.md §4.9) ---

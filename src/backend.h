@@ -13,6 +13,7 @@
 #include "previewbridge.h"
 
 class MarkdownHighlighter;
+class SpellChecker;
 class QTextDocument;
 class QWindow;
 class QLockFile;
@@ -39,6 +40,7 @@ class Backend : public QObject {
     Q_PROPERTY(qreal viewScale READ viewScale NOTIFY viewScaleChanged)
     // The wide column: a 24 px gutter and 80 characters (docs/SPEC.md §4.6).
     Q_PROPERTY(bool wideColumn READ wideColumn NOTIFY wideColumnChanged)
+    Q_PROPERTY(bool spellCheck READ spellCheck NOTIFY spellCheckChanged)
     Q_PROPERTY(bool previewCanGoBack READ previewCanGoBack NOTIFY previewHistoryChanged)
     Q_PROPERTY(bool previewCanGoForward READ previewCanGoForward NOTIFY previewHistoryChanged)
 
@@ -99,6 +101,18 @@ public:
     // Saved as view/wideColumn, and off by default.
     bool wideColumn() const;
     Q_INVOKABLE void toggleWideColumn();
+    // --- Omalorem spell check (docs/SPEC.md §4.10) -------------------------
+    // Saved as editor/spellCheck, and on by default.
+    bool spellCheck() const;
+    Q_INVOKABLE void toggleSpellCheck();
+    // The dictionary in use, e.g. "en_AU", or empty when there is none.
+    Q_INVOKABLE QString spellLanguage() const;
+    // The unknown word at a document position, or an empty map. The map holds
+    // start, length, word and suggestions, which is what the context menu needs.
+    Q_INVOKABLE QVariantMap misspellingAt(int position) const;
+    Q_INVOKABLE void addToDictionary(const QString &word);
+    Q_INVOKABLE void ignoreWord(const QString &word);
+
     // Omawrite's column width, or the wide one. Main.qml binds to it.
     Q_INVOKABLE int editorColumnWidth(qreal characterWidth, qreal windowWidth,
                                       bool wide) const;
@@ -153,6 +167,7 @@ signals:
     void previewPlacementChanged();
     void viewScaleChanged();
     void wideColumnChanged();
+    void spellCheckChanged();
     void previewHistoryChanged();
     // Emitted when back or forward has reopened a document, with the caret
     // position it was left at.
@@ -168,6 +183,8 @@ signals:
 
 private:
     void loadDocumentText(const QString &text);
+    SpellChecker *spellChecker() const;
+    void applySpellChecker();
     void setFileUrl(const QUrl &url);
     void setModified(bool modified);
     void setStatus(const QString &status);
@@ -236,6 +253,9 @@ private:
     mutable bool m_viewScaleLoaded = false;
 
     mutable bool m_wideColumn = false;
+    mutable bool m_spellCheck = true;
+    mutable bool m_spellCheckLoaded = false;
+    mutable SpellChecker *m_spellChecker = nullptr;
     mutable bool m_wideColumnLoaded = false;
 
     struct PreviewVisit {

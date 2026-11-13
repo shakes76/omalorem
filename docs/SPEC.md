@@ -1,6 +1,6 @@
 # Omalorem — Specification
 
-Status: v1.8 · 2026-11-05 · M10 (the wide column) released as 0.5.0; M11 (back and forward in the preview), the suggested-name fix (§4.8) and M12 (a new document here) as 0.6.0
+Status: v1.9 · 2026-11-13 · M11, the suggested-name fix (§4.8) and M12 (a new document here) released as 0.6.0; M13 (spell check) built
 Upstream: [omacom-io/omawrite](https://github.com/omacom-io/omawrite) (MIT), forked at `8f98892` (Omawrite 0.5.0)
 
 ## 1. Purpose
@@ -159,6 +159,7 @@ the preview. The word count stays at the bottom right of the editor window.
 | `Ctrl+0` | Back to the desktop's text size (M9) |
 | `Ctrl+Shift+W` | The wide column on or off: a 24 px gutter and an 80-character measure (M10) |
 | `Ctrl+Shift+N` | A new, empty document in this window, asking about unsaved changes first (M12) |
+| `Ctrl+Shift+C` | Spell check on or off (M13) |
 | `Alt+Left` | Back, to the document visited before this one (M7) |
 | `Alt+Right` | Forward again (M7) |
 
@@ -415,6 +416,59 @@ rearranges the ones already open.
   preview window.
 - Nothing else in the window changes: the theme, the text size, the wide column and the
   window geometry are the window's, not the document's.
+
+### 4.10 Spell check (M13)
+
+Prose is what this editor is for, so a misspelling should be visible while it is being
+written. It belongs in the **editor**, not the preview, for three reasons:
+
+- The preview is read-only. Chromium's own spell checker only marks *editable* content,
+  so it would do nothing on a rendered page; and even a hand-rolled one would put the
+  squiggle where the word cannot be fixed, leaving the writer to hunt for it in the
+  editor.
+- The editor already knows where prose *isn't*. `MarkdownHighlighter` tracks fenced code
+  across lines, code spans, math spans (§5.6) and link URLs. Spell check needs exactly
+  those regions skipped, and they are already computed on every line.
+- The editor half works in `no_preview` builds; a preview-side checker would not.
+
+How it behaves:
+
+- **Unknown words get a red wavy underline**, drawn under whatever formatting the word
+  already has, so a misspelling inside a heading or in bold keeps its own colour and
+  weight.
+- **Not checked**: fenced code and code spans, math, link URLs and bare URLs, e-mail
+  addresses, words containing digits, and single letters. The link *text* is checked —
+  it is prose.
+- **Right-clicking an unknown word** offers up to seven suggestions, *Add to dictionary*
+  and *Ignore in this document*. Choosing a suggestion replaces the word as one undo
+  step. This is the editor's only context menu; it opens on an unknown word and nowhere
+  else, so it adds nothing to the chrome that is visible when it is not wanted.
+- **`Ctrl+Shift+C` turns it on and off**, saved as `editor/spellCheck`, **on by default**.
+- **Added words** go to `~/.local/share/omalorem/personal.dic`, one per line, and are
+  known to every window at once.
+
+Dictionaries:
+
+- Hunspell, with the dictionaries the system already has, read from
+  `/usr/share/hunspell`, `/usr/share/myspell/dicts` and
+  `~/.local/share/hunspell`. Nothing is bundled and nothing is downloaded, so the
+  offline rule (§2) holds.
+- The language follows the desktop's locale, falling back to another variant of the same
+  language, then to any dictionary present. `editor/spellLanguage` overrides it.
+- **Turning spell check on names the dictionary** — "Spell check on (en_AU)". The locale
+  is not always the writer's dialect: a desktop running `LANG=en_US.UTF-8` picks `en_US`,
+  which marks *colour*, *behaviour*, *recognise*, *organise* and *centre* wrong. Saying
+  which dictionary is judging turns that from a puzzle into a setting to change.
+- **When no dictionary is installed, the editor says so** rather than failing silently:
+  the status line names the package to install. A missing dictionary is the normal state
+  on a fresh Arch system, so a quiet no-op would read exactly like a broken feature.
+
+Cost (§2), measured on this machine: `libhunspell` adds about **1.4 ms** to start-up,
+against the 90 ms that put WebEngine behind a plugin, so it is linked normally. The
+dictionary is the real cost — **30–35 ms** to read `en_AU` (850 KB) — so it is read on
+the first word checked, during the first highlight of a loaded document, and not at all
+when spell check is off. A check after that takes about **8 µs**, and repeats come from
+a per-word cache.
 
 ## 5. Architecture
 
@@ -777,6 +831,12 @@ Backend history: visit / back / forward  ◀── Backend::open succeeds (fileU
   - a new document in this window: the text, the file name, the modified flag and the
     visit history all cleared; the unsaved-changes dialog asked first, and nothing
     cleared when it is cancelled or the save dialog dismissed (M12).
+  - spell check: which words a line offers for checking, against a fixture dictionary
+    written for the tests rather than whatever the machine has installed — code spans,
+    fenced code, math, link URLs, bare URLs, e-mail addresses, words with digits and
+    single letters all skipped, and the link text still checked; the underline landing
+    on the unknown word and nowhere else; suggestions, Add to dictionary and Ignore;
+    and the setting (M13).
 - **Render tests:** a `tests/preview/` QtTest target loads `index.html` in an offscreen
   `QQuickWebEngineView` from a fixture corpus (`tests/fixtures/*.md`). It asserts, using
   `runJavaScript`:
@@ -805,12 +865,17 @@ Backend history: visit / back / forward  ◀── Backend::open succeeds (fileU
     turning it off restores Omawrite's layout exactly (M10).
   - `Ctrl+Shift+N` on a modified document: the dialog's Save, Discard and Cancel each
     behave as they do for `Ctrl+O`, and the preview empties with the editor (M12).
+  - spell check against a real system dictionary, which the test suite does not use:
+    that `hunspell-en_au` is found and sensible for Australian prose, that the underline
+    reads clearly in both themes, and that the message naming the package appears when
+    no dictionary is installed (M13).
 
 ## 8. Milestones
 
 M0 to M6 are done, except M3, which moved to §11, and released as `omalorem-v0.2.0`.
 M7 followed as `omalorem-v0.3.0`, M8 and M9 as `omalorem-v0.4.0`, and M10 as
 `omalorem-v0.5.0`, and M11, the suggested-name fix and M12 as `omalorem-v0.6.0`.
+M13 is built and unreleased.
 
 | # | Deliverable | Acceptance |
 |---|---|---|
@@ -828,11 +893,16 @@ M7 followed as `omalorem-v0.3.0`, M8 and M9 as `omalorem-v0.4.0`, and M10 as
 | M11 | Back and forward in the preview | Two icons at the bottom left of the preview window, on a plate in the page colour, shown only while there is history and each greyed when its direction is empty. They walk the same list as `Alt+Left` with the same caret restoring. Tests at the window |
 | M10 | The wide column *(done)* | `Ctrl+Shift+W` drops the gutter to 24 px a side and loosens the measure from 65 to 80 characters, in both windows, saved as `view/wideColumn` and off by default. Upstream's own binding is restored when it is switched off. Works in `no_preview` builds. Tests for the width in every band and mode, for the owner's own case, for the page's measure, and for the setting |
 | M12 | A new document here *(done)* | `Ctrl+Shift+N` empties the current window: the text, the file name, the modified flag, the undo history, the recovery file and the visit history, with the unsaved-changes dialog asked first through upstream's own pending-action path. Works in `no_preview` builds. Tests for what is cleared, for the dialog's three answers, and for the preview emptying |
+| M13 | Spell check *(done)* | Unknown words get a red wavy underline in the editor, skipping code, math and URLs; right-click offers suggestions, Add to dictionary and Ignore in this document; `Ctrl+Shift+C` toggles it, saved as `editor/spellCheck` and on by default. Hunspell with the system's own dictionaries, loaded on the first word checked; a clear status message when none is installed. Works in `no_preview` builds |
 
 ## 9. Decisions log
 
 | Date | Decision |
 |---|---|
+| 2026-11-13 | M13: spell check goes in the **editor**, not the preview. Chromium only marks editable content, so a read-only page cannot show it at all; and the squiggle belongs where the word can be fixed. The editor also already computes the regions to skip — fenced code, code spans, math and link URLs — for the highlighter, and it works in `no_preview` builds. |
+| 2026-11-13 | M13: `libhunspell` is linked normally rather than put behind a plugin. Measured, it costs about 1.4 ms of start-up against WebEngine's 90 ms, which is what principle 2's lazy loading was for. The dictionary, which is the real cost, stays lazy: it is read on the first word checked and not at all when spell check is off. |
+| 2026-11-13 | M13: dictionaries come from the system, not the package. Bundling one would freeze a language choice into a binary for a user who may want `en_GB` or none, and `third_party` vendoring is for things with no system copy. A missing dictionary is reported in the status line with the package name, because a silent no-op reads as a broken feature. |
+| 2026-11-13 | M13: the editor gets its first context menu, but only on an unknown word. Principle 5 rations chrome that is visible when unwanted; a menu that opens nowhere else is not that. Corrections have no sensible keyboard-only form. |
 | 2026-11-05 | M12: `Ctrl+Shift+N` empties the current window, beside `Ctrl+N`'s new process. One window per note stops scaling after a few, and on a tiling desktop every new window rearranges the ones already open. |
 | 2026-11-05 | M12: the unsaved-changes dialog is reached by adding a `newDocument` case to Main.qml's own `completePendingAction()` — three added lines, no line changed. The alternative, a second set of `Connections` on the dialog and the save dialog driven by a fork-owned flag, would duplicate upstream's Save, Discard, Cancel and save-dialog-dismissed handling and could drift from it. Reusing the one function is what principle 1 is for. |
 | 2026-11-05 | M12: a new document clears the visit history (§4.7). The blank document is not itself a place to come back to, so leaving the history would make the first Back skip the document just left. |

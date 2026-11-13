@@ -16,6 +16,16 @@ makedepends=('gcc' 'make' 'qt6-base' 'qt6-declarative')
 # (docs/SPEC.md §5.3). Appended, so upstream's lines stay untouched.
 depends+=('qt6-webengine' 'qt6-webchannel')
 makedepends+=('qt6-webengine' 'qt6-webchannel')
+
+# Omalorem spell check (docs/SPEC.md §4.10): hunspell itself is linked, so it
+# is a hard dependency. The dictionaries are not, because the language is the
+# writer's choice and the editor names the package to install when it finds
+# none. en_AU is listed first for this fork's own audience.
+depends+=('hunspell')
+makedepends+=('hunspell')
+optdepends=('hunspell-en_au: Australian English spelling dictionary'
+            'hunspell-en_gb: British English spelling dictionary'
+            'hunspell-en_us: American English spelling dictionary')
 source=()
 sha256sums=()
 

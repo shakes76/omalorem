@@ -1,5 +1,7 @@
 #include "markdownhighlighter.h"
 
+#include "spellchecker.h"
+
 #include <QColor>
 #include <QFont>
 #include <QFontMetricsF>
@@ -102,6 +104,14 @@ void MarkdownHighlighter::rebuildFormats() {
     m_mathFormat = QTextCharFormat();
     m_mathFormat.setForeground(math);
 
+    // Omalorem spell check: the wavy underline is red in both themes, a little
+    // softer in the dark one, because it has to read against the prose colour
+    // without competing with it.
+    m_spellFormat = QTextCharFormat();
+    m_spellFormat.setUnderlineStyle(QTextCharFormat::SpellCheckUnderline);
+    m_spellFormat.setUnderlineColor(m_darkMode ? QColor(0xff, 0x6b, 0x6b)
+                                               : QColor(0xd1, 0x1f, 0x1f));
+
     m_searchFormat = QTextCharFormat();
     m_searchFormat.setBackground(m_darkMode ? QColor(QStringLiteral("#725b18"))
                                             : QColor(QStringLiteral("#ffe58a")));
@@ -122,6 +132,10 @@ void MarkdownHighlighter::highlightBlock(const QString &text) {
         }
     }
     highlightMath();
+    // Omalorem spell check (docs/SPEC.md §4.10), after the markup passes so it
+    // underlines whatever formatting the word already has, and before search,
+    // which owns the background.
+    highlightSpelling(text);
     highlightSearch(text);
 }
 
@@ -185,6 +199,73 @@ void MarkdownHighlighter::highlightMarkers(const QString &text) {
         const QRegularExpressionMatch rule = ruleRe.match(text);
         if (rule.hasMatch())
             setFormat(0, text.length(), m_markerFormat);
+    }
+}
+
+// --- Omalorem spell check (docs/SPEC.md §4.10) ---------------------------
+
+void MarkdownHighlighter::setSpellChecker(SpellChecker *checker) {
+    if (m_spellChecker == checker)
+        return;
+    m_spellChecker = checker;
+    rehighlight();
+}
+
+QList<SpellSkip> MarkdownHighlighter::spellSkipRanges(const QString &text,
+                                                      int previousState) {
+    QList<SpellSkip> skip;
+    int state = MathNormal;
+    const QList<MathSpan> math = mathSpans(text, previousState, &state);
+
+    // Inside a fence, or on the line that opens or closes one, there is no
+    // prose at all. mathSpans() already carries the fence across lines.
+    const int fenced = MathBacktickFence | MathTildeFence;
+    if ((previousState > 0 && (previousState & fenced)) || (state & fenced)) {
+        skip.append({0, text.size()});
+        return skip;
+    }
+
+    for (const MathSpan &span : math) {
+        skip.append({span.content.start, span.content.length});
+        for (const Span &marker : span.markers)
+            skip.append({marker.start, marker.length});
+    }
+
+    if (text.contains(QLatin1Char('`'))) {
+        static const QRegularExpression codeRe(QStringLiteral("`([^`]+)`"));
+        QRegularExpressionMatchIterator codeMatches = codeRe.globalMatch(text);
+        while (codeMatches.hasNext()) {
+            const QRegularExpressionMatch match = codeMatches.next();
+            skip.append({int(match.capturedStart(0)), int(match.capturedLength(0))});
+        }
+    }
+
+    // A link's text is prose and is checked; its URL is not. markers[1] is the
+    // "](url)" tail, which is exactly the part to leave alone.
+    for (const InlineMarkup &item : inlineMarkup(text)) {
+        if (item.kind != InlineKind::Link)
+            continue;
+        skip.append({item.markers[1].start, item.markers[1].length});
+    }
+    return skip;
+}
+
+void MarkdownHighlighter::highlightSpelling(const QString &text) {
+    if (!m_spellChecker || text.isEmpty())
+        return;
+
+    const QList<SpellWord> words =
+        spellWords(text, spellSkipRanges(text, previousBlockState()));
+    for (const SpellWord &word : words) {
+        const QString candidate = text.mid(word.start, word.length);
+        if (m_spellChecker->check(candidate))
+            continue;
+        // Merge, so a misspelling in a heading keeps the heading's colour and
+        // weight and only gains the underline.
+        QTextCharFormat format = this->format(word.start);
+        format.setUnderlineStyle(m_spellFormat.underlineStyle());
+        format.setUnderlineColor(m_spellFormat.underlineColor());
+        setFormat(word.start, word.length, format);
     }
 }
 

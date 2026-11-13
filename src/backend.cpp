@@ -32,6 +32,8 @@
 #include <algorithm>
 
 #include "documentname.h"
+#include "spellchecker.h"
+#include "spellwords.h"
 #include "editorlayout.h"
 #include "markdownhighlighter.h"
 
@@ -183,6 +185,10 @@ void Backend::attachDocument(QObject *textDocument) {
     m_highlighter = new MarkdownHighlighter(m_document);
     m_highlighter->setDarkMode(m_darkMode);
     m_highlighter->setColors(m_themeBackground, m_themeForeground, m_themeAccent);
+    // Omalorem spell check (docs/SPEC.md §4.10). The checker is built here but
+    // reads no dictionary until the first word is checked, so a session with
+    // spell check off never pays for one.
+    applySpellChecker();
 
     connect(m_document, &QTextDocument::contentsChange, this,
             [this](int position, int, int charsAdded) {
@@ -821,6 +827,8 @@ const QString windowPlacement = QStringLiteral("window");
 const QString dockedPlacement = QStringLiteral("docked");
 const QString viewScaleSetting = QStringLiteral("view/textScale");
 const QString wideColumnSetting = QStringLiteral("view/wideColumn");
+const QString spellCheckSetting = QStringLiteral("editor/spellCheck");
+const QString spellLanguageSetting = QStringLiteral("editor/spellLanguage");
 const QString previewFontSetting = QStringLiteral("preview/font");
 const QString monoFont = QStringLiteral("mono");
 const QString quattroFont = QStringLiteral("quattro");
@@ -1089,6 +1097,105 @@ void Backend::toggleWideColumn() {
 
 int Backend::editorColumnWidth(qreal characterWidth, qreal windowWidth, bool wide) const {
     return ::editorColumnWidth(characterWidth, windowWidth, wide);
+}
+
+// --- Spell check (docs/SPEC.md §4.10) ---------------------------------------
+
+bool Backend::spellCheck() const {
+    if (!m_spellCheckLoaded) {
+        m_spellCheckLoaded = true;
+        m_spellCheck = QSettings().value(spellCheckSetting, true).toBool();
+    }
+    return m_spellCheck;
+}
+
+SpellChecker *Backend::spellChecker() const {
+    if (m_spellChecker)
+        return m_spellChecker;
+
+    auto *self = const_cast<Backend *>(this);
+    m_spellChecker = new SpellChecker(self);
+    // A language set by hand wins over the desktop's; otherwise the checker
+    // asks the locale itself, on the first word it is given.
+    const QString language = QSettings().value(spellLanguageSetting).toString();
+    if (!language.isEmpty())
+        m_spellChecker->setDictionary(SpellChecker::findDictionary(language));
+    connect(m_spellChecker, &SpellChecker::vocabularyChanged, self, [self]() {
+        if (self->m_highlighter)
+            self->m_highlighter->rehighlight();
+    });
+    return m_spellChecker;
+}
+
+void Backend::applySpellChecker() {
+    if (!m_highlighter)
+        return;
+    if (!spellCheck()) {
+        m_highlighter->setSpellChecker(nullptr);
+        return;
+    }
+    SpellChecker *checker = spellChecker();
+    m_highlighter->setSpellChecker(checker);
+    // Say so once, rather than leaving a document with no underlines looking
+    // like a feature that does not work.
+    if (!checker->available())
+        setStatus(checker->unavailableMessage());
+}
+
+void Backend::toggleSpellCheck() {
+    const bool on = !spellCheck();
+    m_spellCheck = on;
+    // On is the default, so it leaves nothing behind in the file.
+    if (on)
+        QSettings().remove(spellCheckSetting);
+    else
+        QSettings().setValue(spellCheckSetting, false);
+    applySpellChecker();
+    emit spellCheckChanged();
+}
+
+QString Backend::spellLanguage() const {
+    return spellChecker()->language();
+}
+
+QVariantMap Backend::misspellingAt(int position) const {
+    QVariantMap result;
+    if (!m_document || !spellCheck())
+        return result;
+
+    const QTextBlock block = m_document->findBlock(position);
+    if (!block.isValid())
+        return result;
+
+    const QString text = block.text();
+    const int offset = position - block.position();
+    const QList<SpellSkip> skip =
+        MarkdownHighlighter::spellSkipRanges(text, block.previous().userState());
+    SpellChecker *checker = spellChecker();
+    for (const SpellWord &word : spellWords(text, skip)) {
+        // The caret may sit at either end of the word, as it does when the
+        // click lands between two characters.
+        if (offset < word.start || offset > word.start + word.length)
+            continue;
+        const QString candidate = text.mid(word.start, word.length);
+        if (checker->check(candidate))
+            return result;
+        result.insert(QStringLiteral("start"), block.position() + word.start);
+        result.insert(QStringLiteral("length"), word.length);
+        result.insert(QStringLiteral("word"), candidate);
+        result.insert(QStringLiteral("suggestions"), checker->suggest(candidate));
+        return result;
+    }
+    return result;
+}
+
+void Backend::addToDictionary(const QString &word) {
+    spellChecker()->addToPersonal(word);
+    setStatus(QStringLiteral("Added %1 to your dictionary").arg(word));
+}
+
+void Backend::ignoreWord(const QString &word) {
+    spellChecker()->ignore(word);
 }
 
 // --- Document history (docs/SPEC.md §4.5) -----------------------------------

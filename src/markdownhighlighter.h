@@ -1,8 +1,13 @@
 #pragma once
 
 #include <QRegularExpression>
+#include <QPointer>
 #include <QSyntaxHighlighter>
 #include <QTextCharFormat>
+
+#include "spellwords.h"
+
+class SpellChecker;
 
 class MarkdownHighlighter : public QSyntaxHighlighter {
     Q_OBJECT
@@ -61,6 +66,14 @@ public:
     // skipped by the caret.
     static bool touchesMath(const InlineMarkup &item, const QList<MathSpan> &math);
 
+    // --- Omalorem spell check (docs/SPEC.md §4.10) -------------------------
+    // The ranges of a line that hold no prose: code spans, math, and link
+    // URLs. A line inside a fenced block is skipped whole, which the caller
+    // sees as a single range covering it.
+    static QList<SpellSkip> spellSkipRanges(const QString &text, int previousState);
+    // Whose words to check; null turns the underline off.
+    void setSpellChecker(SpellChecker *checker);
+
 protected:
     void highlightBlock(const QString &text) override;
 
@@ -70,6 +83,7 @@ private:
     void highlightInline(const QString &text);
     void highlightSearch(const QString &text);
     void highlightMath();
+    void highlightSpelling(const QString &text);
 
     bool m_darkMode = true;
     QString m_customBackground;
@@ -88,6 +102,8 @@ private:
     QTextCharFormat m_searchFormat;
     QTextCharFormat m_currentSearchFormat;
     QTextCharFormat m_mathFormat;
+    QTextCharFormat m_spellFormat;
+    QPointer<SpellChecker> m_spellChecker;
     // The math spans of the block being highlighted, for highlightInline.
     QList<MathSpan> m_blockMath;
 };
