@@ -71,11 +71,12 @@ u(x, t) = \frac{1}{\sqrt{4\pi\alpha t}} \int_{-\infty}^{\infty} e^{-\frac{(x-y)^
 $$
 ```
 
-> **Status:** 0.6.0. Everything planned for v1 is in — the preview window, math in the
+> **Status:** 0.7.0. Everything planned for v1 is in — the preview window, math in the
 > editor, PDF export and printing — plus links between your notes with back and forward
 > buttons in the preview, scroll sync both ways, a text size of Omalorem's own, a wide
 > column for when the two windows share a screen, a Save name taken cleanly from the
-> first line, and a new document in the window you are already in. Omalorem is
+> first line, a new document in the window you are already in, and spell check that
+> knows the difference between your prose and your code. Omalorem is
 > made for Omarchy and other tiling window managers; a docked single-window layout is only
 > a possible future feature. See [`docs/SPEC.md`](docs/SPEC.md) for the specification, its
 > future features and open questions, and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for
